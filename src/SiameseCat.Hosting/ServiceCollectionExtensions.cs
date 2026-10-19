@@ -1,0 +1,69 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using SiameseCat.Core;
+using SiameseCat.Drivers;
+using SiameseCat.Hosting;
+
+namespace Microsoft.Extensions.DependencyInjection;
+
+/// <summary>Dependency-injection registration for SiameseCat drivers.</summary>
+public static class ServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers the <see cref="DriverRegistry"/> with every built-in driver and, when logging is
+    /// available, an <see cref="IPlcLogger"/> that writes through <see cref="ILoggerFactory"/>.
+    /// </summary>
+    /// <param name="services">Target service collection.</param>
+    /// <returns>The same collection, for chaining.</returns>
+    public static IServiceCollection AddSiameseCat(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton(static _ => DriverRegistryExtensions.CreateDefaultRegistry());
+        services.TryAddSingleton<IPlcLogger>(static provider =>
+        {
+            var factory = provider.GetService<ILoggerFactory>();
+            return factory is null
+                ? NullPlcLogger.Instance
+                : new MicrosoftLoggerAdapter(factory.CreateLogger("SiameseCat"));
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a keyed transient driver that is resolved with <c>[FromKeyedServices("id")]</c> or by
+    /// <c>serviceProvider.GetRequiredKeyedService&lt;IPlcDriver&gt;("id")</c>.
+    /// </summary>
+    /// <param name="services">Target service collection.</param>
+    /// <param name="driverId">Driver id such as <c>modbus</c>, <c>siemens</c> or <c>inovance</c>.</param>
+    /// <param name="configure">Configures the connection settings.</param>
+    /// <param name="metrics">Optional metrics collector shared by every resolved driver.</param>
+    /// <returns>The same collection, for chaining.</returns>
+    public static IServiceCollection AddSiameseCatDriver(
+        this IServiceCollection services,
+        string driverId,
+        Action<DriverConfiguration> configure,
+        PlcMetrics? metrics = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(driverId);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        services.AddSiameseCat();
+        services.AddKeyedTransient<IPlcDriver>(driverId, (provider, key) =>
+        {
+            var registry = provider.GetRequiredService<DriverRegistry>();
+            var configuration = new DriverConfiguration();
+            configure(configuration);
+
+            return registry.Create(
+                (string)key!,
+                configuration,
+                provider.GetService<IPlcLogger>(),
+                metrics);
+        });
+
+        return services;
+    }
+}

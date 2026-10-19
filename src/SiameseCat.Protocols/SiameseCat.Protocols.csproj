@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SiameseCat.Protocols</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackageId>SiameseCat.Protocols</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>RabitLogic</Authors>
+    <Description>Protocol layer for SiameseCat: Modbus RTU/TCP and Siemens S7 framing, clients and the generic Modbus driver.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>plc;modbus;s7;siemens;protocol</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiameseCat.Core\SiameseCat.Core.csproj" />
+    <ProjectReference Include="..\SiameseCat.Transport\SiameseCat.Transport.csproj" />
+  </ItemGroup>
+
+</Project>

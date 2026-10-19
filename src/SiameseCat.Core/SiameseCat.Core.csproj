@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsAotCompatible>true</IsAotCompatible>
+    <RootNamespace>SiameseCat.Core</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>SiameseCat.Core</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>RabitLogic</Authors>
+    <Description>Core contracts and value model for SiameseCat industrial communication libraries: driver contracts, address/value model, retries, exceptions and transport abstractions.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>plc;communication;abstractions;contracts</PackageTags>
+  </PropertyGroup>
+
+</Project>

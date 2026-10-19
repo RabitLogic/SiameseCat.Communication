@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SiameseCat.Core\SiameseCat.Core.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Transport\SiameseCat.Transport.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Protocols\SiameseCat.Protocols.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Drivers\SiameseCat.Drivers.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Hosting\SiameseCat.Hosting.csproj" />
+  </ItemGroup>
+
+</Project>

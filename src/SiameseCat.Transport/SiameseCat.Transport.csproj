@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SiameseCat.Transport</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackageId>SiameseCat.Transport</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>RabitLogic</Authors>
+    <Description>Transport layer for SiameseCat: raw TCP and serial port ITransport implementations.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>plc;communication;transport;tcp;serialport</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiameseCat.Core\SiameseCat.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+</Project>

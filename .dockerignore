@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+artifacts/
+.aot-test/
+.git/
+.vs/
+.idea/
+TestResults/
+*.user

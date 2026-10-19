@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore SiameseCat.slnx
+
+      - name: Build
+        run: dotnet build SiameseCat.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test SiameseCat.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Pack
+        run: |
+          dotnet pack src/SiameseCat.Core/SiameseCat.Core.csproj --configuration Release --no-build --output artifacts
+          dotnet pack src/SiameseCat.Transport/SiameseCat.Transport.csproj --configuration Release --no-build --output artifacts
+          dotnet pack src/SiameseCat.Protocols/SiameseCat.Protocols.csproj --configuration Release --no-build --output artifacts
+          dotnet pack src/SiameseCat.Drivers/SiameseCat.Drivers.csproj --configuration Release --no-build --output artifacts
+          dotnet pack src/SiameseCat.Hosting/SiameseCat.Hosting.csproj --configuration Release --no-build --output artifacts
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/*.nupkg
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/test-results.trx'
+
+  native-aot:
+    name: Native AOT (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine runtime identifier
+        id: rid
+        shell: bash
+        run: |
+          case "${RUNNER_OS}-${RUNNER_ARCH}" in
+            Windows-X64)   rid=win-x64;   exe=SiameseCat.AotProbe.exe ;;
+            Windows-ARM64) rid=win-arm64; exe=SiameseCat.AotProbe.exe ;;
+            Linux-X64)     rid=linux-x64; exe=SiameseCat.AotProbe ;;
+            Linux-ARM64)   rid=linux-arm64; exe=SiameseCat.AotProbe ;;
+            macOS-X64)     rid=osx-x64;   exe=SiameseCat.AotProbe ;;
+            macOS-ARM64)   rid=osx-arm64; exe=SiameseCat.AotProbe ;;
+            *) echo "Unsupported runner: ${RUNNER_OS}-${RUNNER_ARCH}" >&2; exit 1 ;;
+          esac
+          echo "rid=$rid" >> "$GITHUB_OUTPUT"
+          echo "executable=$exe" >> "$GITHUB_OUTPUT"
+
+      - name: Install Native AOT prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish Native AOT
+        run: dotnet publish tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj --configuration Release --runtime ${{ steps.rid.outputs.rid }} -p:PublishAot=true -p:StripSymbols=true --output artifacts-aot
+
+      - name: Run AOT probe
+        shell: bash
+        run: ./artifacts-aot/${{ steps.rid.outputs.executable }}
+
+  native-aot-cross:
+    name: Native AOT cross-compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cross publish all supported RIDs
+        run: bash scripts/publish-aot.sh all
+
+      - name: Run Linux probes in Docker
+        run: |
+          bash scripts/run-aot-docker.sh linux-x64
+          bash scripts/run-aot-docker.sh linux-musl-x64

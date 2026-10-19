@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+artifacts/
+*.log
+publish/
+out/
+.aot-test/
+TestResults/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# OS
+.DS_Store
+Thumbs.db

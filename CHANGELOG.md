@@ -1,0 +1,60 @@
+# Changelog
+
+本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## [1.0.0] - 2026-10-18
+
+### 新增
+
+- **可插拔驱动架构**（`SiameseCat.Core`）：`IPlcDriver` 生命周期契约 + `IReadable` / `IWritable` / `IBatchReadable` / `ISubscribable` 能力接口；`DriverBase` 统一状态机（Disconnected → Connecting → Connected → Faulted）、事务锁、超时、重试、重连、日志与指标；`DriverRegistry` + `IPlcDriverFactory` 支持运行时发现与第三方插件。
+- **两层地址模型**：协议原生地址字符串由 `IPlcAddressParser` 解析为 `PlcAddress { Region, Offset, BitOffset?, DataType, Length }`；`PlcValue` / `PlcValueCodec` 提供协议无关的值与字节转换；`PlcTag` 提供命名、缩放与单位。
+- **Modbus 驱动**：`ModbusAddressParser` 支持 `40001` / `HR10` / `IR0` / `C0` / `DI0` 与 6 位参考号；`ModbusDriver` 由 TCP 与 RTU 共用 PDU、数据转换与批量合并逻辑，仅帧封装不同。
+- **西门子 S7 驱动**（`SiameseCat.Drivers.Siemens`）：`SiemensAddressParser` 将 `DB1.DBX0.0` / `MW2` / `IW4` 映射为统一地址；`SiemensDriver` 支持批量多变量读取，`readBatch` 自动使用 S7 原生多读。
+- **批量优化**：Modbus 自动合并同区域连续地址为单次请求；S7 使用多变量请求；`ReadBatchAsync` 保持请求顺序。
+- **汇川品牌驱动**（`SiameseCat.Drivers.Inovance`）：`InovanceAddressParser` 把 `D` / `M` / `X` / `Y` 软元件（`X`/`Y` 八进制）映射到 Modbus 保持寄存器、线圈与离散输入；`InovanceMapping` 允许按系列覆盖 `dBase` / `mBase` / `xBase` / `yBase`；底层复用协议层 `SiameseCat.Protocols.Modbus` 的 PDU、批量合并与数据转换。
+- **生态**：`IPlcLogger` / `PlcMetrics` / `PlcMetricsSnapshot`；`SiameseCat.Drivers` 品牌驱动包（含一次性注册入口）；演示程序新增 `driver` 命令。
+- `SiameseCat.Core`：`ITransport` 抽象、通讯异常体系、通用选项、重试策略、定长读取扩展。
+- `SiameseCat.Transport`：TCP 客户端传输（`TcpTransport`），支持连接超时、Nagle 开关、keep-alive 调优。
+- `SiameseCat.Transport`：可配置串口传输，取消读写时安全关闭端口。
+- `SiameseCat.Protocols`（Modbus）：Modbus RTU / TCP 主站，支持功能码 01/02/03/04/05/06/15/16/23。
+- `SiameseCat.Protocols`（Modbus）：CRC16、寄存器与 `short/ushort/int/uint/long/ulong/float/double/byte[]/string` 转换、字序切换。
+- `SiameseCat.Protocols`（S7）：ISO-on-TCP + COTP + S7 PDU 客户端，支持 DB/M/I/Q 区、位/字节/字/双字/浮点/字符串。
+- `SiameseCat.Protocols`（S7）：批量读写、PDU 协商与自动分片、`S7Address` 解析（含 `TryParse` 与值相等）。
+- 全部公共 API 提供 XML 文档（`CS1591` 启用），异常消息包含单元号、功能码和 S7 地址等上下文。
+- **Modbus 扩展**：驱动层新增 `ReadWriteRegistersAsync`（FC23 原子读写）；`unitId=0` 进入广播模式，写请求只发送不等待响应（读请求直接拒绝），`ModbusOptions.Validate()` 与 `DefaultUnitId` 同样接受 0。
+- **S7 位数组写**：新增 `S7Client.WriteBitsAsync(startAddress, bool[])`，连续位一次多变量写请求，自动按 PDU 分块，可跨字节边界；`S7Address.AddBits` 提供位地址推进。
+- **指标增强**：`PlcMetrics` 按操作（读 / 写 / 批量读 / 批量写 / 读写 / 健康探针）分别计数，延迟提供 `P50` / `P95` / `Max`（64 桶对数直方图，误差 ≤ 19%，无分配），失败按超时 / 连接断开 / 协议错误 / 其它分类；新增 `PlcDiagnostics`，通过 BCL 的 `System.Diagnostics.Metrics` 发布 `plc.requests`、`plc.failures`、`plc.retries`、`plc.bytes.*`、`plc.latency`（计量器名 `SiameseCat`），可直接由 OpenTelemetry 订阅。
+- **单次调用超时**：`IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` 新增带 `TimeSpan timeout` 的重载，可按调用覆盖 `Timeout`，适合大块数据读取或慢点位快速失败。
+- **宿主集成包**（`SiameseCat.Hosting`，可选）：`MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，AOT 友好）；`AddSiameseCat()` 注册 `DriverRegistry` 与日志适配器，`AddSiameseCatDriver(id, configure)` 以 keyed transient 方式解析驱动。
+- **重试与恢复**：请求与建连都按瞬时错误重试，退避为 `RetryDelay × 2^(n-1)`（上限 `MaxRetryDelay`，默认带 50–100% 抖动）；可选 Keep-Alive 探针在连续失败后自动重连，`PingAsync` 提供只返回布尔值的健康检查。
+- **批量写**：`IBatchWritable.WriteBatchAsync(IReadOnlyList<PlcWriteRequest>)`；Modbus 合并连续保持寄存器为 FC16、连续线圈为 FC15，S7 使用多变量写请求并按协商 PDU 自动分块。
+- **选项解析加固**：`DriverConfiguration` 新增 `GetByteOption` / `GetUInt16Option` / `GetBooleanOption` / `HasOption` 与带范围校验的 `GetOption`；`unitId`、`rack`、`slot` 不再静默截断，非法文本与越界值直接抛异常；S7 的 `rack`（0–7）与 `slot`（0–31）在创建时校验。
+- **UDP 传输**：新增 `UdpTransport` / `UdpTransportOptions`（连接式 UDP 套接字），可用于自定义数据报协议。
+- **文档**：新增「驱动选项」表（每个选项的适用驱动、取值、默认值与含义）。
+- 瞬时错误重试与自动重连；写操作默认不重试，可通过 `RetryWrites` 开启。
+- 超时/取消后的连接重同步策略，避免迟到响应污染后续请求。
+- 全部库支持 Native AOT：启用裁剪/AOT 分析器，`S7Address` 使用源生成正则，无反射与动态代码。
+- 新增 `tools/SiameseCat.AotProbe` 无硬件 AOT 探针和跨平台发布脚本，CI 在 win-x64/linux-x64/osx-arm64 上发布并运行。
+- 引入 `PublishAotCross.Tools`，支持从任意宿主交叉编译 win-x64/win-arm64、linux-x64/linux-arm64、linux-musl-x64/linux-musl-arm64、osx-x64/osx-arm64。
+- 新增 Docker 验证流程：交叉编译后在 glibc / Alpine 容器中运行探针。
+- 单元测试、内置 Modbus TCP 从站自测、CI 工作流（含 Native AOT 发布与运行）、SourceLink 与符号包。
+
+### 质量
+
+- **四层架构**：程序集按层划分——`SiameseCat.Core`（契约 + 模型）→ `SiameseCat.Transport`（TCP + 串口）→ `SiameseCat.Protocols`（Modbus / S7）→ `SiameseCat.Drivers`（Siemens / Inovance 品牌驱动），引用严格单向；程序集数量 7 → 4。SerialPort 不再单独成层，S7 与 Modbus 归入协议层，品牌驱动统一放在品牌层。
+- **命名空间跟随分层**：`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens` / `.Inovance`；驱动类统一品牌命名（`SiemensDriver` / `InovanceDriver`），协议类保留协议名（`S7Client` / `S7Address`）。
+- **目录收敛**：层内按协议/品牌分组，只保留有内容的目录（`Protocols/Modbus/{Clients,Drivers}`、`Protocols/S7/Clients`、`Drivers/{Siemens,Inovance}`），Core 固定为 `Addressing/` + `Drivers/` + `Transport/` + 库级公共类型；协议根目录直接放帧与地址模型，去掉 `Modbus/Protocol`、`S7/Addressing` 这类冗余嵌套。
+- **工程改名**：`SiameseCat.Integration` → `SiameseCat.Hosting`（宿主集成：DI + `Microsoft.Extensions.Logging`），`tools/SiameseCat.Tools` → `tools/SiameseCat.AotProbe`（名副其实的 AOT 探针），`MicrosoftPlcLogger` → `MicrosoftLoggerAdapter`；`AddSiameseCat()` 放入 `Microsoft.Extensions.DependencyInjection` 命名空间，`using Microsoft.Extensions.DependencyInjection;` 即可调用。
+- **模型命名统一**：`Tag` → `PlcTag`、`IAddressParser` → `IPlcAddressParser`，与 `PlcAddress` / `PlcValue` / `IPlcDriver` 前缀规则一致。
+- **Core 按领域组织**：Core 从「扁平 3 目录 + 根级散落类型」改为「契约与实现同域」——`Addressing/`（地址模型 + `IPlcAddressParser`）、`Diagnostics/`（`IPlcLogger` + 适配器/实现 + `PlcMetrics`）、`Drivers/Abstractions/`（驱动契约、描述符、状态）、`Drivers/Runtime/`（`DriverBase` 5 个 partial、注册表、配置）、`Exceptions/`（异常体系）、`Transport/`（`ITransport` + 助手）；一个公共类型一个文件（扩展类、异常类各自独立）。
+- **DriverBase 拆分**：从 819 行拆成 5 个分部文件——`DriverBase.cs`（契约与读写 API）、`DriverBase.Lifecycle.cs`（连接/断开/释放状态机）、`DriverBase.Execution.cs`（超时、重试、重连管线）、`DriverBase.Health.cs`（`PingAsync` 与 Keep-Alive）、`DriverBase.Subscription.cs`（轮询订阅），公共 API 未变。
+- **测试命名空间对齐目录**：`SiameseCat.Tests.Core` / `.Modbus` / `.Siemens` / `.Inovance` / `.Integration` / `.Fakes`，不再混用 `SiameseCat.Tests` 与 `.S7`。
+
+- 全部公共 API 补齐 XML 文档，启用 `CS1591` 检查（构建零警告），文档随 NuGet 包发布。
+- `S7Client` 按职责拆分为连接、读、写、协议四个 partial 文件，便于维护。
+- `ModbusRegisterConverter` 新增 `UInt64` / `Int64` 与原始字节数组转换；字符串先按 NUL 截断再解码，避免多字节编码被截断。
+- `S7Address` 实现 `IEquatable<S7Address>` 与 `==` / `!=`，可直接作为字典键；解析使用固定区域性。
+- Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
+- 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
+- 单元测试从 81 个增加到 95 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 252 个。
