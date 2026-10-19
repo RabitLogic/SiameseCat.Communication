@@ -3,7 +3,7 @@
 #   docker build -f tools/SiameseCat.AotProbe/Dockerfile -t siamesecat-aot-probe .
 #   docker buildx build --platform linux/arm64 -f tools/SiameseCat.AotProbe/Dockerfile -t siamesecat-aot-probe:arm64 .
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 
 ARG TARGETARCH
 
@@ -30,7 +30,7 @@ RUN arch="${TARGETARCH:-$(uname -m)}"; \
         -p:PublishAotCrossDebug=false \
         --output /app
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:8.0
+FROM mcr.microsoft.com/dotnet/runtime-deps:11.0
 
 WORKDIR /app
 COPY --from=build /app/ ./

@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Restore
         run: dotnet restore SiameseCat.slnx
@@ -64,7 +64,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Run .NET Framework compatibility runner
         run: dotnet run --project tests/SiameseCat.Compatibility/SiameseCat.Compatibility.csproj --configuration Release
@@ -84,7 +84,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Determine runtime identifier
         id: rid
@@ -123,7 +123,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Cross publish all supported RIDs
         run: bash scripts/publish-aot.sh all

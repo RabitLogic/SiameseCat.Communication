@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Satori GC entrypoint SDK: replaces the runtime and AOT packs used when publishing this probe. -->
+  <Sdk Name="PublishWithSatoriGC" Version="11.0.0-satori.38707303131.1" />
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <RootNamespace>SiameseCat.AotProbe</RootNamespace>
     <IsPackable>false</IsPackable>
     <AssemblyName>SiameseCat.AotProbe</AssemblyName>

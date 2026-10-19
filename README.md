@@ -368,6 +368,7 @@ registry.Register(new MyProtocolFactory());
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
 | Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、广播写与坏 CRC 丢弃；数据存储提供写入事件、快照/恢复/复位 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
+| GC | 可执行工程（探针、Demo）通过 `PublishWithSatoriGC` 入口 SDK 使用 Satori GC（`-p:UseSatoriGC=false` 可退回官方运行时）；类库与 GC 无关 |
 
 Modbus 支持的功能码：
 
@@ -524,6 +525,8 @@ dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 从站（联调
 ## Native AOT
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
+
+**GC**：探针与示例（`tools/SiameseCat.AotProbe`、`samples/SiameseCat.Demo`）通过 **Satori GC** 的入口 SDK `PublishWithSatoriGC`（`11.0.0-satori.*`）发布，因此这两个可执行工程的目标框架是 `net11.0`，发布产物中的 `coreclr`/`clrgc` 来自 Satori 运行时包；6 个类库包仍是 `net8.0` + `netstandard2.0`，与 GC 无关（GC 由宿主运行时决定）。发布时提供方会打印一条 `Satori GC is experimental` 警告；加 `-p:UseSatoriGC=false` 可退回官方运行时与编译器。
 
 `tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
 
@@ -1141,7 +1144,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 ### 版本与打包
 
-- 目标框架：`net8.0`（.NET 8 及以上宿主）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
+- 目标框架：类库为 `net8.0`（.NET 8 及以上宿主）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效。可执行工程（AOT 探针、Demo）为 `net11.0`，因为 Satori GC 的运行时包基于 .NET 11
 - **为什么不再为 net9.0 / net10.0 / net11.0 各出一份资产**：.NET 的 TFM 向后兼容，net9/10/11 的宿主会自动选用 `lib/net8.0`（已实测：net10.0 与 net11.0 项目加载的都是 `TargetFramework=.NETCoreApp,Version=v8.0` 的程序集）。只有当我们真的要用「仅在更高 TFM 才存在」的 API 时，才值得增加目标并配合 `#if NET9_0_OR_GREATER`；否则多出的资产内容完全相同，只会增加构建矩阵与包体积
 - 启用 .NET 分析器（`latest-recommended`）
 - 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
@@ -1151,7 +1154,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 ## 构建与测试
 
-解决方案使用 `.slnx` 格式，需要 .NET SDK 9.0.200 或更高版本（CI 使用 10.0.x 构建 `net8.0` 目标）。
+解决方案使用 `.slnx` 格式，需要 .NET SDK 11（可执行工程目标 `net11.0`；库仍构建 `net8.0` / `netstandard2.0`，CI 使用 `11.0.x`）。
 
 ```powershell
 dotnet build SiameseCat.slnx
