@@ -8,9 +8,24 @@ mistake.
 
 1. A NuGet.org account and an API key from <https://www.nuget.org/account/apikeys> with
    **Push new packages and package versions** for the `SiameseCat.Communication` package (or `*` while
-   the package does not exist yet).
-2. Add the key as the repository secret **`NUGET_API_KEY`**
-   (Settings → Secrets and variables → Actions → New repository secret).
+   the package does not exist yet). Copy the key once — nuget.org never shows it again.
+2. Store the key as the repository secret **`NUGET_API_KEY`** — one of:
+
+   ```powershell
+   # a) helper script: prompts without echoing, pipes straight into gh, verifies the name
+   gh auth login                       # once per machine; needs admin on the repository
+   ./scripts/set-nuget-secret.ps1 -Verify
+
+   # b) GitHub CLI directly
+   'oy2...' | gh secret set NUGET_API_KEY --repo RabitLogic/SiameseCat
+
+   # c) web UI
+   #    Settings → Secrets and variables → Actions → New repository secret
+   #    Name: NUGET_API_KEY   Secret: <the key>
+   ```
+
+   The value is never printed by the script, is not stored in shell history when you let it prompt, and
+   the workflow only reads it through `${{ secrets.NUGET_API_KEY }}`.
 3. Confirm the metadata that ends up in the `.nuspec` — id `SiameseCat.Communication`, version, authors,
    MIT license, repository URL, tags, the bundled `README.md` and the three assets
    `lib/net8.0`, `lib/net10.0`, `lib/netstandard2.0`.
@@ -118,7 +133,7 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 | Bad version already referenced | Publish a patch release; nuget.org versions are immutable |
 | Need to withdraw a version entirely | Use **Deprecate** with the replacement version — existing projects keep working, new restores warn |
 | Symbol push failed | Re-run the workflow with `--skip-duplicate`; the `.nupkg` push is skipped, the `.snupkg` is retried |
-| API key expired | Rotate the key on nuget.org and update the `NUGET_API_KEY` secret; no code change |
+| API key expired | Rotate the key on nuget.org and update the `NUGET_API_KEY` secret (`./scripts/set-nuget-secret.ps1`); no code change |
 
 ## 8. Release checklist
 
@@ -126,5 +141,5 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 - [ ] `dotnet build` and `dotnet test` are clean (0 warnings, 352 tests).
 - [ ] `./scripts/pack.ps1` passes the layout check and prints the SHA256.
 - [ ] The package was restored from a folder feed in a scratch project.
-- [ ] `NUGET_API_KEY` exists in the repository secrets.
+- [ ] `gh secret list --repo RabitLogic/SiameseCat` shows `NUGET_API_KEY`.
 - [ ] `git tag v<version>` matches the version you intend to publish.
