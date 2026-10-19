@@ -4,7 +4,7 @@
 
 面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)** 与 **.NET Standard 2.0**（可被 .NET Framework 4.8 等存量宿主引用）。
 
-> 深度文档（英文）：[架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与升级](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
+> 深度文档（英文）：[架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与升级](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
 按**分层**拆分程序集（4 层 + 1 个可选宿主集成 + 1 个可选从站包，共 6 个包），一层一个包，层内再按协议/品牌分组：
 

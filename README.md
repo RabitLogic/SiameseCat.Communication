@@ -19,6 +19,7 @@ Deeper documentation:
 - [Architecture and layering](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md)
 - [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md)
 - [Migration and upgrade notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
+- [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
 ## Packages
 
