@@ -987,6 +987,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 ### 版本与打包
 
 - 目标框架：`net8.0`（.NET 8 及以上宿主）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
+- **为什么不再为 net9.0 / net10.0 / net11.0 各出一份资产**：.NET 的 TFM 向后兼容，net9/10/11 的宿主会自动选用 `lib/net8.0`（已实测：net10.0 与 net11.0 项目加载的都是 `TargetFramework=.NETCoreApp,Version=v8.0` 的程序集）。只有当我们真的要用「仅在更高 TFM 才存在」的 API 时，才值得增加目标并配合 `#if NET9_0_OR_GREATER`；否则多出的资产内容完全相同，只会增加构建矩阵与包体积
 - 启用 .NET 分析器（`latest-recommended`）
 - 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
 - 集中包版本管理（`Directory.Packages.props`）
