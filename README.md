@@ -686,7 +686,7 @@ The solution uses the `.slnx` format and needs the .NET SDK 9.0.200 or later (CI
 dotnet build SiameseCat.slnx
 dotnet test SiameseCat.slnx
 
-# Coverage (CI enforces a 75% line-coverage gate, currently ~77%)
+# Coverage (CI enforces a 75% line-coverage gate, currently ~79%)
 dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
 # Samples: one folder per topic, every step runnable without hardware
@@ -710,6 +710,13 @@ dotnet run --project tests/SiameseCat.Compatibility -c Release
 
 # Benchmarks (BenchmarkDotNet; results go to BenchmarkDotNet.Artifacts/)
 dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
+
+# Build and verify all six packages (both TFMs + bundled README + SHA256)
+./scripts/pack.ps1
+
+# Override the version or push straight to a feed
+./scripts/pack.ps1 -Version 1.0.0-preview.1
+$env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
 ```
 
 Packaging: every library is packed for `net8.0` and `netstandard2.0`, with
