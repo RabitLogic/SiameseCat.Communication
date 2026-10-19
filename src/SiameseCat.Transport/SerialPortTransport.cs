@@ -1,13 +1,11 @@
 using System.Buffers;
-using System.IO.Ports;
 using SiameseCat.Core;
-using SerialPortDevice = System.IO.Ports.SerialPort;
 
 namespace SiameseCat.Transport;
 
 /// <summary>
 /// Raw serial port transport. Reads and writes are executed on the thread pool because
-/// <see cref="SerialPort"/> has no cancellable asynchronous API.
+/// <c>System.IO.Ports.SerialPort</c> has no cancellable asynchronous API.
 /// </summary>
 /// <remarks>
 /// Cancelling a pending read or write closes the port: this is the only reliable way to abort a
@@ -16,17 +14,33 @@ namespace SiameseCat.Transport;
 public sealed class SerialPortTransport : ITransport
 {
     private readonly SerialPortOptions _options;
+    private readonly Func<SerialPortOptions, ISerialConnection> _connectionFactory;
     private readonly SemaphoreSlim _stateGate = new(1, 1);
     private readonly SemaphoreSlim _ioGate = new(1, 1);
-    private SerialPortDevice? _port;
+    private ISerialConnection? _connection;
     private volatile bool _isOpen;
     private volatile bool _disposed;
 
-    /// <inheritdoc/>
+    /// <summary>Creates a transport that opens the serial port described by <paramref name="options"/>.</summary>
+    /// <param name="options">Port settings.</param>
     public SerialPortTransport(SerialPortOptions options)
+        : this(options, static settings => new SerialPortConnection(settings))
+    {
+    }
+
+    /// <summary>
+    /// Creates the transport over a custom connection. Used by the tests to drive the transport
+    /// through an in-memory link instead of a physical port.
+    /// </summary>
+    /// <param name="options">Port settings; only the timeouts and the name are read by the transport.</param>
+    /// <param name="connectionFactory">Creates the connection when the transport is opened.</param>
+    internal SerialPortTransport(
+        SerialPortOptions options,
+        Func<SerialPortOptions, ISerialConnection> connectionFactory)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
     /// <inheritdoc/>
@@ -47,40 +61,27 @@ public sealed class SerialPortTransport : ITransport
                 return;
             }
 
-            var port = new SerialPortDevice(
-                _options.PortName,
-                _options.BaudRate,
-                _options.Parity,
-                _options.DataBits,
-                _options.StopBits)
-            {
-                Handshake = _options.Handshake,
-                ReadTimeout = (int)_options.ReadTimeout.TotalMilliseconds,
-                WriteTimeout = (int)_options.WriteTimeout.TotalMilliseconds,
-                DtrEnable = _options.DtrEnable,
-                RtsEnable = _options.RtsEnable,
-                ReadBufferSize = _options.ReadBufferSize,
-            };
+            var connection = _connectionFactory(_options);
 
             try
             {
-                // SerialPort.Open is synchronous and not cancellable; cancellation is observed right after it returns.
-                await Task.Run(port.Open, CancellationToken.None).ConfigureAwait(false);
+                // Opening a port is synchronous and not cancellable; cancellation is observed right after it returns.
+                await Task.Run(connection.Open, CancellationToken.None).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
             }
             catch (OperationCanceledException)
             {
-                SafeClose(port);
+                SafeClose(connection);
                 throw;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
             {
-                SafeClose(port);
+                SafeClose(connection);
                 throw new CommunicationException(
                     $"Unable to open serial port '{_options.PortName}': {ex.Message}", ex);
             }
 
-            _port = port;
+            _connection = connection;
             _isOpen = true;
         }
         finally
@@ -101,10 +102,10 @@ public sealed class SerialPortTransport : ITransport
         try
         {
             _isOpen = false;
-            var port = Interlocked.Exchange(ref _port, null);
-            if (port is not null)
+            var connection = Interlocked.Exchange(ref _connection, null);
+            if (connection is not null)
             {
-                await Task.Run(() => SafeClose(port)).ConfigureAwait(false);
+                await Task.Run(() => SafeClose(connection)).ConfigureAwait(false);
             }
         }
         finally
@@ -123,8 +124,8 @@ public sealed class SerialPortTransport : ITransport
             return 0;
         }
 
-        var port = _port;
-        if (!_isOpen || port is null)
+        var connection = _connection;
+        if (!_isOpen || connection is null)
         {
             throw new ConnectionClosedException("The serial port is not open.");
         }
@@ -133,11 +134,11 @@ public sealed class SerialPortTransport : ITransport
         await _ioGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            EnsureSamePort(port);
+            EnsureSameConnection(connection);
 
             try
             {
-                var read = await RunIoAsync(port, () => port.Read(temp, 0, buffer.Length), cancellationToken)
+                var read = await RunIoAsync(connection, () => connection.Read(temp, 0, buffer.Length), cancellationToken)
                     .ConfigureAwait(false);
 
                 temp.AsSpan(0, read).CopyTo(buffer.Span);
@@ -150,7 +151,7 @@ public sealed class SerialPortTransport : ITransport
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
             {
-                MarkClosed(port);
+                MarkClosed(connection);
                 throw new ConnectionClosedException(
                     $"The serial port '{_options.PortName}' failed: {ex.Message}", ex);
             }
@@ -167,8 +168,8 @@ public sealed class SerialPortTransport : ITransport
     {
         Guard.NotDisposed(_disposed, this);
 
-        var port = _port;
-        if (!_isOpen || port is null)
+        var connection = _connection;
+        if (!_isOpen || connection is null)
         {
             throw new ConnectionClosedException("The serial port is not open.");
         }
@@ -178,15 +179,15 @@ public sealed class SerialPortTransport : ITransport
         await _ioGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            EnsureSamePort(port);
+            EnsureSameConnection(connection);
 
             try
             {
                 await RunIoAsync(
-                        port,
+                        connection,
                         () =>
                         {
-                            port.Write(temp, 0, buffer.Length);
+                            connection.Write(temp, 0, buffer.Length);
                             return true;
                         },
                         cancellationToken)
@@ -199,7 +200,7 @@ public sealed class SerialPortTransport : ITransport
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
             {
-                MarkClosed(port);
+                MarkClosed(connection);
                 throw new ConnectionClosedException(
                     $"The serial port '{_options.PortName}' failed: {ex.Message}", ex);
             }
@@ -214,8 +215,8 @@ public sealed class SerialPortTransport : ITransport
     /// <inheritdoc/>
     public void DiscardInput()
     {
-        var port = _port;
-        if (!_isOpen || port is null)
+        var connection = _connection;
+        if (!_isOpen || connection is null)
         {
             return;
         }
@@ -228,11 +229,11 @@ public sealed class SerialPortTransport : ITransport
 
         try
         {
-            port.DiscardInBuffer();
+            connection.DiscardInBuffer();
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
         {
-            MarkClosed(port);
+            MarkClosed(connection);
         }
         finally
         {
@@ -258,10 +259,10 @@ public sealed class SerialPortTransport : ITransport
 
             _disposed = true;
             _isOpen = false;
-            var port = Interlocked.Exchange(ref _port, null);
-            if (port is not null)
+            var connection = Interlocked.Exchange(ref _connection, null);
+            if (connection is not null)
             {
-                await Task.Run(() => SafeClose(port)).ConfigureAwait(false);
+                await Task.Run(() => SafeClose(connection)).ConfigureAwait(false);
             }
         }
         finally
@@ -273,7 +274,10 @@ public sealed class SerialPortTransport : ITransport
         _ioGate.Dispose();
     }
 
-    private async Task<T> RunIoAsync<T>(SerialPortDevice port, Func<T> operation, CancellationToken cancellationToken)
+    private async Task<T> RunIoAsync<T>(
+        ISerialConnection connection,
+        Func<T> operation,
+        CancellationToken cancellationToken)
     {
         var task = Task.Run(operation);
         try
@@ -284,7 +288,7 @@ public sealed class SerialPortTransport : ITransport
         {
             // Closing the port aborts the blocking call and guarantees that no half-written frame
             // is left behind for the next request.
-            MarkClosed(port);
+            MarkClosed(connection);
             try
             {
                 await task.ConfigureAwait(false);
@@ -298,17 +302,17 @@ public sealed class SerialPortTransport : ITransport
         }
     }
 
-    private void EnsureSamePort(SerialPortDevice port)
+    private void EnsureSameConnection(ISerialConnection connection)
     {
-        if (!_isOpen || !ReferenceEquals(_port, port))
+        if (!_isOpen || !ReferenceEquals(_connection, connection))
         {
             throw new ConnectionClosedException("The serial port was closed while the operation was pending.");
         }
     }
 
-    private void MarkClosed(SerialPortDevice expected)
+    private void MarkClosed(ISerialConnection expected)
     {
-        if (!ReferenceEquals(Interlocked.CompareExchange(ref _port, null, expected), expected))
+        if (!ReferenceEquals(Interlocked.CompareExchange(ref _connection, null, expected), expected))
         {
             return;
         }
@@ -317,13 +321,13 @@ public sealed class SerialPortTransport : ITransport
         SafeClose(expected);
     }
 
-    private static void SafeClose(SerialPortDevice port)
+    private static void SafeClose(ISerialConnection connection)
     {
         try
         {
-            if (port.IsOpen)
+            if (connection.IsOpen)
             {
-                port.Close();
+                connection.Close();
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
@@ -332,7 +336,7 @@ public sealed class SerialPortTransport : ITransport
         }
         finally
         {
-            port.Dispose();
+            connection.Dispose();
         }
     }
 }

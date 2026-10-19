@@ -81,8 +81,11 @@
 - `S7Address` 实现 `IEquatable<S7Address>` 与 `==` / `!=`，可直接作为字典键；解析使用固定区域性。
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
-- 新增 docs/tutorial.md：按 samples/SiameseCat.Samples 的目录分层编写的逐步教程（安装选包 → Modbus TCP/RTU → 全功能码 → 错误处理 → S7 → 驱动 → 从站 → 传输层 → 生产清单）。
-- 新增 docs/modbus-comparison.md：与 NModbus 3.0.83 / FluentModbus 5.3.2 的范围、特性矩阵与实测对比（同一从站、20000 次迭代、3 次中位数：10 寄存器读 SiameseCat 1536 B/op vs NModbus 2139/2401 B/op vs FluentModbus 470/1575 B/op）。
-- **示例重构**：samples/SiameseCat.Demo（单文件 387 行）→ samples/SiameseCat.Samples（Modbus/、S7/、Drivers/、Server/、Transports/ 五个目录 + 统一 ISample 契约 + 目录式 CLI）：list 列出目录、un <id> [--选项] 运行单步、selftest 跑完 17 个无硬件示例。每个示例都带内置仿真器，也支持 --host / --port / --com 直连真实设备。
+- 新增 `docs/tutorial.md`：按 `samples/SiameseCat.Samples` 的目录分层编写的逐步教程（安装选包 → Modbus TCP/RTU → 全功能码 → 错误处理 → S7 → 驱动 → 从站 → 传输层 → 生产清单）。
+- 新增 `docs/modbus-comparison.md`：与 NModbus 3.0.83 / FluentModbus 5.3.2 的范围、特性矩阵与实测对比（同一从站、20000 次迭代、3 次中位数：10 寄存器读 SiameseCat 1536 B/op vs NModbus 2139/2401 B/op vs FluentModbus 470/1575 B/op）。
+- **示例重构**：`samples/SiameseCat.Demo`（单文件 387 行）→ `samples/SiameseCat.Samples`（`Modbus/`、`S7/`、`Drivers/`、`Server/`、`Transports/` 五个目录 + 统一 `ISample` 契约 + 目录式 CLI）：`list` 列出目录、`run <id> [--选项]` 运行单步、`selftest` 跑完 17 个无硬件示例。每个示例都带内置仿真器，也支持 `--host` / `--port` / `--com` 直连真实设备。
+- **可测试的串口链路**：`SerialPortTransport` 抽出内部的 `ISerialConnection`（真实实现 `SerialPortConnection` 包装 `System.IO.Ports.SerialPort`），并新增 `InternalsVisibleTo("SiameseCat.Tests")`；无需硬件或虚拟串口驱动即可覆盖打开/关闭/超时/IO 错误/取消关闭端口/丢弃缓冲等全部路径，以及「Modbus RTU 客户端 → 串口传输 → 从站帧」的端到端往返（新增 16 个测试）。
+- **健康检查**：`SiameseCat.Hosting` 新增 `AddSiameseCatDriverCheck(...)`（`Microsoft.Extensions.Diagnostics.HealthChecks`），可直接挂到 ASP.NET Core `MapHealthChecks` / Kubernetes 探针：`Healthy`（探针应答）、`Unhealthy`（驱动故障或设备无应答）、`Degraded`（未配置 `ProbeAddress` 或探针被取消）；报告携带 `driver`/`state`/`requests`/`failures`/`retries`/失败分类/P50/P95。既支持由检查自持一个专用驱动，也支持监控应用已注册的驱动。
+- **长稳与故障注入工具**：新增 `tools/SiameseCat.Soak`——多个驱动经 TCP 代理（`FaultProxy` 定期切断链路、拒绝新连接）访问内置从站，逐秒输出 ops/成功率/托管堆/工作集/线程/句柄，结束时校验「最后一次故障后恢复、成功率、堆/句柄/线程增长」，退出码 0/1/2 可直接做 CI 门禁；CI 新增 `soak` 任务（每次推送跑 1 分钟）。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 356 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 378 个。

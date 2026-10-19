@@ -83,6 +83,23 @@ jobs:
             test-results/**/*.trx
             test-results/**/coverage.cobertura.xml
 
+  soak:
+    name: Soak (fault injection)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run the soak test
+        run: >
+          dotnet run --project tools/SiameseCat.Soak --configuration Release
+          -- --duration 00:01:00 --workers 4 --fault-period 00:00:10 --fault-duration 00:00:02
+
   dotnet-framework:
     runs-on: windows-latest
     timeout-minutes: 15

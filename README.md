@@ -429,6 +429,33 @@ await driver.ConnectAsync();
 - Without a registered logger the library falls back to `NullPlcLogger`.
 - Programmatic integration: `new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`.
 
+### Health checks
+
+`SiameseCat.Hosting` registers a health check per driver, so ASP.NET Core endpoints, Kubernetes probes
+and any `HealthCheckService` consumer can watch the PLC like any other dependency:
+
+```csharp
+services.AddHealthChecks()
+    .AddSiameseCatDriverCheck("modbus", configuration =>
+    {
+        configuration.Transport = TransportKind.Tcp;
+        configuration.Host = "192.168.0.10";
+        configuration.Timeout = TimeSpan.FromSeconds(2);
+        configuration.ProbeAddress = "40001";      // required: PingAsync reads this address
+    }, tags: new[] { "ready" });
+
+// map it next to the other liveness/readiness checks
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
+```
+
+- The check owns a dedicated singleton driver, connects it on demand and disposes it with the provider.
+- `Healthy` = the probe answered; `Unhealthy` = the driver is faulted or the device did not answer;
+  `Degraded` = the probe cannot run (`ProbeAddress` missing, or the check was cancelled).
+- The report carries `driver`, `state`, `requests`, `failures`, `retries`, failure kinds and the latency
+  percentiles, so dashboards need no extra plumbing.
+- To monitor a driver the application already owns, use the overload with an accessor:
+  `.AddSiameseCatDriverCheck("plc-main", sp => sp.GetRequiredKeyedService<IPlcDriver>("modbus"))`.
+
 Slaves can be hosted as well (`IModbusServer` / `IS7Server` singletons, started and stopped with the host):
 
 ```csharp
@@ -622,7 +649,11 @@ float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
 - **Timeouts and retries**: transient failures (timeout, closed connection, protocol error) are retried
   with exponential back-off plus jitter; writes are not retried unless `RetryWrites` is enabled.
 - **Health**: `PingAsync` performs a probe read (`ProbeAddress`); keep-alive reconnects after
-  `KeepAliveFailureThreshold` consecutive failures.
+  `KeepAliveFailureThreshold` consecutive failures. `AddSiameseCatDriverCheck(...)` exposes the same probe
+  as an ASP.NET Core / Kubernetes health check (see [Host integration](#host-integration-di--logging)).
+- **Soak and fault injection**: `tools/SiameseCat.Soak` runs several drivers against an in-process slave
+  behind a TCP proxy that drops the link on a schedule, then asserts recovery, success rate, managed-heap,
+  handle and thread growth. CI runs it for one minute on every push.
 - **Metrics**: `driver.Metrics.Snapshot()` returns per-operation counters and latency percentiles
   (P50/P95/max); `PlcDiagnostics` publishes `plc.requests`, `plc.failures`, `plc.retries`, `plc.bytes.*`
   and `plc.latency` through `System.Diagnostics.Metrics`, ready for OpenTelemetry.
@@ -668,6 +699,10 @@ dotnet run --project samples/SiameseCat.Samples -- run server/s7
 
 # Run every sample that has a built-in simulator (17 steps, ~10 s, exit code 1 on failure)
 dotnet run --project samples/SiameseCat.Samples -- selftest
+
+# Soak test with fault injection: recovery, success rate, memory/handle/thread growth
+dotnet run --project tools/SiameseCat.Soak -c Release -- --duration 00:01:00
+dotnet run --project tools/SiameseCat.Soak -c Release -- --help
 
 # Native AOT probe (the project enables PublishAot)
 dotnet run --project tools/SiameseCat.AotProbe

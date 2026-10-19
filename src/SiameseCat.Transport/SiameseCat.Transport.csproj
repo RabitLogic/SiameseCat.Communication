@@ -29,4 +29,8 @@
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SiameseCat.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -308,6 +308,29 @@ await using var driver = provider.GetRequiredKeyedService<IPlcDriver>("modbus");
 
 The slaves are registered as singletons plus an `IHostedService`, so a generic host starts and stops them.
 
+### Health checks (`drivers/hosting` and ASP.NET Core)
+
+```csharp
+services.AddHealthChecks()
+    .AddSiameseCatDriverCheck("modbus", configuration =>
+    {
+        configuration.Transport = TransportKind.Tcp;
+        configuration.Host = "192.168.0.10";
+        configuration.Timeout = TimeSpan.FromSeconds(2);
+        configuration.ProbeAddress = "40001";
+    }, tags: new[] { "ready" });
+```
+
+| Result | Meaning |
+| --- | --- |
+| `Healthy` | the driver is connected and the probe address answered |
+| `Unhealthy` | the driver is faulted or the device did not answer |
+| `Degraded` | the probe cannot run — `ProbeAddress` is missing, or the check was cancelled |
+
+The report carries `driver`, `state`, `requests`, `failures`, `retries`, failure kinds and latency
+percentiles. To watch a driver the application already owns, pass an accessor instead:
+`.AddSiameseCatDriverCheck("plc-main", sp => sp.GetRequiredKeyedService<IPlcDriver>("modbus"))`.
+
 ## 7. Slaves (`server/*`)
 
 ### Modbus TCP (`server/modbus-tcp`)
@@ -400,15 +423,26 @@ Event Counter, FC17 Report Server ID) — the same pattern works for vendor-spec
 ## 9. Production checklist
 
 1. **One driver per device, one `PlcMetrics`**, exposed through OpenTelemetry or your monitoring.
-2. **Set `ProbeAddress`** so `PingAsync` and keep-alive have something harmless to read.
+2. **Set `ProbeAddress`** so `PingAsync`, keep-alive and the health check have something harmless to read.
 3. **Configure retries** (`RetryCount`, `RetryDelay`, `MaxRetryDelay`) and leave `RetryWrites` off unless
    the device tolerates repeats.
-4. **Never call `ConnectAsync` per request.** Connect once and let the driver reconnect.
+4. **Never call `ConnectAsync` per request.** Connect once and let the driver reconnect; when a cycle fails
+   and the state is `Faulted`, call `ConnectAsync` again instead of retrying requests.
 5. **Batch adjacent tags** instead of looping single reads; publish the batch interval that the PLC tolerates.
 6. **Size the slave buffers** you simulate to the real device (a 256-register slave hides address bugs that
    a real 32-register device would expose).
 7. **Log frames only while diagnosing** (`LogFrames = true`), then turn it off.
 8. **Stay AOT-friendly**: no reflection over drivers; register factories explicitly.
+9. **Wire a health check** (`AddSiameseCatDriverCheck`) into `/health/ready` and the orchestrator probe.
+10. **Run the soak test** against the target topology before every release:
+
+    ```powershell
+    dotnet run --project tools/SiameseCat.Soak -c Release -- --duration 00:05:00 --workers 8
+    ```
+
+    It drives several drivers through a proxy that cuts the link on a schedule and then verifies recovery,
+    success rate, managed-heap growth, handle growth and thread growth. Exit code 1 means an invariant
+    broke; the per-second table shows where. Use `--fault-period 00:00:00` to measure a clean link.
 
 ## Where to go next
 
