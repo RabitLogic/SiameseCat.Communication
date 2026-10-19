@@ -3,7 +3,7 @@
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。`SiameseCat` 是组织名，本仓库对应产品包
 `SiameseCat.Communication`；后续产品（例如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
 
-## [1.0.0] - 未发布
+## [1.0.0] - 2026-10-19
 
 首个版本：Modbus RTU/TCP 与 Siemens S7 的主站/从站、可插拔驱动模型、传输抽象、单包发布。
 
