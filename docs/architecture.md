@@ -22,8 +22,8 @@ SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting (optional DI, logg
 | Transport | `SiameseCat.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
 | Protocol | `SiameseCat.Protocols` | Modbus frames/CRC/converters, `ModbusTcpClient` / `ModbusRtuClient`, `S7Client`, `ModbusDriver`, `ModbusAddressParser` |
 | Brand | `SiameseCat.Drivers` | `SiemensDriver` + `SiemensAddressParser`, `InovanceDriver` + `InovanceAddressParser` + `InovanceMapping` |
-| Host integration | `SiameseCat.Hosting` | `MicrosoftLoggerAdapter`, `AddSiameseCat()` / `AddSiameseCatDriver()`, `AddModbusServer()` / `AddModbusRtuServer()` |
-| Slave | `SiameseCat.Server` | `IModbusServer`, `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics` |
+| Host integration | `SiameseCat.Hosting` | `MicrosoftLoggerAdapter`, `AddSiameseCat()` / `AddSiameseCatDriver()`, `AddModbusServer()` / `AddModbusRtuServer()` / `AddS7Server()` |
+| Slave | `SiameseCat.Server` | `IModbusServer` / `IS7Server`, `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics`, `S7Server`, `S7PduProcessor`, `S7DataStore`, `S7ServerStatistics` |
 
 ## Core layout
 

@@ -48,6 +48,7 @@ internal static class Program
         failures += await CheckAsync("Batch subscription", CheckBatchSubscriptionAsync);
         failures += await CheckAsync("Slave data store", CheckDataStoreAsync);
         failures += await CheckAsync("Modbus slave hosting", CheckSlaveHostingAsync);
+        failures += await CheckAsync("S7 slave round trip", CheckS7SlaveAsync);
         failures += await CheckAsync("Transport injection", CheckTransportInjectionAsync);
         failures += await CheckAsync("Logging integration", CheckLoggingAsync);
 
@@ -507,6 +508,34 @@ internal static class Program
 
         await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
         Ensure(!server.IsRunning, "The hosted Modbus slave did not stop.");
+    }
+
+    private static async Task CheckS7SlaveAsync()
+    {
+        await using var server = new S7Server(new S7ServerOptions { Port = 0, DefaultDataBlockSize = 64 });
+        await server.StartAsync().ConfigureAwait(false);
+
+        await using var client = new S7Client(new S7Options
+        {
+            Host = "127.0.0.1",
+            Port = server.Port,
+            Timeout = TimeSpan.FromSeconds(2),
+            ConnectTimeout = TimeSpan.FromSeconds(2),
+        });
+
+        await client.ConnectAsync().ConfigureAwait(false);
+        Ensure(client.PduSize == 960, $"Unexpected negotiated PDU size ({client.PduSize}).");
+
+        await client.WriteSingleAsync(S7Address.Parse("DB1.DBD0"), 1.5f).ConfigureAwait(false);
+        var value = await client.ReadSingleAsync(S7Address.Parse("DB1.DBD0")).ConfigureAwait(false);
+        Ensure(Math.Abs(value - 1.5f) < 1e-6, "The S7 slave did not return the written value.");
+
+        await client.WriteBoolAsync(S7Address.Parse("M0.1"), true).ConfigureAwait(false);
+        Ensure(await client.ReadBoolAsync(S7Address.Parse("M0.1")).ConfigureAwait(false), "S7 bit write failed.");
+
+        Ensure(
+            server.Statistics.ReadRequests == 2 && server.Statistics.WriteRequests == 2,
+            "S7 slave statistics were not recorded.");
     }
 
     private static void Ensure(bool condition, string message)

@@ -5,8 +5,8 @@ using SiameseCat.Server;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-/// <summary>Dependency-injection registration for the in-process Modbus slaves.</summary>
-public static class ModbusServerServiceCollectionExtensions
+/// <summary>Dependency-injection registration for the in-process Modbus and S7 slaves.</summary>
+public static class SlaveServerServiceCollectionExtensions
 {
     /// <summary>
     /// Registers a Modbus TCP slave as a singleton <see cref="IModbusServer"/> and starts it with the host.
@@ -82,19 +82,66 @@ public static class ModbusServerServiceCollectionExtensions
         return services.AddModbusRtuServer(options);
     }
 
+    /// <summary>
+    /// Registers an S7 (ISO-on-TCP) slave as a singleton <see cref="IS7Server"/> and starts it with the host.
+    /// </summary>
+    /// <param name="services">Target service collection.</param>
+    /// <param name="options">Endpoint and memory settings.</param>
+    /// <returns>The same collection, for chaining.</returns>
+    public static IServiceCollection AddS7Server(this IServiceCollection services, S7ServerOptions options)
+    {
+        Guard.NotNull(services, nameof(services));
+        Guard.NotNull(options, nameof(options));
+
+        services.AddSiameseCat();
+        services.AddSingleton(provider =>
+        {
+            options.Logger ??= provider.GetService<IPlcLogger>();
+            return new S7Server(options);
+        });
+        services.AddSingleton<IS7Server>(provider => provider.GetRequiredService<S7Server>());
+        AddHostedService(services);
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an S7 (ISO-on-TCP) slave with a callback that configures its options.
+    /// </summary>
+    /// <param name="services">Target service collection.</param>
+    /// <param name="configure">Optional configuration callback.</param>
+    /// <returns>The same collection, for chaining.</returns>
+    public static IServiceCollection AddS7Server(
+        this IServiceCollection services,
+        Action<S7ServerOptions>? configure = null)
+    {
+        var options = new S7ServerOptions();
+        configure?.Invoke(options);
+        return services.AddS7Server(options);
+    }
+
     private static void AddHostedService(IServiceCollection services) =>
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ModbusServerHost>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, SlaveServerHost>());
 }
 
-internal sealed class ModbusServerHost : IHostedService
+internal sealed class SlaveServerHost : IHostedService
 {
-    private readonly IEnumerable<IModbusServer> _servers;
+    private readonly IEnumerable<IModbusServer> _modbusServers;
+    private readonly IEnumerable<IS7Server> _s7Servers;
 
-    public ModbusServerHost(IEnumerable<IModbusServer> servers) => _servers = servers;
+    public SlaveServerHost(IEnumerable<IModbusServer> modbusServers, IEnumerable<IS7Server> s7Servers)
+    {
+        _modbusServers = modbusServers;
+        _s7Servers = s7Servers;
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        foreach (var server in _servers)
+        foreach (var server in _modbusServers)
+        {
+            await server.StartAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (var server in _s7Servers)
         {
             await server.StartAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -102,9 +149,15 @@ internal sealed class ModbusServerHost : IHostedService
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        foreach (var server in _servers)
+        foreach (var server in _modbusServers)
+        {
+            await server.StopAsync().ConfigureAwait(false);
+        }
+
+        foreach (var server in _s7Servers)
         {
             await server.StopAsync().ConfigureAwait(false);
         }
     }
 }
+

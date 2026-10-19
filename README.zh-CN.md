@@ -15,7 +15,7 @@
 | `SiameseCat.Protocols` | 协议层 | Modbus（RTU/TCP）与 Siemens S7 的帧、客户端，以及通用 Modbus 驱动 | Core、Transport |
 | `SiameseCat.Drivers` | 品牌层 | Siemens / Inovance 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
 | `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器、`IServiceCollection` 注册与从站托管 | Core、Drivers、Server、`Microsoft.Extensions.*` |
-| `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23），含统计与日志，用于联调、仿真与集成测试 | Core、Protocols、Transport |
+| `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23）与 S7（ISO-on-TCP）从站，含统计与日志，用于联调、仿真与集成测试 | Core、Protocols、Transport |
 
 协议栈自行实现，不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
 
@@ -261,7 +261,7 @@ await driver.ConnectAsync();
 - 未注册日志时自动退化为 `NullPlcLogger`，因此宿主集成包不强制引入日志实现。
 - 单独使用适配器：`new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`。
 
-Modbus 从站也可以交给 DI 管理（注册为 `IModbusServer` 单例，随宿主自动启停）：
+Modbus 与 S7 从站也可以交给 DI 管理（注册为 `IModbusServer` / `IS7Server` 单例，随宿主自动启停）：
 
 ```csharp
 services.AddModbusServer(options =>
@@ -276,9 +276,16 @@ services.AddModbusRtuServer(options =>
     options.UnitId = 1;
     options.Serial.PortName = "COM3";
 });
+
+// 或 S7（ISO-on-TCP）从站
+services.AddS7Server(options =>
+{
+    options.Port = 0;
+    options.DefaultDataBlockSize = 1024;
+});
 ```
 
-- 两种从站都以 `IModbusServer` 注册，`provider.GetServices<IModbusServer>()` 可取到全部实例。
+- Modbus 从站以 `IModbusServer` 注册、S7 从站以 `IS7Server` 注册，`provider.GetServices<...>()` 可取到全部实例。
 - 内部注册一个 `IHostedService`，在宿主启动/停止时统一 `StartAsync` / `StopAsync`。
 - 未显式设置 `Logger` 时自动使用 DI 中的 `IPlcLogger`。
 
@@ -392,6 +399,7 @@ registry.Register(new MyProtocolFactory());
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
 | Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
+| S7 从站 | `SiameseCat.Server`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
@@ -428,8 +436,8 @@ broadcast.Options["unitId"] = "0";
 | 传输层 | `SiameseCat.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
 | 协议层 | `SiameseCat.Protocols` | Modbus（RTU/TCP）与 S7 的帧、客户端，以及通用 Modbus 驱动 |
 | 品牌层 | `SiameseCat.Drivers` | Siemens / Inovance 的品牌驱动与原生地址映射 |
-| 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器、DI 注册与从站托管（`AddModbusServer`），不参与分层依赖链 |
-| 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站（统一 `IModbusServer`），用于联调、仿真与集成测试；复用协议层 PDU 与传输层串口；提供按功能码统计与日志 |
+| 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器、DI 注册与从站托管（`AddModbusServer` / `AddS7Server`），不参与分层依赖链 |
+| 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站（`IModbusServer`）与 S7 从站（`IS7Server`），用于联调、仿真与集成测试；复用协议层 PDU/CRC 与传输层串口；提供统计与日志 |
 
 ```text
 src/
@@ -518,7 +526,7 @@ SiameseCat.Core            （契约 + 模型，无 I/O）
     └── SiameseCat.Protocols（Modbus、S7）
         └── SiameseCat.Drivers（Siemens、Inovance 品牌驱动）
 
-SiameseCat.Protocols ← SiameseCat.Server（可选：Modbus TCP/RTU 从站，复用协议层 PDU 与 CRC）
+SiameseCat.Protocols ← SiameseCat.Server（可选：Modbus TCP/RTU 与 S7 从站，复用协议层 PDU 与 CRC）
 SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting（可选：DI + 日志 + 从站托管）
 ```
 
@@ -543,14 +551,14 @@ dotnet add package SiameseCat.Protocols    # 只用协议层：Modbus、S7
 dotnet add package SiameseCat.Transport    # 只用传输层：TCP / UDP / 串口
 dotnet add package SiameseCat.Core         # 只实现自定义驱动
 dotnet add package SiameseCat.Hosting  # 可选：Microsoft.Extensions.Logging + 依赖注入
-dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 从站（联调 / 仿真）
+dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 与 S7 从站（联调 / 仿真）
 ```
 
 ## Native AOT
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
 
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、从站托管（DI 注册 + `IHostedService` 启停 + 统计计数）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
+`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、从站托管（DI 注册 + `IHostedService` 启停 + 统计计数）、S7 从站往返、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
 
 | RID | 格式 | 交叉工具链 |
 | --- | --- | --- |
@@ -987,6 +995,46 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 - 功能码覆盖与 TCP 从站完全一致（含 `07/0B/11/16`）；请求长度按功能码推断，掩码写（`16`）为 8 字节固定长度帧。
 - 也可以通过 `new ModbusRtuServer(ITransport, options)` 注入自定义链路（串口隧道或测试替身），便于在无硬件环境验证。
 
+### S7 从站（ISO-on-TCP）
+
+```csharp
+using SiameseCat.Server;
+using SiameseCat.Protocols.S7;
+
+await using var s7 = new S7Server(new S7ServerOptions
+{
+    Host = "127.0.0.1",
+    Port = 0,                     // 0 = 系统分配；真实 PLC 端口是 102
+    MemorySize = 512,             // M 区
+    InputSize = 512,              // I 区
+    OutputSize = 512,             // Q 区
+    DefaultDataBlockSize = 1024,  // 按需创建的 DB 大小
+});
+
+await s7.StartAsync();
+Console.WriteLine($"S7 从站监听 127.0.0.1:{s7.Port}");
+
+// 现有 S7 客户端无需任何改动即可连接
+await using var s7Client = new S7Client(new S7Options
+{
+    Host = "127.0.0.1",
+    Port = s7.Port,
+    Rack = 0,
+    Slot = 1,
+});
+
+await s7Client.ConnectAsync();
+await s7Client.WriteSingleAsync(S7Address.Parse("DB1.DBD0"), 12.5f);
+float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
+```
+
+- 处理 COTP 连接握手、Setup Communication（PDU 大小可配置，默认 960）、读变量（`0x04`）与写变量（`0x05`），支持多变量请求。
+- 区域：M、I、Q 与数据块；各区域大小固定，数据块默认按需创建（`AutoCreateDataBlocks`），也可用 `TryEnsureDataBlock` 预建。
+- 返回码遵循 S7 约定：`0x05` 地址越界、`0x0A` 对象不存在、`0x03` 拒绝访问（T/C 区）、`0x06` 数据错误；客户端侧表现为 `S7ItemException`。
+- 位访问使用位地址（`M0.3`、`DB1.DBX0.1`）；字节访问会把位地址除以 8。
+- 数据存储与 Modbus 一致：`ReadBytes` / `TryWriteBytes`、`TryReadBit` / `TryWriteBit`、`Written` 事件（含 `Values` / `PreviousValues`）与 `Reset()`。
+- `Statistics` 提供连接数、活动连接、Setup/读/写请求数、读写变量数、条目错误与丢弃帧；`S7ServerOptions.Logger` 输出诊断日志。
+
 ## 数据类型转换（Modbus）
 
 `ModbusRegisterConverter` 支持：
@@ -1213,7 +1261,7 @@ dotnet test SiameseCat.slnx
 # 覆盖率（CI 会做同样的事，行覆盖率低于 75% 会失败）
 dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
-# 无硬件自测：内置 Modbus TCP 从站（SiameseCat.Server）
+# 无硬件自测：内置 Modbus TCP 与 S7 从站（SiameseCat.Server）
 dotnet run --project samples/SiameseCat.Demo -- selftest
 
 # 可插拔驱动示例：注册表 + Modbus 驱动 + 批量读 + PlcTag

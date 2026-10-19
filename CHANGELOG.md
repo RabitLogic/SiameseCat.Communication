@@ -30,7 +30,7 @@
 - **原生订阅钩子**：新增 `protected virtual DoSubscribeAsync`，返回句柄即走协议原生订阅，返回 `null`（默认）时沿用轮询；订阅句柄释放时同时取消轮询并释放原生订阅。
 - **帧日志**：`LogFrames = true` 时协议客户端用 `LoggingTransport` 包装传输，以 `Trace` 级别输出 `TX` / `RX` 帧 hex（`CommunicationOptions.Logger` / `LogFrames`，AOT 友好、无反射）。
 - **地址与值模型扩展**：`PlcAddress.Symbol` + `PlcAddress.FromSymbol` 让 OPC UA / CIP / ADS 这类符号寻址协议不再退化到字符串拼接；`PlcValue.Quality`（`Good` / `Uncertain` / `Bad`）与 `PlcValue.Timestamp` 提供质量与采样时间，`DriverConfiguration.StampReadTimestamps` 可让每次读与批量读自动打 UTC 时间戳；质量/时间戳不参与相等性比较，轮询变更检测行为不变。
-- **多目标框架**：5 个库同时提供 `net8.0`（.NET 8 及以上）与 `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7），可被 .NET Framework 4.8 等存量宿主引用；新增共享 `Guard`（替代 net6+ 的 `ThrowIf*`）与 `IntervalTimer`（替代 `PeriodicTimer`），`netstandard2.0` 下正则回退到编译缓存实现、UDP 收发用 `ArrayPool` 桥接 Span API；`IsAotCompatible` 只对 `net8.0` 生效，AOT 发布改为只在探针项目启用 `PublishAot`。启用 `EnablePackageValidation` 保证两个 TFM 的公共 API 面一致。新增 `tests/SiameseCat.Compatibility`（net48 冒烟运行器，9 项检查）在 .NET Framework 4.8 上实际验证 netstandard2.0 资产，CI 增加对应 Windows 任务。
+- **多目标框架**：5 个库同时提供 `net8.0`（.NET 8 及以上）与 `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7），可被 .NET Framework 4.8 等存量宿主引用；新增共享 `Guard`（替代 net6+ 的 `ThrowIf*`）与 `IntervalTimer`（替代 `PeriodicTimer`），`netstandard2.0` 下正则回退到编译缓存实现、UDP 收发用 `ArrayPool` 桥接 Span API；`IsAotCompatible` 只对 `net8.0` 生效，AOT 发布改为只在探针项目启用 `PublishAot`。启用 `EnablePackageValidation` 保证两个 TFM 的公共 API 面一致。新增 `tests/SiameseCat.Compatibility`（net48 冒烟运行器，10 项检查）在 .NET Framework 4.8 上实际验证 netstandard2.0 资产，CI 增加对应 Windows 任务。
 - **Modbus TCP 从站**（`SiameseCat.Server`，可选）：`ModbusTcpServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、单元号回显与广播写（写生效不响应），用于无真实 PLC 时的联调、仿真与集成测试；演示程序、AOT 探针与 .NET Framework 兼容性运行器全部改用它，删除了三份重复的测试从站实现。
 - **数组与结构体类型**：`PlcAddress.Length` 对数值类型表示元素个数（`UInt16` × 10 = 10 个寄存器 / 20 字节），新增 `PlcValue.FromUInt16Array` / `FromInt32Array` / `FromFloatArray` 等 8 个数组工厂与对应 `As*Array()` 访问器；`IsArray` / `Length` / 按元素比较与克隆语义齐备，标量访问器对数组抛 `InvalidCastException`。Modbus 驱动按元素自动换算寄存器数（读写均支持），S7 驱动经 `PlcValueCodec` 数组编解码直接映射，批量读的分组计算也按数组宽度展开。
 - **Modbus RTU 从站**：新增 `ModbusRtuServer`，与 TCP 从站共用 `ModbusPduProcessor`，提供 RTU 组帧、CRC 校验（坏帧丢弃）、站号过滤、广播写与帧间隔超时；可通过 `ITransport` 注入自定义链路便于测试。`SiameseCat.Server` 因此依赖协议层（CRC）与传输层（串口）。
@@ -39,6 +39,7 @@
 - **Modbus 从站协议补齐**：新增 FC07 读异常状态、FC0B 读通信事件计数、FC11 报表服务器标识（`ServerIdentifier` / `RunIndicator`）与 FC16 掩码写保持寄存器；TCP 从站允许单字节 PDU（`07/0B/11` 请求仅 1 字节），RTU 从站按功能码推断帧长（掩码写 8 字节固定帧）。
 - **代码组织**：`ModbusDriver` 拆为 `ModbusDriver.cs`（生命周期与 FC23）、`.Read.cs`、`.Write.cs`、`.Conversion.cs` 四个 partial；`ModbusClientBase` 拆为 `ModbusClientBase.cs`（请求管线与帧解析）、`.Read.cs`、`.Write.cs`，公共 API 不变。
 - **工程化**：CI 测试步骤收集 XPlat 覆盖率并设 75% 行覆盖率门禁、上传 TRX 与 Cobertura 报告；新增 `.github/dependabot.yml`（NuGet 分组 + GitHub Actions 月度）与 `SECURITY.md`。
+- **S7 从站**：新增 `S7Server`（`IS7Server`）与 `S7DataStore`，处理 COTP 握手、Setup Communication（PDU 可配置）、读/写变量（含多变量、位、位数组、`STRING`），支持 M/I/Q/DB 区、按需创建数据块、`Written` 事件、`Reset()` 与 `S7ServerStatistics`；Hosting 新增 `AddS7Server()`。net48 运行器与 AOT 探针均增加 S7 从站往返检查。
 - **文档重构**：`README.md` 改为英文主文档（同时作为 NuGet 包内 README），原中文全文移至 `README.zh-CN.md`；新增 `docs/` 深度文档（[架构](docs/architecture.md)、[协议矩阵](docs/protocol-matrix.md)、[迁移与升级](docs/migration.md)），包内 README 用绝对 GitHub 链接指向它们；CI 新增文档链接检查与「包内必须包含 README.md」校验。
 - **基准测试**：新增 `benchmarks/SiameseCat.Benchmarks`（BenchmarkDotNet + `[MemoryDiagnoser]`），覆盖寄存器转换/CRC、地址解析（Modbus 参考号、命名地址、S7）与值编解码（标量、数组、相等性），结果目录已加入 `.gitignore`。
 - **从站可观测性**：`ModbusTcpServer` / `ModbusRtuServer` 都实现新的 `IModbusServer` 并暴露 `Statistics`（总请求、每功能码请求/异常、接收帧、丢弃帧），`ModbusServerOptions` / `ModbusRtuServerOptions` 新增 `Logger`（`IPlcLogger`），记录连接、丢弃帧、未知功能码与异常响应。
@@ -77,4 +78,4 @@
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 342 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 355 个。

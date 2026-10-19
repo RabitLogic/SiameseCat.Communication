@@ -8,11 +8,11 @@
     <PackageId>SiameseCat.Server</PackageId>
     <Version>1.0.0</Version>
     <Authors>RabitLogic</Authors>
-    <Description>Modbus TCP and RTU slaves for SiameseCat: simulate PLC registers and coils for integration tests, demos and offline development.</Description>
+    <Description>Modbus TCP/RTU and S7 (ISO-on-TCP) slaves for SiameseCat: simulate PLC registers, coils and data blocks for integration tests, demos and offline development.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>plc;modbus;slave;server;simulator;testing</PackageTags>
+    <PackageTags>plc;modbus;s7;slave;server;simulator;testing</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

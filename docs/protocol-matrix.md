@@ -113,6 +113,28 @@ and conversion rules apply.
 Bases are configurable per series through `InovanceMapping` (option keys `dBase`, `mBase`, `xBase`,
 `yBase`).
 
+## S7 slave (`SiameseCat.Server`)
+
+`S7Server` speaks ISO-on-TCP (TPKT + COTP + S7 PDU) and answers the same services the client uses:
+
+| Service | Function | Behaviour |
+| --- | --- | --- |
+| Setup Communication | `0xF0` | Returns the configured PDU size (default 960; range 240–960) |
+| Read Var | `0x04` | One result item per request item: `0xFF`, transport size, bit length, payload (padded to even) |
+| Write Var | `0x05` | One return code per request item; `0xFF` means success |
+
+- COTP: the connection request is answered with a Connection Confirm (TPDU size 1024).
+- Areas: `M` (`0x83`), `I` (`0x81`), `Q` (`0x82`) and data blocks (`0x84`). Timers/counters answer
+  `0x03` (access denied). Data blocks are created on demand unless `AutoCreateDataBlocks` is disabled.
+- Addressing: specifications always carry a 24-bit **bit** address; byte access divides it by eight.
+- Transport sizes accepted on writes and produced on reads: `BYTE`/`CHAR` (1 byte/element),
+  `WORD`/`INT` (2), `DWORD`/`DINT`/`REAL` (4). Unknown sizes answer `0x04`.
+- Return codes: `0xFF` success, `0x03` access denied, `0x04` data type not supported, `0x05` address out
+  of range, `0x06` data error, `0x0A` object does not exist.
+- `S7ServerStatistics` reports connections, active connections, setup/read/write requests, items read and
+  written, item errors and discarded frames.
+- `S7DataStore` exposes byte and bit access plus a `Written` event with previous values, and `Reset()`.
+
 ## Transports
 
 | Transport | Type | Highlights |

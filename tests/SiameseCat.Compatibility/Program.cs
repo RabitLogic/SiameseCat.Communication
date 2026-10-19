@@ -39,6 +39,7 @@ internal static class Program
         failures += await CheckAsync("Argument checks", CheckArgumentChecksAsync);
         failures += await CheckAsync("Modbus TCP round trip", CheckModbusTcpAsync);
         failures += await CheckAsync("Data store events", CheckDataStoreEventsAsync);
+        failures += await CheckAsync("S7 slave round trip", CheckS7ServerAsync);
         failures += await CheckAsync("Driver contract", CheckDriverAsync);
         failures += await CheckAsync("Frame logging", CheckFrameLoggingAsync);
 
@@ -190,6 +191,32 @@ internal static class Program
             coilWrite != null && coilWrite.Start == 40 && coilWrite.Values[0],
             "Coil write event was not raised.");
         return Task.CompletedTask;
+    }
+
+    private static async Task CheckS7ServerAsync()
+    {
+        await using (var slave = new S7Server(new S7ServerOptions { Port = 0, DefaultDataBlockSize = 32 }))
+        {
+            await slave.StartAsync().ConfigureAwait(false);
+
+            await using (var client = new SiameseCat.Protocols.S7.S7Client(new SiameseCat.Protocols.S7.S7Options
+            {
+                Host = "127.0.0.1",
+                Port = slave.Port,
+                Timeout = TimeSpan.FromSeconds(2),
+                ConnectTimeout = TimeSpan.FromSeconds(2),
+            }))
+            {
+                await client.ConnectAsync().ConfigureAwait(false);
+
+                var address = SiameseCat.Protocols.S7.S7Address.Parse("DB1.DBW4");
+                await client.WriteUInt16Async(address, 0x4321).ConfigureAwait(false);
+                var value = await client.ReadUInt16Async(address).ConfigureAwait(false);
+
+                Ensure(value == 0x4321, "The S7 slave did not return the written value.");
+                Ensure(slave.Statistics.ReadRequests == 1, "S7 statistics were not recorded.");
+            }
+        }
     }
 
     private static async Task CheckDriverAsync()

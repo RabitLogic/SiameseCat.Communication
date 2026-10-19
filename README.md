@@ -9,8 +9,8 @@ A lightweight .NET communication library for PLCs and industrial devices. It tar
   read/write, polling or native subscriptions, health probes and metrics.
 - **Protocols built in-house** — Modbus RTU/TCP, Siemens S7 (ISO-on-TCP + COTP + S7 PDU), Inovance
   (D/M/X/Y mapping onto Modbus), plus raw TCP, UDP and serial transports. No NModbus/Sharp7 dependency.
-- **Simulation included** — `SiameseCat.Server` ships Modbus TCP **and** RTU slaves with a thread-safe
-  data store, write events, snapshots and per-function-code statistics.
+- **Simulation included** — `SiameseCat.Server` ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
+  with thread-safe data stores, write events, snapshots and per-request statistics.
 - **Zero-warning, multi-target, Native AOT ready** — analyzer-clean builds, package validation for both
   TFMs, and an AOT probe that is published and executed in CI for Windows, Linux and macOS.
 
@@ -29,7 +29,7 @@ Deeper documentation:
 | `SiameseCat.Protocols` | Protocol | Modbus (RTU/TCP) and Siemens S7 frames/clients, generic Modbus driver | Core, Transport |
 | `SiameseCat.Drivers` | Brand | Siemens and Inovance drivers (native address mapping) + registration entry point | Core, Protocols |
 | `SiameseCat.Hosting` | Host integration (optional) | `Microsoft.Extensions.Logging` adapter, DI registration, slave hosting | Core, Drivers, Server, `Microsoft.Extensions.*` |
-| `SiameseCat.Server` | Slave (optional) | Modbus TCP/RTU slaves with statistics and logging, for integration tests and simulation | Core, Protocols, Transport |
+| `SiameseCat.Server` | Slave (optional) | Modbus TCP/RTU and S7 (ISO-on-TCP) slaves with statistics and logging, for integration tests and simulation | Core, Protocols, Transport |
 
 ## Install
 
@@ -406,7 +406,7 @@ await driver.ConnectAsync();
 - Without a registered logger the library falls back to `NullPlcLogger`.
 - Programmatic integration: `new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`.
 
-Slaves can be hosted as well (`IModbusServer` singletons, started and stopped with the host):
+Slaves can be hosted as well (`IModbusServer` / `IS7Server` singletons, started and stopped with the host):
 
 ```csharp
 services.AddModbusServer(options =>
@@ -419,6 +419,12 @@ services.AddModbusRtuServer(options =>
 {
     options.UnitId = 1;
     options.Serial.PortName = "COM3";
+});
+
+services.AddS7Server(options =>
+{
+    options.Port = 0;                          // ISO-on-TCP slave
+    options.DefaultDataBlockSize = 1024;
 });
 ```
 
@@ -534,6 +540,51 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
   (mask write is a fixed 8-byte frame).
 - `new ModbusRtuServer(ITransport, options)` injects a custom link (serial tunnel or test double).
 
+### S7 slave (ISO-on-TCP)
+
+```csharp
+using SiameseCat.Server;
+
+await using var s7 = new S7Server(new S7ServerOptions
+{
+    Host = "127.0.0.1",
+    Port = 0,                    // 0 = OS-assigned; 102 is the real PLC port
+    MemorySize = 512,            // M area
+    InputSize = 512,             // I area
+    OutputSize = 512,            // Q area
+    DefaultDataBlockSize = 1024, // size used when a DB is created on demand
+});
+
+await s7.StartAsync();
+Console.WriteLine($"S7 slave listening on 127.0.0.1:{s7.Port}");
+
+// The regular S7 client talks to it unchanged.
+await using var s7Client = new S7Client(new S7Options
+{
+    Host = "127.0.0.1",
+    Port = s7.Port,
+    Rack = 0,
+    Slot = 1,
+});
+
+await s7Client.ConnectAsync();
+await s7Client.WriteSingleAsync(S7Address.Parse("DB1.DBD0"), 12.5f);
+float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
+```
+
+- Handles the COTP connection handshake, Setup Communication (PDU size configurable, default 960),
+  read variable (`0x04`) and write variable (`0x05`) services, including multi-variable requests.
+- Areas: M, I, Q and data blocks. Each area has a fixed size; data blocks are created on first use
+  (`AutoCreateDataBlocks`, default `true`) unless you pre-create them with `TryEnsureDataBlock`.
+- Return codes follow S7 conventions: `0x05` address out of range, `0x0A` object does not exist,
+  `0x03` access denied (timer/counter areas), `0x06` data error. Item-level errors surface as
+  `S7ItemException` on the client.
+- Bits use bit addressing (`M0.3`, `DB1.DBX0.1`); byte-oriented items divide the bit address by eight.
+- The data store mirrors the Modbus one: byte-level `ReadBytes`/`TryWriteBytes`,
+  `TryReadBit`/`TryWriteBit`, a `Written` event with `Values`/`PreviousValues`, and `Reset()`.
+- `Statistics` reports connections, active connections, setup/read/write request counts, items read and
+  written, item errors and discarded frames; `S7ServerOptions.Logger` receives the diagnostics.
+
 ## Reliability
 
 - **Lifecycle**: `Disconnected → Connecting → Connected → Faulted`, exposed through `State` and
@@ -553,9 +604,9 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 
 All libraries enable `IsAotCompatible`; there is no reflection, `dynamic`, runtime serialization or code
 generation, and `S7Address` uses a source-generated regex. `tools/SiameseCat.AotProbe` is a
-hardware-free probe covering 14 scenarios (CRC, register conversion, address parsing, TCP loopback,
-Modbus round trips, numeric arrays, batch subscription, slave data store, DI hosting, transport
-injection, logging). It uses **PublishAotCross.Tools**, so every supported RID can be cross-compiled from
+hardware-free probe covering 15 scenarios (CRC, register conversion, address parsing, TCP loopback,
+Modbus round trips, numeric arrays, batch subscription, slave data store, DI hosting, S7 slave round
+trip, transport injection, logging). It uses **PublishAotCross.Tools**, so every supported RID can be cross-compiled from
 any host (win-x64/arm64, linux-x64/arm64, linux-musl-x64/arm64, osx-x64/arm64).
 
 ```powershell
@@ -579,7 +630,7 @@ dotnet test SiameseCat.slnx
 # Coverage (CI enforces a 75% line-coverage gate, currently ~77%)
 dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
-# Hardware-free self test using the built-in Modbus TCP slave
+# Hardware-free self test using the built-in Modbus TCP and S7 slaves
 dotnet run --project samples/SiameseCat.Demo -- selftest
 
 # Driver example: registry + Modbus driver + batch read + PlcTag

@@ -34,6 +34,38 @@ public class ModbusServerHostingTests
     }
 
     [Fact]
+    public async Task AddS7Server_RegistersAndStartsTheS7Slave()
+    {
+        var services = new ServiceCollection();
+        services.AddS7Server(options => options.Port = 0);
+
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<IS7Server>();
+        Assert.IsType<S7Server>(server);
+        Assert.False(server.IsRunning);
+
+        await provider.GetRequiredService<IHostedService>().StartAsync(CancellationToken.None);
+        Assert.True(server.IsRunning);
+
+        server.Data.TryWriteBytes(SiameseCat.Protocols.S7.S7Area.Merkers, 0, 0, new byte[] { 0x12, 0x34 });
+
+        await using var client = new SiameseCat.Protocols.S7.S7Client(new SiameseCat.Protocols.S7.S7Options
+        {
+            Host = "127.0.0.1",
+            Port = ((S7Server)server).Port,
+            Timeout = TimeSpan.FromSeconds(2),
+            ConnectTimeout = TimeSpan.FromSeconds(2),
+        });
+
+        await client.ConnectAsync();
+        var value = await client.ReadUInt16Async(SiameseCat.Protocols.S7.S7Address.Parse("MW0"));
+        Assert.Equal((ushort)0x1234, value);
+
+        await provider.GetRequiredService<IHostedService>().StopAsync(CancellationToken.None);
+        Assert.False(server.IsRunning);
+    }
+
+    [Fact]
     public async Task AddModbusServer_RegistersOneHostedService()
     {
         var services = new ServiceCollection();

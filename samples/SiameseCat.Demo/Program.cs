@@ -112,6 +112,29 @@ internal static class Program
         var address = S7Address.Parse("DB1.DBX2.3");
         Ensure(address.BitAddress == 19, "S7 地址解析");
 
+        Console.WriteLine("== S7 自测（内置 S7 从站）==");
+        await using (var s7Server = new S7Server(new S7ServerOptions { Port = 0, DefaultDataBlockSize = 64 }))
+        {
+            await s7Server.StartAsync();
+            await using var s7Client = new S7Client(new S7Options
+            {
+                Host = "127.0.0.1",
+                Port = s7Server.Port,
+                Rack = 0,
+                Slot = 1,
+                Timeout = TimeSpan.FromSeconds(2),
+                ConnectTimeout = TimeSpan.FromSeconds(2),
+            });
+
+            await s7Client.ConnectAsync();
+            await s7Client.WriteSingleAsync(S7Address.Parse("DB1.DBD0"), 1.25f);
+            var speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
+            Ensure(Math.Abs(speed - 1.25f) < 1e-6, "S7 DB 读写");
+
+            await s7Client.WriteBoolAsync(S7Address.Parse("M0.1"), true);
+            Ensure(await s7Client.ReadBoolAsync(S7Address.Parse("M0.1")), "S7 位读写");
+        }
+
         Console.WriteLine("自测通过。");
     }
 
