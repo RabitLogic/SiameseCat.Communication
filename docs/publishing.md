@@ -1,39 +1,54 @@
 # Publishing
 
-The package is `SiameseCat.Communication`. This page covers the three ways to publish it — from a tag in
-CI, by hand from a workstation, or to a private feed — plus the pre-release checks and how to undo a
-mistake.
+The package is `SiameseCat.Communication`. CI publishes it with **NuGet Trusted Publishing** — no
+long-lived API key is stored in the repository. This page covers the one-time nuget.org setup, the
+tag-driven release, manual publishing from a workstation, private feeds and how to undo a mistake.
 
-## 1. Prerequisites
+## How Trusted Publishing works
 
-1. A NuGet.org account and an API key from <https://www.nuget.org/account/apikeys> with
-   **Push new packages and package versions** for the `SiameseCat.Communication` package (or `*` while
-   the package does not exist yet). Copy the key once — nuget.org never shows it again.
-2. Store the key as the repository secret **`NUGET_API_KEY`** — one of:
+1. GitHub Actions issues a signed OIDC token for the repository, workflow file and ref.
+2. The workflow sends it to nuget.org (`NuGet/login@v1`).
+3. nuget.org checks it against the trusted publishing policy registered for this repository and returns a
+   **temporary API key valid for one hour**.
+4. The workflow pushes the packages with that key.
 
-   ```powershell
-   # a) helper script: prompts without echoing, pipes straight into gh, verifies the name
-   gh auth login                       # once per machine; needs admin on the repository
-   ./scripts/set-nuget-secret.ps1 -Verify
+The key is short-lived, is never stored anywhere and cannot be leaked from the repository. One token
+yields one key, so the login step sits right before the push.
 
-   # b) GitHub CLI directly
-   'oy2...' | gh secret set NUGET_API_KEY --repo RabitLogic/SiameseCat
+## 1. One-time setup on nuget.org
 
-   # c) web UI
-   #    Settings → Secrets and variables → Actions → New repository secret
-   #    Name: NUGET_API_KEY   Secret: <the key>
-   ```
+1. Sign in to <https://www.nuget.org> with an account that can publish for the **RabitLogic** owner.
+2. Open **Trusted Publishing** (<https://www.nuget.org/account/trustedpublishing>) and create a policy:
 
-   The value is never printed by the script, is not stored in shell history when you let it prompt, and
-   the workflow only reads it through `${{ secrets.NUGET_API_KEY }}`.
-3. Confirm the metadata that ends up in the `.nuspec` — id `SiameseCat.Communication`, version, authors,
-   MIT license, repository URL, tags, the bundled `README.md` and the three assets
-   `lib/net8.0`, `lib/net10.0`, `lib/netstandard2.0`.
+   | Field | Value |
+   | --- | --- |
+   | Policy name | `SiameseCat.Communication release` (any label) |
+   | Package Owner | `RabitLogic` |
+   | CI/CD Provider | `GitHub Actions` |
+   | Repository Owner | `RabitLogic` |
+   | Repository | `SiameseCat` |
+   | Workflow File | `release.yml` — the **file name only**, not `.github/workflows/release.yml` |
+   | Environment | leave **empty** (the workflow does not use environments; fill it only if you add `environment:` to the job) |
+   | Scopes | **Push new packages and package versions** (switch to *Push only new package versions* after the first release) |
+   | Glob patterns | `SiameseCat.Communication` (`*` also works while the package does not exist yet) |
+
+   The owner, repository and workflow file are matched case-insensitively against the run that requests
+   the token, so a mismatch (including a renamed workflow file) is the most common cause of a failed push.
+
+3. In the GitHub repository, add a **variable** (Settings → Secrets and variables → Actions → Variables):
+
+   | Name | Value |
+   | --- | --- |
+   | `NUGET_USER` | your nuget.org **profile name** (username), not the email address |
+
+   A secret named `NUGET_USER` is also accepted; nothing sensitive is involved, a variable is enough.
+
+No `NUGET_API_KEY` secret is needed. The workflow requests `id-token: write`, which is the only
+permission nuget.org relies on.
 
 ## 2. Pre-release checks (local)
 
 ```powershell
-# Build, test, format, pack, layout check, SHA256 — fails on any problem
 dotnet build SiameseCat.slnx -c Release
 dotnet test SiameseCat.slnx -c Release --no-build
 dotnet format SiameseCat.slnx --verify-no-changes
@@ -51,15 +66,16 @@ Pop-Location
 
 `pack.ps1` refuses to finish if an asset or `README.md` is missing, and prints the SHA256 of every package.
 
-## 3. Publish from a tag (recommended)
+## 3. Publish from a tag (the normal path)
 
 [.github/workflows/release.yml](../.github/workflows/release.yml) runs when a `v*` tag is pushed:
 
 1. restore, Release build, all 352 tests, framework matrix on .NET 8 and .NET 10;
 2. pack with the version taken from the tag (a tag `v1.0.0` produces `1.0.0`);
 3. verify the three assets and `README.md` are inside the `.nupkg`;
-4. push `.nupkg` + `.snupkg` to nuget.org with `--skip-duplicate`;
-5. create the GitHub release and attach both files.
+4. `NuGet/login@v1` exchanges the OIDC token for a one-hour API key;
+5. push `.nupkg` + `.snupkg` to nuget.org with `--skip-duplicate`;
+6. create the GitHub release and attach both files.
 
 ```powershell
 # 1. Update CHANGELOG.md, commit and push the code
@@ -72,27 +88,26 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Watch the run under **Actions → Release**. The package becomes visible on nuget.org a few minutes after
-the push (indexing delay), and the symbol package enables step-into debugging from SourceLink.
+Watch **Actions → Release**. The package appears on nuget.org a few minutes after the push (indexing
+delay); the symbol package enables step-into debugging through SourceLink.
 
-You can also start the workflow manually (**Actions → Release → Run workflow**) and type a version; it
-publishes without creating a GitHub release.
+A manual run (**Actions → Release → Run workflow**) can pass a version and publishes without creating a
+GitHub release. It uses the same trusted publishing policy, because the policy matches the workflow file
+rather than the trigger.
 
-## 4. Publish by hand
+## 4. Publish by hand (workstation)
+
+Trusted Publishing only works from CI, so a manual push still needs a normal API key from
+<https://www.nuget.org/account/apikeys> with *Push new packages and package versions*:
 
 ```powershell
-$env:NUGET_API_KEY = 'oy2...'                      # from nuget.org
+$env:NUGET_API_KEY = 'oy2...'
 
-# Package only (no push)
-./scripts/pack.ps1
-
-# Package and push to nuget.org
-./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
-
-# Pre-release or a version bump
+./scripts/pack.ps1                                                     # package only
+./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json           # pack + push
 ./scripts/pack.ps1 -Version 1.0.1-preview.1 -Push https://api.nuget.org/v3/index.json
 
-# Equivalent raw commands, if you prefer dotnet directly
+# Equivalent raw commands
 dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Release -o artifacts
 dotnet nuget push artifacts/SiameseCat.Communication.1.0.0.nupkg `
   --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
@@ -100,15 +115,15 @@ dotnet nuget push artifacts/SiameseCat.Communication.1.0.0.snupkg `
   --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
 ```
 
-`--skip-duplicate` makes re-runs harmless: an already published version is reported and skipped instead of
-failing the pipeline.
+Keep that key in a password manager or your user profile — never in the repository, never in a workflow
+file. `--skip-duplicate` makes re-runs harmless.
 
 ## 5. Publish to a private feed
 
 | Feed | Command |
 | --- | --- |
 | Folder (file share, USB, artifact drop) | `./scripts/pack.ps1 -Push \\server\feed` |
-| Azure Artifacts | `./scripts/pack.ps1 -Push https://pkgs.dev.azure.com/<org>/_packaging/<feed>/nuget/v3/index.json` (key `az` or a PAT in `NUGET_API_KEY`) |
+| Azure Artifacts | `./scripts/pack.ps1 -Push https://pkgs.dev.azure.com/<org>/_packaging/<feed>/nuget/v3/index.json` |
 | Nexus / Artifactory | `./scripts/pack.ps1 -Push https://nexus.example/repository/nuget-hosted/` |
 | Local verification | `./scripts/pack.ps1 -Push "$env:TEMP\siamesecat-feed"` |
 
@@ -127,13 +142,15 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 
 ## 7. If something goes wrong
 
-| Situation | Action |
+| Symptom | Cause and fix |
 | --- | --- |
-| Wrong package pushed, version not yet consumed | On nuget.org open the package → **Unlist** (it stays restorable by exact version) and publish a corrected patch version |
-| Bad version already referenced | Publish a patch release; nuget.org versions are immutable |
-| Need to withdraw a version entirely | Use **Deprecate** with the replacement version — existing projects keep working, new restores warn |
-| Symbol push failed | Re-run the workflow with `--skip-duplicate`; the `.nupkg` push is skipped, the `.snupkg` is retried |
-| API key expired | Rotate the key on nuget.org and update the `NUGET_API_KEY` secret (`./scripts/set-nuget-secret.ps1`); no code change |
+| `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat`, workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
+| Workflow ran but the policy did not match | Renaming the workflow file or moving the job under a different `environment:` breaks the match; update the policy accordingly. |
+| Pushed a wrong version that nobody consumes yet | On nuget.org open the package → **Unlist**; it stays restorable by exact version. Publish a corrected patch. |
+| Bad version already referenced | nuget.org versions are immutable — publish a patch release. |
+| Need to withdraw a version entirely | Use **Deprecate** with the replacement version; existing projects keep restoring, new restores warn. |
+| Symbol push failed | Re-run the workflow: the `.nupkg` push is skipped (`--skip-duplicate`) and the `.snupkg` is retried with a fresh key. |
+| Local push rejected | The key is missing, expired or lacks the *Push new packages* scope; trusted publishing never applies outside CI. |
 
 ## 8. Release checklist
 
@@ -141,5 +158,6 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 - [ ] `dotnet build` and `dotnet test` are clean (0 warnings, 352 tests).
 - [ ] `./scripts/pack.ps1` passes the layout check and prints the SHA256.
 - [ ] The package was restored from a folder feed in a scratch project.
-- [ ] `gh secret list --repo RabitLogic/SiameseCat` shows `NUGET_API_KEY`.
+- [ ] The Trusted Publishing policy exists for `RabitLogic/SiameseCat` + `release.yml` and the
+      `NUGET_USER` variable is set.
 - [ ] `git tag v<version>` matches the version you intend to publish.

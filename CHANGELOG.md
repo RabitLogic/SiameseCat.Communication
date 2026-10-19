@@ -23,7 +23,7 @@
   在 glibc 与 Alpine 容器中执行。
 - 包内附带 `README.md`（`PackageReadmeFile`）与 XML 文档，启用 SourceLink 并同时产出 `.snupkg`。
 - `scripts/pack.ps1` 一条命令完成构建、打包、三资产/README 校验、输出大小与 SHA256，并可选 `-Version` 覆盖版本、`-Push` 直接推送。
-- 发布：新增 `.github/workflows/release.yml`（推送 `v*` 标签即构建 → 测试 → 框架矩阵 → 打包 → 推送 nuget.org → 创建 GitHub Release），以及 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)（前置条件、本地预检、手工发布、私有源、回滚与发布清单）；`scripts/pack.ps1 -Push` 支持 nuget.org、Azure Artifacts、Nexus 与文件夹源，`scripts/set-nuget-secret.ps1` 以不回显的方式把 API Key 写入仓库 Secret。
+- 发布：新增 `.github/workflows/release.yml`（推送 `v*` 标签即构建 → 测试 → 框架矩阵 → 打包 → 推送 nuget.org → 创建 GitHub Release），采用 **NuGet Trusted Publishing**（GitHub OIDC 令牌换取 1 小时临时 API Key，仓库不保存密钥，只需配置 `NUGET_USER` 变量与 nuget.org 策略）；配套 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)（策略配置、本地预检、手工发布、私有源、故障排查与发布清单）；`scripts/pack.ps1 -Push` 支持 nuget.org、Azure Artifacts、Nexus 与文件夹源。
 
 ### 驱动模型
 

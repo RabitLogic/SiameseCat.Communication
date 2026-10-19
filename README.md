@@ -733,8 +733,8 @@ dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 ./scripts/pack.ps1 -Version 1.0.0-preview.1
 $env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
 
-# Store the key as the NUGET_API_KEY secret (prompts without echoing)
-./scripts/set-nuget-secret.ps1 -Verify
+# CI publishes with NuGet Trusted Publishing (OIDC); only set the NUGET_USER variable
+# https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md
 ```
 
 Packaging: the library is packed for `net8.0`, `net10.0` and `netstandard2.0`, with

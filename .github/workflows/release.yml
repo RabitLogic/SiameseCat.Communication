@@ -12,6 +12,9 @@ on:
 
 permissions:
   contents: write
+  # Required by NuGet/login@v1: GitHub issues an OIDC token that nuget.org exchanges for a
+  # short-lived API key, so no long-lived NuGet secret is stored in the repository.
+  id-token: write
 
 jobs:
   publish:
@@ -80,21 +83,26 @@ jobs:
             unzip -l "$pkg" | grep -q 'README.md' || { echo "::error::$pkg is missing README.md"; exit 1; }
           done
 
-      - name: Check the NuGet API key
-        shell: bash
+      # Trusted Publishing: nuget.org validates the OIDC token against the policy registered for
+      # this repository + workflow file and returns a temporary API key valid for one hour.
+      - name: NuGet login (OIDC -> temporary API key)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          # nuget.org profile name (username), not the email address. Set it as the repository
+          # variable NUGET_USER (a secret with the same name works too).
+          user: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+
+      - name: Push to NuGet.org
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        shell: bash
         run: |
           if [[ -z "$NUGET_API_KEY" ]]; then
-            echo "::error::Add the repository secret NUGET_API_KEY (https://www.nuget.org/account/apikeys) before publishing."
+            echo "::error::NuGet/login returned no API key. Check the Trusted Publishing policy (owner, repository, workflow file release.yml, scope, glob pattern)."
             exit 1
           fi
 
-      - name: Push to NuGet.org
-        shell: bash
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
           for pkg in artifacts/*.nupkg artifacts/*.snupkg; do
             dotnet nuget push "$pkg" \
               --source https://api.nuget.org/v3/index.json \
