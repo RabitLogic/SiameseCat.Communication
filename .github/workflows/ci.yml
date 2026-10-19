@@ -24,7 +24,21 @@ jobs:
         run: dotnet build SiameseCat.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test SiameseCat.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+        run: >
+          dotnet test SiameseCat.slnx --configuration Release --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory test-results
+          --logger "trx;LogFileName=test-results.trx"
+
+      - name: Check line coverage
+        shell: pwsh
+        run: |
+          $report = Get-ChildItem test-results -Recurse -Filter coverage.cobertura.xml | Select-Object -First 1
+          if (-not $report) { throw "No coverage report was produced." }
+          [xml] $coverage = Get-Content $report.FullName
+          $lineRate = [double] $coverage.coverage.'line-rate'
+          Write-Host ("Line coverage: {0:P1}" -f $lineRate)
+          if ($lineRate -lt 0.75) { throw ("Line coverage {0:P1} is below the 75% gate." -f $lineRate) }
 
       - name: Pack
         run: |
@@ -53,7 +67,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: '**/test-results.trx'
+          path: |
+            test-results/**/*.trx
+            test-results/**/coverage.cobertura.xml
 
   dotnet-framework:
     runs-on: windows-latest

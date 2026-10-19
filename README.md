@@ -1195,7 +1195,8 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 - 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
 - 集中包版本管理（`Directory.Packages.props`）
 - Release 构建生成 `.nupkg` 与 `.snupkg`，并启用 SourceLink
-- CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）
+- CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）；测试同时收集 XPlat 覆盖率，行覆盖率低于 **75%** 时任务失败（当前约 77%）
+- 依赖升级由 `.github/dependabot.yml` 每周自动发起（NuGet 按 `Microsoft.Extensions.*`、测试工具分组；GitHub Actions 每月）；安全报告流程见 [SECURITY.md](SECURITY.md)
 
 ## 构建与测试
 
@@ -1204,6 +1205,9 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 ```powershell
 dotnet build SiameseCat.slnx
 dotnet test SiameseCat.slnx
+
+# 覆盖率（CI 会做同样的事，行覆盖率低于 75% 会失败）
+dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
 # 无硬件自测：内置 Modbus TCP 从站（SiameseCat.Server）
 dotnet run --project samples/SiameseCat.Demo -- selftest

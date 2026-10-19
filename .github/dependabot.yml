@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      microsoft-extensions:
+        patterns:
+          - "Microsoft.Extensions.*"
+      test-tooling:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.collector"
+    ignore:
+      # The runtime packages are pinned to the oldest supported target (net8.0 / netstandard2.0).
+      - dependency-name: "System.IO.Ports"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "Microsoft.Bcl.AsyncInterfaces"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
