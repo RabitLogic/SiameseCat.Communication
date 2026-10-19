@@ -90,6 +90,8 @@ internal sealed class MockDriver : DriverBase
 
     public int ReadCount { get; private set; }
 
+    public int BatchReadCount { get; private set; }
+
     public TimeSpan ReadDelay { get; set; }
 
     public PlcValue this[PlcAddress address]
@@ -169,6 +171,8 @@ internal sealed class MockDriver : DriverBase
         IReadOnlyList<PlcAddress> addresses,
         CancellationToken cancellationToken)
     {
+        BatchReadCount++;
+
         var values = new PlcValue[addresses.Count];
         for (var i = 0; i < addresses.Count; i++)
         {

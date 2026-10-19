@@ -287,6 +287,125 @@ public class SubscriptionPollingTests
 
         Assert.Throws<ArgumentOutOfRangeException>(configuration.Validate);
     }
+
+    [Fact]
+    public async Task BatchSubscription_PollsWithASingleRequest()
+    {
+        await using var driver = new MockDriver(new DriverConfiguration { SubscriptionJitter = false });
+        await driver.ConnectAsync();
+        driver[driver.AddressParser.Parse("R1")] = PlcValue.FromUInt16(2);
+
+        var callbackCount = 0;
+        var addresses = new[]
+        {
+            driver.AddressParser.Parse("R0"),
+            driver.AddressParser.Parse("R1"),
+        };
+
+        var subscription = await driver.SubscribeBatchAsync(
+            addresses,
+            TimeSpan.FromMilliseconds(10),
+            _ =>
+            {
+                Interlocked.Increment(ref callbackCount);
+                return Task.CompletedTask;
+            });
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (driver.BatchReadCount < 3 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        await subscription.DisposeAsync();
+
+        Assert.True(driver.BatchReadCount >= 3);
+        Assert.Equal(0, driver.ReadCount);
+        // One callback for the initial read, then only when a value actually changes.
+        Assert.Equal(1, callbackCount);
+    }
+
+    [Fact]
+    public async Task BatchSubscription_ReportsWholeSetWhenAValueChanges()
+    {
+        await using var driver = new MockDriver(new DriverConfiguration { SubscriptionJitter = false });
+        await driver.ConnectAsync();
+        var first = driver.AddressParser.Parse("R0");
+        var second = driver.AddressParser.Parse("R1");
+        driver[first] = PlcValue.FromUInt16(1);
+        driver[second] = PlcValue.FromUInt16(2);
+
+        var results = new List<IReadOnlyList<PlcValue>>();
+        var subscription = await driver.SubscribeBatchAsync(
+            new[] { first, second },
+            TimeSpan.FromMilliseconds(10),
+            values =>
+            {
+                lock (results)
+                {
+                    results.Add(values);
+                }
+
+                return Task.CompletedTask;
+            });
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (Volatile.Read(ref results).Count < 1 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        driver[second] = PlcValue.FromUInt16(42);
+        deadline = DateTime.UtcNow.AddSeconds(5);
+        while (Volatile.Read(ref results).Count < 2 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        await subscription.DisposeAsync();
+
+        Assert.True(results.Count >= 2);
+        Assert.Equal(new ushort[] { 1, 2 }, results[0].Select(value => value.AsUInt16()));
+        Assert.Equal(new ushort[] { 1, 42 }, results[1].Select(value => value.AsUInt16()));
+    }
+
+    [Fact]
+    public async Task BatchSubscription_WithoutCapability_IsRejected()
+    {
+        await using var driver = new MockDriver(capabilities: DriverCapabilities.Read | DriverCapabilities.BatchRead);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            driver.SubscribeBatchAsync(
+                new[] { driver.AddressParser.Parse("R0") },
+                TimeSpan.FromMilliseconds(10),
+                _ => Task.CompletedTask));
+    }
+
+    [Fact]
+    public async Task BatchSubscription_WithoutBatchRead_IsRejected()
+    {
+        await using var driver = new MockDriver(
+            capabilities: DriverCapabilities.Read | DriverCapabilities.SubscribeBatch);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            driver.SubscribeBatchAsync(
+                new[] { driver.AddressParser.Parse("R0") },
+                TimeSpan.FromMilliseconds(10),
+                _ => Task.CompletedTask));
+    }
+
+    [Fact]
+    public async Task BatchSubscription_RejectsInvalidArguments()
+    {
+        await using var driver = new MockDriver();
+        var address = driver.AddressParser.Parse("R0");
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            driver.SubscribeBatchAsync(Array.Empty<PlcAddress>(), TimeSpan.FromMilliseconds(10), _ => Task.CompletedTask));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            driver.SubscribeBatchAsync(new[] { address }, TimeSpan.Zero, _ => Task.CompletedTask));
+    }
 }
 
 public class ValueMetadataTests

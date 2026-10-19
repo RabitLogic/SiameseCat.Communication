@@ -38,6 +38,7 @@ internal static class Program
         failures += await CheckAsync("Value model", CheckValueModelAsync);
         failures += await CheckAsync("Argument checks", CheckArgumentChecksAsync);
         failures += await CheckAsync("Modbus TCP round trip", CheckModbusTcpAsync);
+        failures += await CheckAsync("Data store events", CheckDataStoreEventsAsync);
         failures += await CheckAsync("Driver contract", CheckDriverAsync);
         failures += await CheckAsync("Frame logging", CheckFrameLoggingAsync);
 
@@ -159,8 +160,36 @@ internal static class Program
                 await client.WriteSingleRegisterAsync(1, 2, 300).ConfigureAwait(false);
                 var written = await client.ReadHoldingRegistersAsync(1, 2, 1).ConfigureAwait(false);
                 Ensure(written[0] == 300, "Holding register write failed.");
+
+                var snapshot = slave.Data.Snapshot();
+                slave.Data.Reset();
+                Ensure(slave.Data[2] == 0, "Reset did not clear the store.");
+                slave.Data.Load(snapshot);
+                Ensure(slave.Data[2] == 300, "Load did not restore the snapshot.");
             }
         }
+    }
+
+    private static Task CheckDataStoreEventsAsync()
+    {
+        var store = new ModbusDataStore(holdingRegisters: 8, coils: 64);
+        ModbusRegisterWriteEventArgs? registerWrite = null;
+        ModbusCoilWriteEventArgs? coilWrite = null;
+        store.HoldingRegistersWritten += (_, args) => registerWrite = args;
+        store.CoilsWritten += (_, args) => coilWrite = args;
+
+        var written = new ushort[] { 7, 8 };
+        var bits = new[] { true };
+        store.TryWriteHoldingRegisters(4, written);
+        store.TryWriteCoils(40, bits);
+
+        Ensure(
+            registerWrite != null && registerWrite.Start == 4 && registerWrite.Count == 2,
+            "Register write event was not raised.");
+        Ensure(
+            coilWrite != null && coilWrite.Start == 40 && coilWrite.Values[0],
+            "Coil write event was not raised.");
+        return Task.CompletedTask;
     }
 
     private static async Task CheckDriverAsync()

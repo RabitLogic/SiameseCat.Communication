@@ -31,6 +31,54 @@ public abstract partial class DriverBase
         return new Subscription(cts);
     }
 
+    /// <inheritdoc/>
+    public async Task<IAsyncDisposable> SubscribeBatchAsync(
+        IReadOnlyList<PlcAddress> addresses,
+        TimeSpan interval,
+        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        CancellationToken cancellationToken = default)
+    {
+        Guard.NotNull(addresses, nameof(addresses));
+        Guard.NotNull(onChanged, nameof(onChanged));
+        if (addresses.Count == 0)
+        {
+            throw new ArgumentException("At least one address is required.", nameof(addresses));
+        }
+
+        if (interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(interval), interval, "Interval must be greater than zero.");
+        }
+
+        ThrowIfDisposed();
+        EnsureCapability(DriverCapabilities.SubscribeBatch);
+
+        // Copy so callers can reuse or clear their list while the subscription runs.
+        var targets = new PlcAddress[addresses.Count];
+        for (var i = 0; i < targets.Length; i++)
+        {
+            targets[i] = addresses[i];
+        }
+
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+        var native = await DoSubscribeBatchAsync(targets, interval, onChanged, cts.Token).ConfigureAwait(false);
+        if (native is not null)
+        {
+            return new Subscription(cts, native);
+        }
+
+        // Polling fallback needs a single request for the whole set.
+        if ((Descriptor.Capabilities & DriverCapabilities.BatchRead) == 0)
+        {
+            cts.Dispose();
+            throw new NotSupportedException(
+                $"Driver '{Descriptor.Id}' cannot batch-subscribe without the '{DriverCapabilities.BatchRead}' capability or a native batch subscription.");
+        }
+
+        _ = Task.Run(() => PollBatchAsync(targets, interval, onChanged, cts), CancellationToken.None);
+        return new Subscription(cts);
+    }
+
     /// <summary>
     /// Starts a protocol-native subscription. The default implementation returns <see langword="null"/>,
     /// which makes the driver fall back to polling <see cref="DoReadAsync"/> at the requested interval.
@@ -46,14 +94,80 @@ public abstract partial class DriverBase
         Func<PlcValue, Task> onChanged,
         CancellationToken cancellationToken) => Task.FromResult<IAsyncDisposable?>(null);
 
-    private async Task PollAsync(
+    /// <summary>
+    /// Starts a protocol-native subscription for several addresses. The default implementation returns
+    /// <see langword="null"/>, which makes the driver poll <c>ReadBatchAsync</c>.
+    /// </summary>
+    /// <param name="addresses">Addresses to watch.</param>
+    /// <param name="interval">Requested notification interval.</param>
+    /// <param name="onChanged">Callback invoked with one value per address when any value changed.</param>
+    /// <param name="cancellationToken">Cancelled when the caller disposes the subscription or the driver is disposed.</param>
+    /// <returns>A handle that stops the subscription, or <see langword="null"/> to use polling.</returns>
+    protected virtual Task<IAsyncDisposable?> DoSubscribeBatchAsync(
+        IReadOnlyList<PlcAddress> addresses,
+        TimeSpan interval,
+        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        CancellationToken cancellationToken) => Task.FromResult<IAsyncDisposable?>(null);
+
+    private Task PollAsync(
         PlcAddress address,
         TimeSpan interval,
         Func<PlcValue, Task> onChanged,
+        CancellationTokenSource cts) =>
+        RunPollLoopAsync(
+            interval,
+            address.ToString(),
+            token => ReadAsync(address, token),
+            static (previous, current) => previous == current,
+            onChanged,
+            cts);
+
+    private Task PollBatchAsync(
+        PlcAddress[] addresses,
+        TimeSpan interval,
+        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        CancellationTokenSource cts) =>
+        RunPollLoopAsync(
+            interval,
+            $"{addresses.Length} addresses",
+            token => ReadBatchAsync(addresses, token),
+            static (previous, current) => ValuesEqual(previous, current),
+            onChanged,
+            cts);
+
+    private static bool ValuesEqual(PlcValue[] previous, PlcValue[] current)
+    {
+        if (ReferenceEquals(previous, current))
+        {
+            return true;
+        }
+
+        if (previous.Length != current.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < previous.Length; i++)
+        {
+            if (previous[i] != current[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task RunPollLoopAsync<T>(
+        TimeSpan interval,
+        string target,
+        Func<CancellationToken, Task<T>> poll,
+        Func<T, T, bool> isSame,
+        Func<T, Task> onChanged,
         CancellationTokenSource cts)
     {
         var token = cts.Token;
-        var last = PlcValue.Null;
+        var last = default(T);
         var first = true;
         var failures = 0;
 
@@ -65,10 +179,10 @@ public abstract partial class DriverBase
 
                 try
                 {
-                    var value = await ReadAsync(address, token).ConfigureAwait(false);
+                    var value = await poll(token).ConfigureAwait(false);
                     failures = 0;
 
-                    if (first || value != last)
+                    if (first || !isSame(last!, value))
                     {
                         first = false;
                         last = value;
@@ -83,7 +197,7 @@ public abstract partial class DriverBase
                 {
                     failures++;
                     Logger.Warning(
-                        $"{Descriptor.Id} subscription for {address} failed ({failures} in a row).",
+                        $"{Descriptor.Id} subscription for {target} failed ({failures} in a row).",
                         ex);
                 }
             }

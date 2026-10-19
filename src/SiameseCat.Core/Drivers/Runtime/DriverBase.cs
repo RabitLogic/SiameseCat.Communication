@@ -5,7 +5,7 @@ namespace SiameseCat.Core;
 /// lock, timeouts, retries with reconnect, logging and metrics; derived drivers only implement the
 /// protocol-specific hooks.
 /// </summary>
-public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBatchReadable, IBatchWritable, ISubscribable, IHealthCheckable
+public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBatchReadable, IBatchWritable, ISubscribable, IBatchSubscribable, IHealthCheckable
 {
     private readonly RequestLock _gate;
     private readonly bool _ownsGate;

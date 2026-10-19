@@ -212,7 +212,7 @@ new DriverDescriptor(
     capabilities: DriverCapabilities.Read | DriverCapabilities.Health);
 ```
 
-只读驱动不再需要写一个「抛异常」的 `DoWriteAsync`：`DoReadAsync` / `DoWriteAsync` 是可以不重写的虚方法，默认就抛 `NotSupportedException`。订阅同样是可选的——重写 `DoSubscribeAsync` 就能接入协议原生订阅，返回 `null`（默认）时自动回退到轮询。
+只读驱动不再需要写一个「抛异常」的 `DoWriteAsync`：`DoReadAsync` / `DoWriteAsync` 是可以不重写的虚方法，默认就抛 `NotSupportedException`。订阅同样是可选的——重写 `DoSubscribeAsync` 就能接入协议原生订阅，返回 `null`（默认）时自动回退到轮询。批量订阅遵循同一套模式：声明 `DriverCapabilities.SubscribeBatch` 后调用 `IBatchSubscribable.SubscribeBatchAsync`，重写 `DoSubscribeBatchAsync` 可接入原生批量订阅，返回 `null` 时用一次 `ReadBatchAsync` 轮询整组点位（因此还需要 `BatchRead` 能力）。
 
 ### 单次调用超时
 
@@ -362,10 +362,11 @@ registry.Register(new MyProtocolFactory());
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
 | SerialPort | 原始串口传输，可配置波特率、校验位、数据位、停止位、流控 |
 | 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求（含 `STRING`，不再逐条回退） |
+| 订阅 | `ISubscribable` 单点轮询；`IBatchSubscribable` 一组点位一次请求（原生批量订阅可重写 `DoSubscribeBatchAsync`），均带抖动与失败退避 |
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
-| Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、广播写与坏 CRC 丢弃 |
+| Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、广播写与坏 CRC 丢弃；数据存储提供写入事件、快照/恢复/复位 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
@@ -524,7 +525,7 @@ dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 从站（联调
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
 
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
+`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
 
 | RID | 格式 | 交叉工具链 |
 | --- | --- | --- |
@@ -886,6 +887,32 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 - 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
 - `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
 
+### 数据存储（`ModbusDataStore`）
+
+```csharp
+// 1. 监听写入：上位机写线圈/寄存器后联动仿真逻辑
+server.Data.HoldingRegistersWritten += (_, e) =>
+    Console.WriteLine($"HR{e.Start}.. = [{string.Join(", ", e.Values)}]（原值 [{string.Join(", ", e.PreviousValues)}]）");
+
+server.Data.CoilsWritten += (_, e) =>
+{
+    if (e.Start == 10 && e.Values[0])
+    {
+        server.Data.TryWriteInputRegisters(0, new ushort[] { 1 });   // 模拟设备响应
+    }
+};
+
+// 2. 预置/复位状态
+var snapshot = server.Data.Snapshot();   // 四个区的不可变副本
+server.Data.Reset();                     // 全部清零（相当于设备断电重启）
+server.Data.Load(snapshot);              // 恢复快照，尺寸不一致会抛 ArgumentException
+```
+
+- 事件：`HoldingRegistersWritten` / `InputRegistersWritten`（`ModbusRegisterWriteEventArgs`）与 `CoilsWritten` / `DiscreteInputsWritten`（`ModbusCoilWriteEventArgs`），均带 `Start`、`Values`、`PreviousValues`；通过 Modbus 请求的写入同样会触发。
+- 事件在锁外触发，回调里可以直接调用 `Read*` / `TryWrite*`，不会死锁。
+- 每个区一把独立锁，寄存器访问不会阻塞线圈访问；线圈与离散输入以位图存储（65536 点占 8 KB）。
+- 越界写入返回 `false` 且不触发事件。
+
 ### Modbus RTU 从站
 
 同一套 PDU 逻辑也提供 RTU 版本，用于 RS-485 联调或串口仿真：
@@ -1034,6 +1061,32 @@ await using var subscription = await driver.SubscribeAsync(
 - 抖动只作用于轮询间隔，不改变业务语义；变化检测仍按 `PlcValue` 载荷比较。
 - 失败退避为 `interval × 2^失败次数`（上限 `SubscriptionMaxBackoff`），首次读取成功后立即复位。
 - 协议原生订阅（重写 `DoSubscribeAsync`）不受这两个设置影响。
+
+#### 批量订阅（一组点位一次请求）
+
+单个 `SubscribeAsync` 一次只读一个地址；点位多时用 `SubscribeBatchAsync` 把整组地址交给 `ReadBatchAsync`，每个周期只发一次请求（Modbus 会按区/连续性自动分组）：
+
+```csharp
+var batchSubscription = await driver.SubscribeBatchAsync(
+    new[]
+    {
+        driver.AddressParser.Parse("40001"),
+        driver.AddressParser.Parse("40002"),
+        driver.AddressParser.Parse("40003"),
+    },
+    TimeSpan.FromSeconds(1),
+    values =>
+    {
+        // values 顺序与地址顺序一致，任一值变化时回调
+        Console.WriteLine($"{values[0]} {values[1]} {values[2]}");
+        return Task.CompletedTask;
+    });
+```
+
+- 回调参数是**整组**当前值：首次读取触发一次，之后任一点位变化时触发。
+- 变化检测按元素逐个比较（数组值按元素相等性），载荷完全相同时不回调。
+- 抖动与失败退避同样生效；指标记为 `BatchRead`。
+- 需要声明 `DriverCapabilities.SubscribeBatch` 与 `DriverCapabilities.BatchRead`；协议原生批量订阅可重写 `DoSubscribeBatchAsync`，此时不需要 `BatchRead`。
 
 ### 指标与 OpenTelemetry 导出
 

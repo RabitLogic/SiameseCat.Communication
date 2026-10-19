@@ -25,6 +25,9 @@ public enum DriverCapabilities
     /// <summary>Health probes (<see cref="IHealthCheckable"/>).</summary>
     Health = 32,
 
+    /// <summary>Change notifications for several addresses in one polling cycle (<see cref="IBatchSubscribable"/>).</summary>
+    SubscribeBatch = 64,
+
     /// <summary>Every capability; the default for full-featured drivers.</summary>
-    All = Read | Write | BatchRead | BatchWrite | Subscribe | Health,
+    All = Read | Write | BatchRead | BatchWrite | Subscribe | Health | SubscribeBatch,
 }

@@ -43,6 +43,8 @@ internal static class Program
         failures += await CheckAsync("Modbus TCP round trip", CheckModbusTcpAsync);
         failures += await CheckAsync("Pluggable driver contract", CheckPlcDriverAsync);
         failures += await CheckAsync("Numeric arrays", CheckArrayValuesAsync);
+        failures += await CheckAsync("Batch subscription", CheckBatchSubscriptionAsync);
+        failures += await CheckAsync("Slave data store", CheckDataStoreAsync);
         failures += await CheckAsync("Transport injection", CheckTransportInjectionAsync);
         failures += await CheckAsync("Logging integration", CheckLoggingAsync);
 
@@ -339,6 +341,79 @@ internal static class Program
         var readBack = await ((IReadable)driver).ReadAsync(arrayAddress).ConfigureAwait(false);
         Ensure(readBack.IsArray && readBack.Length == 3, "Array read did not return three elements.");
         Ensure(readBack.AsUInt16Array().SequenceEqual(new ushort[] { 1, 2, 3 }), "Array driver round trip failed.");
+    }
+
+    private static async Task CheckBatchSubscriptionAsync()
+    {
+        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await slave.StartAsync().ConfigureAwait(false);
+        slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
+
+        var registry = DriverRegistryExtensions.CreateDefaultRegistry();
+        await using var driver = registry.Create("modbus", new DriverConfiguration
+        {
+            Transport = TransportKind.Tcp,
+            Host = "127.0.0.1",
+            Port = slave.Port,
+            Timeout = TimeSpan.FromSeconds(2),
+            ProbeAddress = "40001",
+            SubscriptionJitter = false,
+        });
+
+        await driver.ConnectAsync().ConfigureAwait(false);
+
+        var first = new TaskCompletionSource<IReadOnlyList<PlcValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var subscription = await ((IBatchSubscribable)driver).SubscribeBatchAsync(
+            new[]
+            {
+                driver.AddressParser.Parse("40001"),
+                driver.AddressParser.Parse("40002"),
+            },
+            TimeSpan.FromMilliseconds(20),
+            values =>
+            {
+                first.TrySetResult(values);
+                return Task.CompletedTask;
+            }).ConfigureAwait(false);
+
+        var values = await first.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        Ensure(
+            values.Count == 2 && values[0].AsUInt16() == 100 && values[1].AsUInt16() == 200,
+            "Batch subscription returned unexpected values.");
+    }
+
+    private static async Task CheckDataStoreAsync()
+    {
+        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0, Coils = 64 });
+        await slave.StartAsync().ConfigureAwait(false);
+
+        ModbusRegisterWriteEventArgs? registerWrite = null;
+        ModbusCoilWriteEventArgs? coilWrite = null;
+        slave.Data.HoldingRegistersWritten += (_, args) => registerWrite = args;
+        slave.Data.CoilsWritten += (_, args) => coilWrite = args;
+
+        await using var client = new ModbusTcpClient(new ModbusTcpOptions
+        {
+            UnitId = 1,
+            Timeout = TimeSpan.FromSeconds(2),
+            Tcp = { Host = "127.0.0.1", Port = slave.Port },
+        });
+
+        await client.ConnectAsync().ConfigureAwait(false);
+        await client.WriteSingleRegisterAsync(3, 0x1234).ConfigureAwait(false);
+        await client.WriteSingleCoilAsync(33, true).ConfigureAwait(false);
+
+        Ensure(registerWrite is { Start: 3 } && registerWrite.Values[0] == 0x1234, "Register write event was not raised.");
+        Ensure(coilWrite is { Start: 33 } && coilWrite.Values[0], "Coil write event was not raised.");
+
+        var snapshot = slave.Data.Snapshot();
+        Ensure(snapshot.HoldingRegisters[3] == 0x1234, "Snapshot does not contain the written register.");
+
+        slave.Data.Reset();
+        Ensure(slave.Data[3] == 0 && !slave.Data.ReadCoils(33, 1)![0], "Reset did not clear the store.");
+
+        slave.Data.Load(snapshot);
+        Ensure(slave.Data[3] == 0x1234 && slave.Data.ReadCoils(33, 1)![0], "Load did not restore the snapshot.");
     }
 
     private static async Task CheckTransportInjectionAsync()
