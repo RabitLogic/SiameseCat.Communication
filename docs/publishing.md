@@ -151,6 +151,7 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 
 | Symptom | Cause and fix |
 | --- | --- |
+| `Check NUGET_USER` fails | The repository variable `NUGET_USER` is missing; add it under Settings → Secrets and variables → Actions → Variables with your nuget.org profile name. |
 | `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat.Communication`, workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
 | Workflow ran but the policy did not match | Renaming the workflow file or moving the job under a different `environment:` breaks the match; update the policy accordingly. |
 | Pushed a wrong version that nobody consumes yet | On nuget.org open the package → **Unlist**; it stays restorable by exact version. Publish a corrected patch. |
@@ -158,6 +159,16 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 | Need to withdraw a version entirely | Use **Deprecate** with the replacement version; existing projects keep restoring, new restores warn. |
 | Symbol push failed | Re-run the workflow: the `.nupkg` push is skipped (`--skip-duplicate`) and the `.snupkg` is retried with a fresh key. |
 | Local push rejected | The key is missing, expired or lacks the *Push new packages* scope; trusted publishing never applies outside CI. |
+
+When a tag run fails before the push, nothing was published. Fix the cause and either
+
+- re-run the failed jobs of the same run (**Actions → Release → Re-run failed jobs**), or
+- run **Release → Run workflow** on `main` with version `1.0.0`; this uses the latest workflow
+  definition but skips the GitHub release step, which you can add afterwards with
+  `gh release create v1.0.0 --notes-file CHANGELOG.md`.
+
+Both paths are safe to repeat: the push uses `--skip-duplicate`, so an already published version is
+skipped instead of failing.
 
 ## 8. Repository name and package id
 

@@ -83,6 +83,17 @@ jobs:
             unzip -l "$pkg" | grep -q 'README.md' || { echo "::error::$pkg is missing README.md"; exit 1; }
           done
 
+      - name: Check NUGET_USER
+        shell: bash
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER || secrets.NUGET_USER }}
+        run: |
+          if [[ -z "$NUGET_USER" ]]; then
+            echo "::error::NUGET_USER is not set. Add the repository variable NUGET_USER (Settings -> Secrets and variables -> Actions -> Variables) with your nuget.org profile name."
+            exit 1
+          fi
+          echo "Publishing to nuget.org as $NUGET_USER"
+
       # Trusted Publishing: nuget.org validates the OIDC token against the policy registered for
       # this repository + workflow file and returns a temporary API key valid for one hour.
       - name: NuGet login (OIDC -> temporary API key)
