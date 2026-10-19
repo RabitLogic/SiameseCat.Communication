@@ -444,8 +444,7 @@ tests/SiameseCat.Tests/
 tests/SiameseCat.Compatibility/   # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
 
 samples/SiameseCat.Demo/
-├── Servers/     # 自测用的 Modbus TCP 从站
-└── Program.cs   # selftest / driver / 各协议示例
+└── Program.cs   # selftest / driver / 各协议示例（从站来自 SiameseCat.Server）
 
 tools/SiameseCat.AotProbe/   # 无硬件 AOT 探针，支持跨平台交叉编译
 
@@ -1048,7 +1047,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 dotnet build SiameseCat.slnx
 dotnet test SiameseCat.slnx
 
-# 无硬件自测：内置 Modbus TCP 从站
+# 无硬件自测：内置 Modbus TCP 从站（SiameseCat.Server）
 dotnet run --project samples/SiameseCat.Demo -- selftest
 
 # 可插拔驱动示例：注册表 + Modbus 驱动 + 批量读 + PlcTag
