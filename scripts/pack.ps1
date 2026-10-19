@@ -138,14 +138,29 @@ Get-ChildItem $Output -Filter *.nupkg | Sort-Object Name | ForEach-Object {
 
 if ($Push) {
     $apiKey = if ($env:NUGET_API_KEY) { $env:NUGET_API_KEY } else { 'azure' }
+    $isRemoteFeed = $Push -match '^https?://'
     Write-Host ''
     Write-Host "Pushing to $Push..." -ForegroundColor Cyan
 
-    foreach ($package in ($packages + $symbols)) {
+    foreach ($package in @($packages)) {
         dotnet nuget push $package.FullName --source $Push --api-key $apiKey --skip-duplicate
         if ($LASTEXITCODE -ne 0) {
             throw "Pushing $($package.Name) failed."
         }
+    }
+
+    # Symbol packages are only accepted by package servers (nuget.org, Artifactory, Azure Artifacts);
+    # a plain folder feed stores just the .nupkg files.
+    if ($isRemoteFeed) {
+        foreach ($symbolsPackage in @($symbols)) {
+            dotnet nuget push $symbolsPackage.FullName --source $Push --api-key $apiKey --skip-duplicate
+            if ($LASTEXITCODE -ne 0) {
+                throw "Pushing $($symbolsPackage.Name) failed."
+            }
+        }
+    }
+    else {
+        Write-Host 'Folder feed detected: only .nupkg files are published; symbol packages stay in the output folder.' -ForegroundColor Yellow
     }
 
     Write-Host 'Push complete.' -ForegroundColor Green

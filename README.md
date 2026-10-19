@@ -26,6 +26,7 @@ Deeper documentation:
 - [Migration and integration notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
 - [Comparison with NModbus and FluentModbus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md)
 - [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
+- [Publishing the package](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)
 
 ## Samples
 

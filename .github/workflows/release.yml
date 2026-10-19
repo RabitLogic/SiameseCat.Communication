@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (for example 1.0.0). Defaults to the version in the project file.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # A tag such as v1.0.0 publishes 1.0.0; a manual run can pass the version explicitly.
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version=""
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: ${version:-<project default>}"
+
+      - name: Restore
+        run: dotnet restore SiameseCat.slnx
+
+      - name: Build
+        run: dotnet build SiameseCat.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test SiameseCat.slnx --configuration Release --no-build
+
+      - name: Framework matrix
+        run: |
+          dotnet build tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj --configuration Release --no-restore
+          dotnet run --project tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj --configuration Release --no-build --framework net8.0
+          dotnet run --project tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj --configuration Release --no-build --framework net10.0
+
+      - name: Pack
+        shell: bash
+        run: |
+          version_args=()
+          if [[ -n "${{ steps.version.outputs.version }}" ]]; then
+            version_args=(-p:Version="${{ steps.version.outputs.version }}" -p:PackageValidationBaselineVersion=)
+          fi
+          dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj \
+            --configuration Release --no-build --output artifacts "${version_args[@]}"
+
+      - name: Verify package layout
+        shell: bash
+        run: |
+          for pkg in artifacts/*.nupkg; do
+            for tfm in net8.0 net10.0 netstandard2.0; do
+              unzip -l "$pkg" | grep -q "lib/$tfm/" || { echo "::error::$pkg is missing lib/$tfm"; exit 1; }
+            done
+            unzip -l "$pkg" | grep -q 'README.md' || { echo "::error::$pkg is missing README.md"; exit 1; }
+          done
+
+      - name: Check the NuGet API key
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [[ -z "$NUGET_API_KEY" ]]; then
+            echo "::error::Add the repository secret NUGET_API_KEY (https://www.nuget.org/account/apikeys) before publishing."
+            exit 1
+          fi
+
+      - name: Push to NuGet.org
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          for pkg in artifacts/*.nupkg artifacts/*.snupkg; do
+            dotnet nuget push "$pkg" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done
+
+      - name: Create the GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            artifacts/*.nupkg artifacts/*.snupkg \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file CHANGELOG.md \
+            --verify-tag
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
