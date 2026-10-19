@@ -1,11 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Satori GC entrypoint SDK: replaces the runtime packs used when publishing this executable. -->
-  <Sdk Name="PublishWithSatoriGC" Version="11.0.0-satori.38707303131.1" />
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>SiameseCat.Demo</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
