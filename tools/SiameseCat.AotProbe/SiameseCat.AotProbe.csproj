@@ -32,15 +32,4 @@
     <ProjectReference Include="..\..\src\SiameseCat.Server\SiameseCat.Server.csproj" />
   </ItemGroup>
 
-  <!--
-    Optional GC provider hook. The garbage collector is chosen by the host runtime, not by the
-    libraries, so a provider such as SatoriGC only applies to this publishable project. Point
-    SatoriGCTargetsPath at the provider's .props/.targets file, or drop it at eng/SatoriGC.targets;
-    nothing is imported when the file is absent.
-  -->
-  <Import Project="$(MSBuildThisFileDirectory)..\..\eng\SatoriGC.targets"
-          Condition="'$(SatoriGCTargetsPath)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\eng\SatoriGC.targets')" />
-  <Import Project="$(SatoriGCTargetsPath)"
-          Condition="'$(SatoriGCTargetsPath)' != '' and Exists('$(SatoriGCTargetsPath)')" />
-
 </Project>

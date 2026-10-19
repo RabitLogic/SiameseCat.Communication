@@ -37,7 +37,6 @@
 - **S7 STRING 批量读写**：`SiemensDriver` 的批量读写不再因包含 `STRING` 而整批回退——批量写把 `[maxLen, actualLen, chars]` 作为普通数据项放进多变量写，批量读按 `maxLen + 2` 请求并就地解码。
 - **订阅抖动与退避**：`DriverConfiguration.SubscriptionJitter`（默认 `true`，间隔 ±20%）与 `SubscriptionMaxBackoff`（默认 30 s，失败按 `interval × 2^n` 指数退避，成功后复位）避免多个驱动同步轮询打断 PLC。
 - **批量订阅**：新增 `IBatchSubscribable.SubscribeBatchAsync` 与 `DriverCapabilities.SubscribeBatch`，一组点位共用一次 `ReadBatchAsync` 请求（Modbus 按区/连续性分组），回调收到整组当前值、仅在任一点位变化时触发；协议原生批量订阅可重写 `DoSubscribeBatchAsync`，返回 `null` 时回退轮询（需要 `BatchRead` 能力）。
-- **可选 GC 提供方钩子**：GC 由宿主运行时决定，故只在可执行工程（`tools/SiameseCat.AotProbe`、`samples/SiameseCat.Demo`）预留导入点——`eng/SatoriGC.targets` 存在即自动导入，或用 `-p:SatoriGCTargetsPath=<路径>` 指定，从而接入 SatoriGC 一类自定义 GC 的 `PublishWithSatoriGC` 封装；`scripts/publish-aot.ps1` 新增 `-SatoriGCTargets` 与 `-MSBuildProperty Name=Value` 透传并在启动前校验。文件不存在时构建与打包行为完全不变，6 个类库包保持 GC 无关。
 - **从站数据存储增强**：`ModbusDataStore` 新增四个写入事件（`HoldingRegistersWritten` / `InputRegistersWritten` / `CoilsWritten` / `DiscreteInputsWritten`，带 `Start` / `Values` / `PreviousValues`，锁外触发），支持 `Snapshot()` / `Load()` / `Reset()` 预置与复位状态；内部改为按区独立锁 + 线圈位图存储（65536 点占 8 KB，原为 64 KB）。
 - **宿主集成包**（`SiameseCat.Hosting`，可选）：`MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，AOT 友好）；`AddSiameseCat()` 注册 `DriverRegistry` 与日志适配器，`AddSiameseCatDriver(id, configure)` 以 keyed transient 方式解析驱动。
 - **重试与恢复**：请求与建连都按瞬时错误重试，退避为 `RetryDelay × 2^(n-1)`（上限 `MaxRetryDelay`，默认带 50–100% 抖动）；可选 Keep-Alive 探针在连续失败后自动重连，`PingAsync` 提供只返回布尔值的健康检查。
