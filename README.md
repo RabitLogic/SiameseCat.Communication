@@ -2,7 +2,7 @@
 
 面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)** 与 **.NET Standard 2.0**（可被 .NET Framework 4.8 等存量宿主引用）。
 
-按**分层**拆分程序集（4 层 + 1 个可选的宿主集成包，共 5 个包），一层一个包，层内再按协议/品牌分组：
+按**分层**拆分程序集（4 层 + 1 个可选宿主集成 + 1 个可选从站包，共 6 个包），一层一个包，层内再按协议/品牌分组：
 
 | 包 | 层 | 职责 | 依赖 |
 | --- | --- | --- | --- |
@@ -11,6 +11,7 @@
 | `SiameseCat.Protocols` | 协议层 | Modbus（RTU/TCP）与 Siemens S7 的帧、客户端，以及通用 Modbus 驱动 | Core、Transport |
 | `SiameseCat.Drivers` | 品牌层 | Siemens / Inovance 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
 | `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器与 `IServiceCollection` 注册 | Core、Drivers、`Microsoft.Extensions.*` |
+| `SiameseCat.Server` | 从站（可选） | Modbus TCP 从站（FC01/02/03/04/05/06/15/16/23），用于联调、仿真与集成测试 | Core |
 
 协议栈自行实现，不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
 
@@ -350,6 +351,7 @@ registry.Register(new MyProtocolFactory());
 | 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求 |
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
+| Modbus TCP 从站 | `SiameseCat.Server`：`ModbusTcpServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端与广播写，用于联调与集成测试 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
@@ -387,6 +389,7 @@ broadcast.Options["unitId"] = "0";
 | 协议层 | `SiameseCat.Protocols` | Modbus（RTU/TCP）与 S7 的帧、客户端，以及通用 Modbus 驱动 |
 | 品牌层 | `SiameseCat.Drivers` | Siemens / Inovance 的品牌驱动与原生地址映射 |
 | 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器与 DI 注册，不参与分层依赖链 |
+| 从站（可选） | `SiameseCat.Server` | Modbus TCP 从站，用于联调、仿真与集成测试，只依赖 Core |
 
 ```text
 src/
@@ -423,6 +426,12 @@ src/
 └── SiameseCat.Hosting/                  # 宿主集成（可选）
     ├── MicrosoftLoggerAdapter.cs        # IPlcLogger -> ILogger
     └── ServiceCollectionExtensions.cs   # AddSiameseCat / AddSiameseCatDriver（Microsoft.Extensions.DependencyInjection 命名空间）
+
+src/SiameseCat.Server/                   # Modbus TCP 从站（可选）：联调 / 仿真 / 集成测试
+├── ModbusTcpServer.cs                   # MBAP 会话处理、并发客户端、广播写
+├── ModbusTcpServer.Pdu.cs               # FC01/02/03/04/05/06/15/16/23 与异常码
+├── ModbusDataStore.cs                   # 线程安全的寄存器 / 线圈存储
+└── ModbusServerOptions.cs               # 监听地址、端口与缓冲区大小
 
 tests/SiameseCat.Tests/
 ├── Core/        # 驱动契约（Mock 驱动）、地址/值模型、传输、选项、可靠性、指标
@@ -470,6 +479,8 @@ SiameseCat.Core            （契约 + 模型，无 I/O）
     └── SiameseCat.Protocols（Modbus、S7）
         └── SiameseCat.Drivers（Siemens、Inovance 品牌驱动）
             └── SiameseCat.Hosting（可选：DI + Microsoft.Extensions.Logging）
+
+SiameseCat.Core ← SiameseCat.Server（可选：Modbus TCP 从站，与客户端包互不依赖）
 ```
 
 引用对应层的项目/包：
@@ -493,6 +504,7 @@ dotnet add package SiameseCat.Protocols    # 只用协议层：Modbus、S7
 dotnet add package SiameseCat.Transport    # 只用传输层：TCP / UDP / 串口
 dotnet add package SiameseCat.Core         # 只实现自定义驱动
 dotnet add package SiameseCat.Hosting  # 可选：Microsoft.Extensions.Logging + 依赖注入
+dotnet add package SiameseCat.Server   # 可选：Modbus TCP 从站（联调 / 仿真）
 ```
 
 ## Native AOT
@@ -827,6 +839,40 @@ var buffer = new byte[1024];
 int read = await transport.ReadAsync(buffer);
 ```
 
+## Modbus TCP 从站（联调 / 仿真）
+
+`SiameseCat.Server` 提供一个进程内 Modbus TCP 从站，在没有真实 PLC 时用于联调、集成测试和演示。它只依赖 Core，与客户端包互不依赖：
+
+```csharp
+using SiameseCat.Server;
+
+await using var server = new ModbusTcpServer(new ModbusServerOptions
+{
+    Host = "127.0.0.1",
+    Port = 0,               // 0 = 由操作系统分配空闲端口
+    HoldingRegisters = 512,
+    Coils = 512,
+});
+
+await server.StartAsync();
+server.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
+server.Data.TryWriteCoils(10, new[] { true, false, true });
+
+Console.WriteLine($"从站监听 127.0.0.1:{server.Port}");
+
+await using var client = new ModbusTcpClient(new ModbusTcpOptions
+{
+    Tcp = { Host = "127.0.0.1", Port = server.Port },
+});
+await client.ConnectAsync();
+var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
+```
+
+- 支持功能码 `01/02/03/04/05/06/15/16/23`；越界地址返回 `02`，非法数量返回 `03`，未知功能码返回 `01`。
+- 单元号原样回显，一个从站可服务多个站号；单元号 `0` 视为广播，写请求生效但不返回响应（与客户端广播模式配套）。
+- 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
+- `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
+
 ## 数据类型转换（Modbus）
 
 `ModbusRegisterConverter` 支持：
@@ -1035,8 +1081,7 @@ dotnet run -- serial <com> [baud] [text]
 ```
 ## 当前限制
 
-- Modbus 仅实现主站/客户端，未包含从站/服务器；广播模式只支持写（读请求必然无响应）。
-- S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
+- Modbus 从站已提供 TCP 版本（`SiameseCat.Server`），尚未提供 RTU 从站；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
 - 驱动层内置三个驱动：通用 Modbus（RTU/TCP）、西门子 S7、汇川（D/M/X/Y 映射到 Modbus）；其他品牌可按同一契约扩展。
 - 汇川驱动基于 Modbus，按软元件映射实现；厂商私有 ASCII/串口协议未内置。
 - 西门子 S7 目前只支持 TCP 传输；Modbus 支持 TCP/RTU。

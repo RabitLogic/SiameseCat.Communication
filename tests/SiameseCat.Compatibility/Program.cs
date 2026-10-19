@@ -11,6 +11,7 @@ using SiameseCat.Drivers;
 using SiameseCat.Drivers.Inovance;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
+using SiameseCat.Server;
 
 namespace SiameseCat.Compatibility;
 
@@ -20,6 +21,8 @@ namespace SiameseCat.Compatibility;
 /// </summary>
 internal static class Program
 {
+    private static readonly ushort[] SeedRegisters = { 100, 200 };
+
     private static async Task<int> Main()
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -129,9 +132,10 @@ internal static class Program
 
     private static async Task CheckModbusTcpAsync()
     {
-        using (var slave = new ModbusTcpSlave())
+        await using (var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 }))
         {
-            slave.Start();
+            await slave.StartAsync().ConfigureAwait(false);
+            slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
 
             await using (var client = new ModbusTcpClient(new ModbusTcpOptions
             {
@@ -154,9 +158,10 @@ internal static class Program
 
     private static async Task CheckDriverAsync()
     {
-        using (var slave = new ModbusTcpSlave())
+        await using (var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 }))
         {
-            slave.Start();
+            await slave.StartAsync().ConfigureAwait(false);
+            slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
 
             var registry = DriverRegistryExtensions.CreateDefaultRegistry();
             Ensure(
@@ -200,9 +205,10 @@ internal static class Program
 
     private static async Task CheckFrameLoggingAsync()
     {
-        using (var slave = new ModbusTcpSlave())
+        await using (var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 }))
         {
-            slave.Start();
+            await slave.StartAsync().ConfigureAwait(false);
+            slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
 
             var logger = new RecordingLogger();
             await using (var client = new ModbusTcpClient(new ModbusTcpOptions
@@ -269,147 +275,4 @@ internal static class Program
         }
     }
 
-    /// <summary>Minimal Modbus TCP slave used to exercise the client without a real device.</summary>
-    private sealed class ModbusTcpSlave : IDisposable
-    {
-        private readonly TcpListener _listener = new TcpListener(IPAddress.Loopback, 0);
-        private readonly ushort[] _registers = new ushort[64];
-        private readonly Thread _thread;
-        private volatile bool _stopped;
-
-        public ModbusTcpSlave()
-        {
-            _registers[0] = 100;
-            _registers[1] = 200;
-            _thread = new Thread(AcceptLoop) { IsBackground = true };
-        }
-
-        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
-
-        public void Start()
-        {
-            _listener.Start();
-            _thread.Start();
-        }
-
-        public void Dispose()
-        {
-            _stopped = true;
-            _listener.Stop();
-        }
-
-        private void AcceptLoop()
-        {
-            while (!_stopped)
-            {
-                TcpClient client;
-                try
-                {
-                    client = _listener.AcceptTcpClient();
-                }
-                catch (SocketException)
-                {
-                    return;
-                }
-                catch (ObjectDisposedException)
-                {
-                    return;
-                }
-                catch (InvalidOperationException)
-                {
-                    return;
-                }
-
-                ThreadPool.QueueUserWorkItem(_ => Serve(client));
-            }
-        }
-
-        private void Serve(TcpClient client)
-        {
-            using (client)
-            {
-                var stream = client.GetStream();
-                var header = new byte[7];
-
-                while (!_stopped)
-                {
-                    if (!ReadExactly(stream, header, header.Length))
-                    {
-                        return;
-                    }
-
-                    var length = (header[4] << 8) | header[5];
-                    var pdu = new byte[length - 1];
-                    if (!ReadExactly(stream, pdu, pdu.Length))
-                    {
-                        return;
-                    }
-
-                    var response = Handle(pdu);
-                    if (response == null)
-                    {
-                        continue;
-                    }
-
-                    var frame = new byte[7 + response.Length];
-                    frame[0] = header[0];
-                    frame[1] = header[1];
-                    frame[4] = (byte)((response.Length + 1) >> 8);
-                    frame[5] = (byte)(response.Length + 1);
-                    frame[6] = header[6];
-                    response.CopyTo(frame, 7);
-                    stream.Write(frame, 0, frame.Length);
-                }
-            }
-        }
-
-        private byte[]? Handle(byte[] pdu)
-        {
-            var function = pdu[0];
-
-            if (function == 0x03)
-            {
-                var start = (pdu[1] << 8) | pdu[2];
-                var count = (pdu[3] << 8) | pdu[4];
-                var response = new byte[2 + (count * 2)];
-                response[0] = 0x03;
-                response[1] = (byte)(count * 2);
-
-                for (var i = 0; i < count; i++)
-                {
-                    var value = _registers[start + i];
-                    response[2 + (i * 2)] = (byte)(value >> 8);
-                    response[3 + (i * 2)] = (byte)value;
-                }
-
-                return response;
-            }
-
-            if (function == 0x06)
-            {
-                var address = (pdu[1] << 8) | pdu[2];
-                _registers[address] = (ushort)((pdu[3] << 8) | pdu[4]);
-                return pdu;
-            }
-
-            return null;
-        }
-
-        private static bool ReadExactly(NetworkStream stream, byte[] buffer, int count)
-        {
-            var offset = 0;
-            while (offset < count)
-            {
-                var read = stream.Read(buffer, offset, count - offset);
-                if (read <= 0)
-                {
-                    return false;
-                }
-
-                offset += read;
-            }
-
-            return true;
-        }
-    }
 }

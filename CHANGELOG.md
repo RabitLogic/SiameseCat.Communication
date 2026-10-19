@@ -31,6 +31,7 @@
 - **帧日志**：`LogFrames = true` 时协议客户端用 `LoggingTransport` 包装传输，以 `Trace` 级别输出 `TX` / `RX` 帧 hex（`CommunicationOptions.Logger` / `LogFrames`，AOT 友好、无反射）。
 - **地址与值模型扩展**：`PlcAddress.Symbol` + `PlcAddress.FromSymbol` 让 OPC UA / CIP / ADS 这类符号寻址协议不再退化到字符串拼接；`PlcValue.Quality`（`Good` / `Uncertain` / `Bad`）与 `PlcValue.Timestamp` 提供质量与采样时间，`DriverConfiguration.StampReadTimestamps` 可让每次读与批量读自动打 UTC 时间戳；质量/时间戳不参与相等性比较，轮询变更检测行为不变。
 - **多目标框架**：5 个库同时提供 `net8.0`（.NET 8 及以上）与 `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7），可被 .NET Framework 4.8 等存量宿主引用；新增共享 `Guard`（替代 net6+ 的 `ThrowIf*`）与 `IntervalTimer`（替代 `PeriodicTimer`），`netstandard2.0` 下正则回退到编译缓存实现、UDP 收发用 `ArrayPool` 桥接 Span API；`IsAotCompatible` 只对 `net8.0` 生效，AOT 发布改为只在探针项目启用 `PublishAot`。启用 `EnablePackageValidation` 保证两个 TFM 的公共 API 面一致。新增 `tests/SiameseCat.Compatibility`（net48 冒烟运行器，8 项检查）在 .NET Framework 4.8 上实际验证 netstandard2.0 资产，CI 增加对应 Windows 任务。
+- **Modbus TCP 从站**（`SiameseCat.Server`，可选）：`ModbusTcpServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、单元号回显与广播写（写生效不响应），用于无真实 PLC 时的联调、仿真与集成测试；演示程序、AOT 探针与 .NET Framework 兼容性运行器全部改用它，删除了三份重复的测试从站实现。
 - **宿主集成包**（`SiameseCat.Hosting`，可选）：`MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，AOT 友好）；`AddSiameseCat()` 注册 `DriverRegistry` 与日志适配器，`AddSiameseCatDriver(id, configure)` 以 keyed transient 方式解析驱动。
 - **重试与恢复**：请求与建连都按瞬时错误重试，退避为 `RetryDelay × 2^(n-1)`（上限 `MaxRetryDelay`，默认带 50–100% 抖动）；可选 Keep-Alive 探针在连续失败后自动重连，`PingAsync` 提供只返回布尔值的健康检查。
 - **批量写**：`IBatchWritable.WriteBatchAsync(IReadOnlyList<PlcWriteRequest>)`；Modbus 合并连续保持寄存器为 FC16、连续线圈为 FC15，S7 使用多变量写请求并按协商 PDU 自动分块。
@@ -63,4 +64,4 @@
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 276 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 289 个。

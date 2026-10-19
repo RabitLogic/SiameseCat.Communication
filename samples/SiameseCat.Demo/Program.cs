@@ -4,6 +4,7 @@ using SiameseCat.Core;
 using SiameseCat.Drivers;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
+using SiameseCat.Server;
 using SiameseCat.Transport;
 
 namespace SiameseCat.Demo;
@@ -70,7 +71,7 @@ internal static class Program
     private static async Task RunSelfTestAsync()
     {
         Console.WriteLine("== Modbus TCP 自测（内置从站）==");
-        await using var server = new ModbusTcpTestServer();
+        await using var server = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
         await server.StartAsync();
 
         var options = new ModbusTcpOptions
@@ -117,7 +118,7 @@ internal static class Program
     private static async Task RunDriverDemoAsync()
     {
         Console.WriteLine("== 可插拔驱动示例（内置 Modbus TCP 从站）==");
-        await using var server = new ModbusTcpTestServer();
+        await using var server = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
         await server.StartAsync();
 
         var registry = DriverRegistryExtensions.CreateDefaultRegistry();

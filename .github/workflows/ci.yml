@@ -33,6 +33,7 @@ jobs:
           dotnet pack src/SiameseCat.Protocols/SiameseCat.Protocols.csproj --configuration Release --no-build --output artifacts
           dotnet pack src/SiameseCat.Drivers/SiameseCat.Drivers.csproj --configuration Release --no-build --output artifacts
           dotnet pack src/SiameseCat.Hosting/SiameseCat.Hosting.csproj --configuration Release --no-build --output artifacts
+          dotnet pack src/SiameseCat.Server/SiameseCat.Server.csproj --configuration Release --no-build --output artifacts
 
       - name: Verify multi-target package layout
         run: |

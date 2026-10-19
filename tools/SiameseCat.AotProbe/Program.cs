@@ -12,6 +12,7 @@ using SiameseCat.Drivers;
 using SiameseCat.Hosting;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
+using SiameseCat.Server;
 using SiameseCat.Transport;
 
 namespace SiameseCat.AotProbe;
@@ -179,10 +180,13 @@ internal static class Program
         }
     }
 
+    private static readonly ushort[] SeedRegisters = { 100, 200 };
+
     private static async Task CheckModbusTcpAsync()
     {
-        await using var slave = new ModbusTcpSlave();
-        slave.Start();
+        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await slave.StartAsync().ConfigureAwait(false);
+        slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
 
         await using var client = new ModbusTcpClient(new ModbusTcpOptions
         {
@@ -203,8 +207,9 @@ internal static class Program
 
     private static async Task CheckPlcDriverAsync()
     {
-        await using var slave = new ModbusTcpSlave();
-        slave.Start();
+        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await slave.StartAsync().ConfigureAwait(false);
+        slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
 
         var registry = DriverRegistryExtensions.CreateDefaultRegistry();
         Ensure(
@@ -299,8 +304,9 @@ internal static class Program
 
     private static async Task CheckTransportInjectionAsync()
     {
-        await using var slave = new ModbusTcpSlave();
-        slave.Start();
+        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await slave.StartAsync().ConfigureAwait(false);
+        slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
 
         await using var factory = new SharedTransportFactory(() => new TcpTransport(new TcpTransportOptions
         {

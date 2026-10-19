@@ -14,4 +14,8 @@
     <ProjectReference Include="..\..\src\SiameseCat.Drivers\SiameseCat.Drivers.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SiameseCat.Server\SiameseCat.Server.csproj" />
+  </ItemGroup>
+
 </Project>

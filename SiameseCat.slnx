@@ -8,6 +8,7 @@
     <Project Path="src/SiameseCat.Protocols/SiameseCat.Protocols.csproj" />
     <Project Path="src/SiameseCat.Drivers/SiameseCat.Drivers.csproj" />
     <Project Path="src/SiameseCat.Hosting/SiameseCat.Hosting.csproj" />
+    <Project Path="src/SiameseCat.Server/SiameseCat.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SiameseCat.Tests/SiameseCat.Tests.csproj" />
