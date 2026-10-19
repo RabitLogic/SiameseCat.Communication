@@ -64,14 +64,14 @@ jobs:
           Write-Host ("Documentation links OK: {0}" -f ($docs -join ", "))
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/*.nupkg
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: |
