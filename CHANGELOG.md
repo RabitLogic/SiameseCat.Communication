@@ -81,5 +81,8 @@
 - `S7Address` 实现 `IEquatable<S7Address>` 与 `==` / `!=`，可直接作为字典键；解析使用固定区域性。
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
+- 新增 docs/tutorial.md：按 samples/SiameseCat.Samples 的目录分层编写的逐步教程（安装选包 → Modbus TCP/RTU → 全功能码 → 错误处理 → S7 → 驱动 → 从站 → 传输层 → 生产清单）。
+- 新增 docs/modbus-comparison.md：与 NModbus 3.0.83 / FluentModbus 5.3.2 的范围、特性矩阵与实测对比（同一从站、20000 次迭代、3 次中位数：10 寄存器读 SiameseCat 1536 B/op vs NModbus 2139/2401 B/op vs FluentModbus 470/1575 B/op）。
+- **示例重构**：samples/SiameseCat.Demo（单文件 387 行）→ samples/SiameseCat.Samples（Modbus/、S7/、Drivers/、Server/、Transports/ 五个目录 + 统一 ISample 契约 + 目录式 CLI）：list 列出目录、un <id> [--选项] 运行单步、selftest 跑完 17 个无硬件示例。每个示例都带内置仿真器，也支持 --host / --port / --com 直连真实设备。
 - 单元测试从 81 个增加到 95 个。
 - 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 356 个。

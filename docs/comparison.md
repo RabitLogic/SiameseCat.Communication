@@ -1,5 +1,7 @@
 # Comparison with S7.Net Plus
 
+> Looking for the Modbus comparison? See [modbus-comparison.md](./modbus-comparison.md) (NModbus and FluentModbus).
+
 [S7.Net Plus](https://github.com/S7NetPlus/s7netplus) (`S7netplus`, MIT, ~1.6k stars) is the de‑facto
 community S7 driver for .NET. SiameseCat implements its own S7 stack, so this page records how the two
 compare and what the measured differences are.

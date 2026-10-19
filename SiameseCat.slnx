@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/samples/">
-    <Project Path="samples/SiameseCat.Demo/SiameseCat.Demo.csproj" />
+    <Project Path="samples/SiameseCat.Samples/SiameseCat.Samples.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/SiameseCat.Core/SiameseCat.Core.csproj" />

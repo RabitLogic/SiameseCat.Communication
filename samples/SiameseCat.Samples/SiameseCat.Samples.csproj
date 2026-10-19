@@ -3,8 +3,11 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>SiameseCat.Demo</RootNamespace>
+    <RootNamespace>SiameseCat.Samples</RootNamespace>
     <IsPackable>false</IsPackable>
+    <AssemblyName>SiameseCat.Samples</AssemblyName>
+    <!-- Console output is meant to be read by a human: keep the current culture and inline demo arrays. -->
+    <NoWarn>$(NoWarn);CA1305;CA1861</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,10 +15,13 @@
     <ProjectReference Include="..\..\src\SiameseCat.Transport\SiameseCat.Transport.csproj" />
     <ProjectReference Include="..\..\src\SiameseCat.Protocols\SiameseCat.Protocols.csproj" />
     <ProjectReference Include="..\..\src\SiameseCat.Drivers\SiameseCat.Drivers.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Hosting\SiameseCat.Hosting.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Server\SiameseCat.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SiameseCat.Server\SiameseCat.Server.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
 </Project>

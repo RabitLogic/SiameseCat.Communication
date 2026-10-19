@@ -16,10 +16,32 @@ A lightweight .NET communication library for PLCs and industrial devices. It tar
 
 Deeper documentation:
 
+- [Tutorial (step-by-step, with runnable samples)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)
 - [Architecture and layering](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md)
 - [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md)
 - [Migration and upgrade notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
+- [Comparison with NModbus and FluentModbus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md)
 - [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
+
+## Samples
+
+`samples/SiameseCat.Samples` is a layered tutorial: one folder per topic, one runnable program per step.
+Every step that targets a device also starts an in-process slave, so the whole tour runs without hardware.
+
+| Folder | Samples |
+| --- | --- |
+| `Modbus/` | `modbus/tcp`, `modbus/rtu`, `modbus/function-codes`, `modbus/errors` |
+| `S7/` | `s7/client`, `s7/driver` |
+| `Drivers/` | `drivers/registry`, `drivers/tags`, `drivers/batch`, `drivers/subscription`, `drivers/resilience`, `drivers/hosting` |
+| `Server/` | `server/modbus-tcp`, `server/modbus-rtu`, `server/s7` |
+| `Transports/` | `transports/raw-tcp`, `transports/custom` |
+
+```powershell
+dotnet run --project samples/SiameseCat.Samples -- list
+dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
+dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp --host 192.168.0.10 --port 502 --unit 1
+dotnet run --project samples/SiameseCat.Samples -- selftest
+```
 
 ## Packages
 
@@ -638,11 +660,14 @@ dotnet test SiameseCat.slnx
 # Coverage (CI enforces a 75% line-coverage gate, currently ~77%)
 dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
-# Hardware-free self test using the built-in Modbus TCP and S7 slaves
-dotnet run --project samples/SiameseCat.Demo -- selftest
+# Samples: one folder per topic, every step runnable without hardware
+dotnet run --project samples/SiameseCat.Samples -- list
+dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
+dotnet run --project samples/SiameseCat.Samples -- run drivers/batch
+dotnet run --project samples/SiameseCat.Samples -- run server/s7
 
-# Driver example: registry + Modbus driver + batch read + PlcTag
-dotnet run --project samples/SiameseCat.Demo -- driver
+# Run every sample that has a built-in simulator (17 steps, ~10 s, exit code 1 on failure)
+dotnet run --project samples/SiameseCat.Samples -- selftest
 
 # Native AOT probe (the project enables PublishAot)
 dotnet run --project tools/SiameseCat.AotProbe

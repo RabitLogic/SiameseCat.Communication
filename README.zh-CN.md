@@ -4,7 +4,7 @@
 
 面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)** 与 **.NET Standard 2.0**（可被 .NET Framework 4.8 等存量宿主引用）。
 
-> 深度文档（英文）：[架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与升级](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
+> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与升级](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
 按**分层**拆分程序集（4 层 + 1 个可选宿主集成 + 1 个可选从站包，共 6 个包），一层一个包，层内再按协议/品牌分组：
 
@@ -491,8 +491,12 @@ tests/SiameseCat.Tests/
 
 tests/SiameseCat.Compatibility/   # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
 
-samples/SiameseCat.Demo/
-└── Program.cs   # selftest / driver / 各协议示例（从站来自 SiameseCat.Server）
+samples/SiameseCat.Samples/   # 按目录分层的使用教程，-- list / -- run <id> / -- selftest
+├── Modbus/      # TCP、RTU、全功能码、错误处理
+├── S7/          # S7Client 与 siemens 驱动
+├── Drivers/     # 注册表、Tag、批量、订阅、韧性、依赖注入
+├── Server/      # Modbus TCP/RTU 与 S7 从站
+└── Transports/  # 原始帧与自定义 ITransport
 
 tools/SiameseCat.AotProbe/   # 无硬件 AOT 探针，支持跨平台交叉编译
 
@@ -1263,11 +1267,14 @@ dotnet test SiameseCat.slnx
 # 覆盖率（CI 会做同样的事，行覆盖率低于 75% 会失败）
 dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
-# 无硬件自测：内置 Modbus TCP 与 S7 从站（SiameseCat.Server）
-dotnet run --project samples/SiameseCat.Demo -- selftest
+# 示例目录（每个主题一个文件夹，无硬件也能跑）
+dotnet run --project samples/SiameseCat.Samples -- list
+dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
+dotnet run --project samples/SiameseCat.Samples -- run drivers/batch
+dotnet run --project samples/SiameseCat.Samples -- run server/s7
 
-# 可插拔驱动示例：注册表 + Modbus 驱动 + 批量读 + PlcTag
-dotnet run --project samples/SiameseCat.Demo -- driver
+# 跑完全部带仿真器的示例（17 步，约 10 秒，失败返回 1）
+dotnet run --project samples/SiameseCat.Samples -- selftest
 
 # 直接以 Native AOT 运行探针（项目已启用 PublishAot）
 dotnet run --project tools/SiameseCat.AotProbe
