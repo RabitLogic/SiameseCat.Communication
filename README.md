@@ -432,6 +432,8 @@ tests/SiameseCat.Tests/
 ├── Integration/ # DI 注册与日志适配
 └── Fakes/       # MockTransport、MockDriver、协议帧
 
+tests/SiameseCat.Compatibility/   # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
+
 samples/SiameseCat.Demo/
 ├── Servers/     # 自测用的 Modbus TCP 从站
 └── Program.cs   # selftest / driver / 各协议示例
@@ -1010,6 +1012,9 @@ dotnet run --project tools/SiameseCat.AotProbe
 # 仅用 JIT 快速运行
 dotnet run --project tools/SiameseCat.AotProbe -p:PublishAot=false
 
+# .NET Framework 4.8 兼容性验证（跑 netstandard2.0 资产，仅 Windows）
+dotnet run --project tests/SiameseCat.Compatibility -c Release
+
 # 打包全部库
 dotnet pack src/SiameseCat.Core/SiameseCat.Core.csproj -c Release -o artifacts
 dotnet pack src/SiameseCat.Transport/SiameseCat.Transport.csproj -c Release -o artifacts
@@ -1037,7 +1042,7 @@ dotnet run -- serial <com> [baud] [text]
 - v1 不提供跨协议统一语义地址映射，`PlcTag` 覆盖配置化场景。
 - 串口没有可取消的异步 API：取消正在进行的读写会关闭串口，需要重新调用 `ConnectAsync`。
 - 串口 `ReadTimeout` 建议小于协议 `Timeout`，否则超时检测会被串口读超时延迟。
-- `netstandard2.0` 目标只做构建与打包验证（自动化测试运行在 `net8.0` 上）；该目标下 AOT 分析与源生成正则不生效，正则回退为编译缓存实现，TCP keep-alive 只能开启探测而不调优时间参数。
+- `netstandard2.0` 目标由 `tests/SiameseCat.Compatibility` 在 .NET Framework 4.8 上做冒烟验证（地址解析、Modbus TCP 往返、驱动契约、帧日志）；完整单元测试仍运行在 `net8.0`。该目标下 AOT 分析与源生成正则不生效，正则回退为编译缓存实现，TCP keep-alive 只能开启探测而不调优时间参数。
 
 ## 许可证
 
