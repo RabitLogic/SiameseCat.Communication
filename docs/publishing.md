@@ -26,14 +26,17 @@ yields one key, so the login step sits right before the push.
    | Package Owner | `RabitLogic` |
    | CI/CD Provider | `GitHub Actions` |
    | Repository Owner | `RabitLogic` |
-   | Repository | `SiameseCat` |
+   | Repository | `SiameseCat` — the **GitHub repository name**, not the package id |
    | Workflow File | `release.yml` — the **file name only**, not `.github/workflows/release.yml` |
    | Environment | leave **empty** (the workflow does not use environments; fill it only if you add `environment:` to the job) |
    | Scopes | **Push new packages and package versions** (switch to *Push only new package versions* after the first release) |
-   | Glob patterns | `SiameseCat.Communication` (`*` also works while the package does not exist yet) |
+   | Glob patterns | `SiameseCat.Communication` — the **package id** (`*` also works while the package does not exist yet) |
 
    The owner, repository and workflow file are matched case-insensitively against the run that requests
-   the token, so a mismatch (including a renamed workflow file) is the most common cause of a failed push.
+   the token. `Repository` is the GitHub repository (`SiameseCat`); the **package id belongs in
+   `Glob patterns`**. Putting `SiameseCat.Communication` in `Repository` only works if the GitHub
+   repository itself is renamed to that name, because the OIDC token carries the real repository name.
+   A mismatch (including a renamed workflow file) is the most common cause of a failed push.
 
 3. In the GitHub repository, add a **variable** (Settings → Secrets and variables → Actions → Variables):
 
@@ -144,7 +147,7 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat`, workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
+| `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat` (**not** the package id), workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
 | Workflow ran but the policy did not match | Renaming the workflow file or moving the job under a different `environment:` breaks the match; update the policy accordingly. |
 | Pushed a wrong version that nobody consumes yet | On nuget.org open the package → **Unlist**; it stays restorable by exact version. Publish a corrected patch. |
 | Bad version already referenced | nuget.org versions are immutable — publish a patch release. |
@@ -152,7 +155,21 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 | Symbol push failed | Re-run the workflow: the `.nupkg` push is skipped (`--skip-duplicate`) and the `.snupkg` is retried with a fresh key. |
 | Local push rejected | The key is missing, expired or lacks the *Push new packages* scope; trusted publishing never applies outside CI. |
 
-## 8. Release checklist
+## 8. Options for the repository name
+
+`Package Owner` / `Repository Owner` is `RabitLogic` in both options; only `Repository` changes.
+
+| Option | nuget.org `Repository` | `Glob patterns` | What has to change |
+| --- | --- | --- | --- |
+| Keep the repo name (today) | `SiameseCat` | `SiameseCat.Communication` | nothing — pick this |
+| Rename the GitHub repo | `SiameseCat.Communication` | `SiameseCat.Communication` | rename `RabitLogic/SiameseCat` → `RabitLogic/SiameseCat.Communication` on GitHub, recreate the policy, and update `RepositoryUrl` in `Directory.Build.props` plus the absolute links in `README.md`, `README.zh-CN.md`, `CHANGELOG.md` and `docs/*.md` |
+
+Renaming the GitHub repository is safe for consumers who already hold packages: the package id is
+independent of the repository name. GitHub redirects the old URLs, but absolute links inside the packaged
+README should be updated so the nuget.org page does not depend on that redirect.
+
+## 9. Release checklist
+
 
 - [ ] `CHANGELOG.md` has the version section and the date.
 - [ ] `dotnet build` and `dotnet test` are clean (0 warnings, 352 tests).
