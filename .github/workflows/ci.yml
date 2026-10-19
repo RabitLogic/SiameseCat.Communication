@@ -54,7 +54,19 @@ jobs:
           for pkg in artifacts/*.nupkg; do
             unzip -l "$pkg" | grep -q 'lib/net8.0/' || { echo "::error::$pkg is missing lib/net8.0"; exit 1; }
             unzip -l "$pkg" | grep -q 'lib/netstandard2.0/' || { echo "::error::$pkg is missing lib/netstandard2.0"; exit 1; }
+            unzip -l "$pkg" | grep -q 'README.md' || { echo "::error::$pkg is missing README.md"; exit 1; }
           done
+
+      - name: Verify documentation links
+        shell: pwsh
+        run: |
+          $docs = Select-String -Path README.md -Pattern 'blob/main/(docs/[a-z-]+\.md)' -AllMatches |
+            ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+          if (-not $docs) { throw "README.md does not link to any docs file." }
+          foreach ($doc in $docs) {
+            if (-not (Test-Path $doc)) { throw "README.md links to missing $doc." }
+          }
+          Write-Host ("Documentation links OK: {0}" -f ($docs -join ", "))
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
