@@ -17,4 +17,7 @@
   <Folder Name="/tools/">
     <Project Path="tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/SiameseCat.Benchmarks/SiameseCat.Benchmarks.csproj" />
+  </Folder>
 </Solution>

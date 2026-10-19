@@ -1224,6 +1224,10 @@ dotnet run --project tools/SiameseCat.AotProbe -p:PublishAot=false
 # .NET Framework 4.8 兼容性验证（跑 netstandard2.0 资产，仅 Windows）
 dotnet run --project tests/SiameseCat.Compatibility -c Release
 
+# 基准测试（BenchmarkDotNet；-c Release 必须，结果写到 BenchmarkDotNet.Artifacts/）
+dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
+dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*AddressParsing*" --job short
+
 # 打包全部库
 dotnet pack src/SiameseCat.Core/SiameseCat.Core.csproj -c Release -o artifacts
 dotnet pack src/SiameseCat.Transport/SiameseCat.Transport.csproj -c Release -o artifacts

@@ -39,6 +39,7 @@
 - **Modbus 从站协议补齐**：新增 FC07 读异常状态、FC0B 读通信事件计数、FC11 报表服务器标识（`ServerIdentifier` / `RunIndicator`）与 FC16 掩码写保持寄存器；TCP 从站允许单字节 PDU（`07/0B/11` 请求仅 1 字节），RTU 从站按功能码推断帧长（掩码写 8 字节固定帧）。
 - **代码组织**：`ModbusDriver` 拆为 `ModbusDriver.cs`（生命周期与 FC23）、`.Read.cs`、`.Write.cs`、`.Conversion.cs` 四个 partial；`ModbusClientBase` 拆为 `ModbusClientBase.cs`（请求管线与帧解析）、`.Read.cs`、`.Write.cs`，公共 API 不变。
 - **工程化**：CI 测试步骤收集 XPlat 覆盖率并设 75% 行覆盖率门禁、上传 TRX 与 Cobertura 报告；新增 `.github/dependabot.yml`（NuGet 分组 + GitHub Actions 月度）与 `SECURITY.md`。
+- **基准测试**：新增 `benchmarks/SiameseCat.Benchmarks`（BenchmarkDotNet + `[MemoryDiagnoser]`），覆盖寄存器转换/CRC、地址解析（Modbus 参考号、命名地址、S7）与值编解码（标量、数组、相等性），结果目录已加入 `.gitignore`。
 - **从站可观测性**：`ModbusTcpServer` / `ModbusRtuServer` 都实现新的 `IModbusServer` 并暴露 `Statistics`（总请求、每功能码请求/异常、接收帧、丢弃帧），`ModbusServerOptions` / `ModbusRtuServerOptions` 新增 `Logger`（`IPlcLogger`），记录连接、丢弃帧、未知功能码与异常响应。
 - **从站 DI 集成**：`SiameseCat.Hosting` 新增 `AddModbusServer(...)` / `AddModbusRtuServer(...)`，把从站注册为 `IModbusServer` 单例并通过单个 `IHostedService` 随宿主启停，未设置 `Logger` 时自动使用 DI 中的 `IPlcLogger`。
 - **批量订阅**：新增 `IBatchSubscribable.SubscribeBatchAsync` 与 `DriverCapabilities.SubscribeBatch`，一组点位共用一次 `ReadBatchAsync` 请求（Modbus 按区/连续性分组），回调收到整组当前值、仅在任一点位变化时触发；协议原生批量订阅可重写 `DoSubscribeBatchAsync`，返回 `null` 时回退轮询（需要 `BatchRead` 能力）。
