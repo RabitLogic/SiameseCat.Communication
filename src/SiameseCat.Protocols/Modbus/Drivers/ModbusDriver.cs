@@ -51,7 +51,7 @@ public partial class ModbusDriver : DriverBase
 
     /// <summary>
     /// Creates a Modbus driver with a vendor-specific descriptor and address parser, used by brand
-    /// drivers such as 汇川/Inovance that only differ in address mapping.
+    /// drivers that only differ in address mapping.
     /// </summary>
     /// <param name="client">Modbus client that performs the framed exchange.</param>
     /// <param name="configuration">Connection and retry settings.</param>

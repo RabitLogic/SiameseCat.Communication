@@ -11,7 +11,7 @@
 - **Modbus 驱动**：`ModbusAddressParser` 支持 `40001` / `HR10` / `IR0` / `C0` / `DI0` 与 6 位参考号；`ModbusDriver` 由 TCP 与 RTU 共用 PDU、数据转换与批量合并逻辑，仅帧封装不同。
 - **西门子 S7 驱动**（`SiameseCat.Drivers.Siemens`）：`SiemensAddressParser` 将 `DB1.DBX0.0` / `MW2` / `IW4` 映射为统一地址；`SiemensDriver` 支持批量多变量读取，`readBatch` 自动使用 S7 原生多读。
 - **批量优化**：Modbus 自动合并同区域连续地址为单次请求；S7 使用多变量请求；`ReadBatchAsync` 保持请求顺序。
-- **汇川品牌驱动**（`SiameseCat.Drivers.Inovance`）：`InovanceAddressParser` 把 `D` / `M` / `X` / `Y` 软元件（`X`/`Y` 八进制）映射到 Modbus 保持寄存器、线圈与离散输入；`InovanceMapping` 允许按系列覆盖 `dBase` / `mBase` / `xBase` / `yBase`；底层复用协议层 `SiameseCat.Protocols.Modbus` 的 PDU、批量合并与数据转换。
+- **品牌范围收敛**：v1 只内置 Siemens 品牌驱动；汇川（Inovance）软元件映射按产品决策移出本仓库，需要时以 `IPlcDriverFactory` 第三方插件的形式提供（`SiameseCat.Core` 的注册表与驱动契约保持不变）。
 - **生态**：`IPlcLogger` / `PlcMetrics` / `PlcMetricsSnapshot`；`SiameseCat.Drivers` 品牌驱动包（含一次性注册入口）；演示程序新增 `driver` 命令。
 - `SiameseCat.Core`：`ITransport` 抽象、通讯异常体系、通用选项、重试策略、定长读取扩展。
 - `SiameseCat.Transport`：TCP 客户端传输（`TcpTransport`），支持连接超时、Nagle 开关、keep-alive 调优。
@@ -66,14 +66,14 @@
 
 ### 质量
 
-- **四层架构**：程序集按层划分——`SiameseCat.Core`（契约 + 模型）→ `SiameseCat.Transport`（TCP + 串口）→ `SiameseCat.Protocols`（Modbus / S7）→ `SiameseCat.Drivers`（Siemens / Inovance 品牌驱动），引用严格单向；程序集数量 7 → 4。SerialPort 不再单独成层，S7 与 Modbus 归入协议层，品牌驱动统一放在品牌层。
-- **命名空间跟随分层**：`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens` / `.Inovance`；驱动类统一品牌命名（`SiemensDriver` / `InovanceDriver`），协议类保留协议名（`S7Client` / `S7Address`）。
-- **目录收敛**：层内按协议/品牌分组，只保留有内容的目录（`Protocols/Modbus/{Clients,Drivers}`、`Protocols/S7/Clients`、`Drivers/{Siemens,Inovance}`），Core 固定为 `Addressing/` + `Drivers/` + `Transport/` + 库级公共类型；协议根目录直接放帧与地址模型，去掉 `Modbus/Protocol`、`S7/Addressing` 这类冗余嵌套。
+- **四层架构**：程序集按层划分——`SiameseCat.Core`（契约 + 模型）→ `SiameseCat.Transport`（TCP + 串口）→ `SiameseCat.Protocols`（Modbus / S7）→ `SiameseCat.Drivers`（Siemens 品牌驱动），引用严格单向；程序集数量 7 → 4。SerialPort 不再单独成层，S7 与 Modbus 归入协议层，品牌驱动统一放在品牌层。
+- **命名空间跟随分层**：`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens`；驱动类统一品牌命名（`SiemensDriver`），协议类保留协议名（`S7Client` / `S7Address`）。
+- **目录收敛**：层内按协议/品牌分组，只保留有内容的目录（`Protocols/Modbus/{Clients,Drivers}`、`Protocols/S7/Clients`、`Drivers/Siemens/`），Core 固定为 `Addressing/` + `Drivers/` + `Transport/` + 库级公共类型；协议根目录直接放帧与地址模型，去掉 `Modbus/Protocol`、`S7/Addressing` 这类冗余嵌套。
 - **工程改名**：`SiameseCat.Integration` → `SiameseCat.Hosting`（宿主集成：DI + `Microsoft.Extensions.Logging`），`tools/SiameseCat.Tools` → `tools/SiameseCat.AotProbe`（名副其实的 AOT 探针），`MicrosoftPlcLogger` → `MicrosoftLoggerAdapter`；`AddSiameseCat()` 放入 `Microsoft.Extensions.DependencyInjection` 命名空间，`using Microsoft.Extensions.DependencyInjection;` 即可调用。
 - **模型命名统一**：`Tag` → `PlcTag`、`IAddressParser` → `IPlcAddressParser`，与 `PlcAddress` / `PlcValue` / `IPlcDriver` 前缀规则一致。
 - **Core 按领域组织**：Core 从「扁平 3 目录 + 根级散落类型」改为「契约与实现同域」——`Addressing/`（地址模型 + `IPlcAddressParser`）、`Diagnostics/`（`IPlcLogger` + 适配器/实现 + `PlcMetrics`）、`Drivers/Abstractions/`（驱动契约、描述符、状态）、`Drivers/Runtime/`（`DriverBase` 5 个 partial、注册表、配置）、`Exceptions/`（异常体系）、`Transport/`（`ITransport` + 助手）；一个公共类型一个文件（扩展类、异常类各自独立）。
 - **DriverBase 拆分**：从 819 行拆成 5 个分部文件——`DriverBase.cs`（契约与读写 API）、`DriverBase.Lifecycle.cs`（连接/断开/释放状态机）、`DriverBase.Execution.cs`（超时、重试、重连管线）、`DriverBase.Health.cs`（`PingAsync` 与 Keep-Alive）、`DriverBase.Subscription.cs`（轮询订阅），公共 API 未变。
-- **测试命名空间对齐目录**：`SiameseCat.Tests.Core` / `.Modbus` / `.Siemens` / `.Inovance` / `.Integration` / `.Fakes`，不再混用 `SiameseCat.Tests` 与 `.S7`。
+- **测试命名空间对齐目录**：`SiameseCat.Tests.Core` / `.Modbus` / `.Siemens` / `.Integration` / `.Fakes`，不再混用 `SiameseCat.Tests` 与 `.S7`。
 
 - 全部公共 API 补齐 XML 文档，启用 `CS1591` 检查（构建零警告），文档随 NuGet 包发布。
 - `S7Client` 按职责拆分为连接、读、写、协议四个 partial 文件，便于维护。
@@ -88,4 +88,4 @@
 - **健康检查**：`SiameseCat.Hosting` 新增 `AddSiameseCatDriverCheck(...)`（`Microsoft.Extensions.Diagnostics.HealthChecks`），可直接挂到 ASP.NET Core `MapHealthChecks` / Kubernetes 探针：`Healthy`（探针应答）、`Unhealthy`（驱动故障或设备无应答）、`Degraded`（未配置 `ProbeAddress` 或探针被取消）；报告携带 `driver`/`state`/`requests`/`failures`/`retries`/失败分类/P50/P95。既支持由检查自持一个专用驱动，也支持监控应用已注册的驱动。
 - **长稳与故障注入工具**：新增 `tools/SiameseCat.Soak`——多个驱动经 TCP 代理（`FaultProxy` 定期切断链路、拒绝新连接）访问内置从站，逐秒输出 ops/成功率/托管堆/工作集/线程/句柄，结束时校验「最后一次故障后恢复、成功率、堆/句柄/线程增长」，退出码 0/1/2 可直接做 CI 门禁；CI 新增 `soak` 任务（每次推送跑 1 分钟）。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 378 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens 地址解析与驱动测试，测试总数增加到 352 个。

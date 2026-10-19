@@ -8,7 +8,7 @@ stack.
 SiameseCat.Core            contracts + models, no I/O
 └── SiameseCat.Transport   TCP / UDP / serial implementations
     └── SiameseCat.Protocols (Modbus, S7) + generic Modbus driver
-        └── SiameseCat.Drivers (Siemens, Inovance)
+        └── SiameseCat.Drivers (Siemens)
 
 SiameseCat.Protocols ← SiameseCat.Server (optional Modbus TCP/RTU slaves, reuses PDU + CRC)
 SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting (optional DI, logging, slave hosting)
@@ -21,7 +21,7 @@ SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting (optional DI, logg
 | Contracts | `SiameseCat.Core` | `IPlcDriver`, capability interfaces, `DriverBase`, `DriverRegistry`, `PlcAddress` / `PlcValue` / `PlcValueCodec` / `PlcTag`, `ITransport` + helpers, logging abstraction, metrics, exceptions |
 | Transport | `SiameseCat.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
 | Protocol | `SiameseCat.Protocols` | Modbus frames/CRC/converters, `ModbusTcpClient` / `ModbusRtuClient`, `S7Client`, `ModbusDriver`, `ModbusAddressParser` |
-| Brand | `SiameseCat.Drivers` | `SiemensDriver` + `SiemensAddressParser`, `InovanceDriver` + `InovanceAddressParser` + `InovanceMapping` |
+| Brand | `SiameseCat.Drivers` | `SiemensDriver` + `SiemensAddressParser`; other brands plug in through `IPlcDriverFactory` |
 | Host integration | `SiameseCat.Hosting` | `MicrosoftLoggerAdapter`, `AddSiameseCat()` / `AddSiameseCatDriver()`, `AddModbusServer()` / `AddModbusRtuServer()` / `AddS7Server()` |
 | Slave | `SiameseCat.Server` | `IModbusServer` / `IS7Server`, `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics`, `S7Server`, `S7PduProcessor`, `S7DataStore`, `S7ServerStatistics` |
 
@@ -176,7 +176,7 @@ numbers on your hardware.
 | Rule | Example |
 | --- | --- |
 | Protocol types keep the protocol name | `ModbusTcpClient`, `S7Client`, `S7Address` |
-| Drivers use the brand name | `SiemensDriver`, `InovanceDriver`, `SiemensAddressParser` |
+| Drivers use the brand name | `SiemensDriver`, `SiemensAddressParser` |
 | Contract types use `Plc` prefixes or `I…` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `IPlcAddressParser` |
 | One public type per file | `Exceptions/CommunicationTimeoutException.cs` |
 | Optional features are separate packages | `SiameseCat.Hosting`, `SiameseCat.Server` |

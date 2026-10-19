@@ -16,7 +16,7 @@ public class IntegrationTests
 
         Assert.True(registry.Contains("modbus"));
         Assert.True(registry.Contains("siemens"));
-        Assert.True(registry.Contains("inovance"));
+        Assert.False(registry.Contains("inovance"));
     }
 
     [Fact]

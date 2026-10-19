@@ -7,8 +7,8 @@ A lightweight .NET communication library for PLCs and industrial devices. It tar
 
 - **Pluggable drivers** — one contract (`IPlcDriver` / `DriverBase`) with capability flags, batch
   read/write, polling or native subscriptions, health probes and metrics.
-- **Protocols built in-house** — Modbus RTU/TCP, Siemens S7 (ISO-on-TCP + COTP + S7 PDU), Inovance
-  (D/M/X/Y mapping onto Modbus), plus raw TCP, UDP and serial transports. No NModbus/Sharp7 dependency.
+- **Protocols built in-house** — Modbus RTU/TCP, Siemens S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
+  TCP, UDP and serial transports. No NModbus/Sharp7 dependency.
 - **Simulation included** — `SiameseCat.Server` ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
   with thread-safe data stores, write events, snapshots and per-request statistics.
 - **Zero-warning, multi-target, Native AOT ready** — analyzer-clean builds, package validation for both
@@ -50,7 +50,7 @@ dotnet run --project samples/SiameseCat.Samples -- selftest
 | `SiameseCat.Core` | Contracts | Driver contracts, address/value model, `DriverBase`, registry, logging, metrics, `ITransport` | — |
 | `SiameseCat.Transport` | Transport | TCP, UDP and serial port transports | Core, `System.IO.Ports` |
 | `SiameseCat.Protocols` | Protocol | Modbus (RTU/TCP) and Siemens S7 frames/clients, generic Modbus driver | Core, Transport |
-| `SiameseCat.Drivers` | Brand | Siemens and Inovance drivers (native address mapping) + registration entry point | Core, Protocols |
+| `SiameseCat.Drivers` | Brand | Siemens driver (native address mapping) + registration entry point | Core, Protocols |
 | `SiameseCat.Hosting` | Host integration (optional) | `Microsoft.Extensions.Logging` adapter, DI registration, slave hosting | Core, Drivers, Server, `Microsoft.Extensions.*` |
 | `SiameseCat.Server` | Slave (optional) | Modbus TCP/RTU and S7 (ISO-on-TCP) slaves with statistics and logging, for integration tests and simulation | Core, Protocols, Transport |
 
@@ -60,7 +60,7 @@ dotnet run --project samples/SiameseCat.Samples -- selftest
 dotnet add package SiameseCat.Core
 dotnet add package SiameseCat.Transport
 dotnet add package SiameseCat.Protocols
-dotnet add package SiameseCat.Drivers        # Siemens + Inovance
+dotnet add package SiameseCat.Drivers        # Siemens S7 brand driver
 dotnet add package SiameseCat.Hosting        # optional: DI + Microsoft.Extensions.Logging
 dotnet add package SiameseCat.Server         # optional: Modbus TCP/RTU slaves
 ```
@@ -73,7 +73,7 @@ The registry is the recommended entry point: it hides which protocol client and 
 using SiameseCat.Core;
 using SiameseCat.Drivers;
 
-var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens, inovance
+var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens
 
 await using var driver = registry.Create("modbus", new DriverConfiguration
 {
@@ -148,15 +148,14 @@ configuration.Options["slot"] = "1";
 
 | Option | Drivers | Values | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| `unitId` | modbus, inovance | 0–255 | 1 | Station address; `0` is broadcast (writes are fire-and-forget, reads are rejected) |
-| `encoding` | modbus, inovance | `ascii` / `utf8` / `latin1` | `ascii` | Encoding of `String` values |
+| `unitId` | modbus | 0–255 | 1 | Station address; `0` is broadcast (writes are fire-and-forget, reads are rejected) |
+| `encoding` | modbus | `ascii` / `utf8` / `latin1` | `ascii` | Encoding of `String` values |
 | `encoding` | siemens | `ascii` / `utf8` / `latin1` | `latin1` | Encoding of S7 `STRING` |
-| `swapBytes` | modbus, inovance | `true` / `false` | `false` | Swap bytes inside each register (strings/raw) |
+| `swapBytes` | modbus | `true` / `false` | `false` | Swap bytes inside each register (strings/raw) |
 | `interFrameDelayMs` | modbus (RTU) | 0–60000 | auto | Inter-frame silence; `0` derives it from the baud rate |
 | `framing` | modbus (custom transport) | `tcp` / `rtu` | `tcp` | Modbus framing on an injected transport |
 | `discardEcho` | modbus (RTU) | `true` / `false` | `false` | Drop RS-485 converter echoes |
 | `rack` / `slot` | siemens | 0–7 / 0–31 | 0 / 1 | S7 rack and slot |
-| `dBase` / `mBase` / `xBase` / `yBase` | inovance | 0–65535 | 0 / 0 / 0 / 8192 | Base offsets mapped onto Modbus areas |
 
 Typed helpers: `GetOption(key, default, min, max)`, `GetByteOption`, `GetUInt16Option`,
 `GetBooleanOption`, `HasOption`.
@@ -289,7 +288,6 @@ await using var serial = new SerialPortTransport(new SerialPortOptions { PortNam
 | Modbus reference numbers | `40001`, `10001`, `30001`, `00001` | Coils / discrete inputs / input registers / holding registers |
 | Modbus named offsets | `HR10`, `IR0`, `C0`, `DI0` | Same areas with zero-based offsets |
 | Siemens | `DB1.DBX0.0`, `DB1.DBW2`, `DB1.DBD4`, `MW2`, `IW4`, `Q0.0` | Data block, memory, input and output areas |
-| Inovance | `D100`, `M10`, `X10`, `Y10` | Soft elements mapped onto Modbus areas (X/Y are octal) |
 
 `PlcAddress` carries `Region`, `Offset`, `BitOffset`, `DataType`, `Length` and an optional `Symbol` for
 symbol-addressed protocols. `PlcValue` carries the payload plus optional `Quality` and `Timestamp`;
@@ -724,9 +722,9 @@ for the vulnerability reporting process.
 
 - The Modbus slaves cover TCP and RTU; S7 only supports S7comm variable read/write (no upload/download or
   diagnostic buffer services).
-- Three drivers ship in the box (generic Modbus, Siemens S7, Inovance). Other brands extend the same
-  contracts.
-- The Inovance driver maps soft elements onto Modbus; vendor-specific ASCII protocols are not included.
+- Two drivers ship in the box (generic Modbus, Siemens S7). Brand support beyond Siemens lives in
+  third-party packages that implement `IPlcDriverFactory`, because each brand needs its own address
+  mapping and validation against real hardware.
 - Siemens S7 currently supports TCP only; Modbus supports TCP and RTU.
 - Numeric arrays cover `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`; `Bool` is a single bit.
 - There is no cross-protocol semantic address mapping in v1; `PlcTag` covers configuration-driven tags.

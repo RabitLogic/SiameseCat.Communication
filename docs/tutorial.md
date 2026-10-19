@@ -28,7 +28,7 @@ Pick the packages you need:
 | `SiameseCat.Core` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `DriverBase`, metrics, transport contracts |
 | `SiameseCat.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport` |
 | `SiameseCat.Protocols` | `ModbusTcpClient`, `ModbusRtuClient`, `S7Client`, the `modbus` driver |
-| `SiameseCat.Drivers` | `siemens` and `inovance` brand drivers, `DriverRegistry` |
+| `SiameseCat.Drivers` | the `siemens` brand driver, `DriverRegistry` |
 | `SiameseCat.Server` | Modbus TCP/RTU and S7 slaves |
 | `SiameseCat.Hosting` | dependency injection, `Microsoft.Extensions.Logging` bridge |
 
@@ -216,7 +216,7 @@ if (driver is IBatchReadable batch)
 ### Registry (`drivers/registry`)
 
 ```csharp
-var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens, inovance
+var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens
 registry.Descriptors;                                              // id, name, transports, port, examples
 var driver = registry.Create("modbus", configuration, logger, metrics);
 ```

@@ -8,11 +8,11 @@
     <PackageId>SiameseCat.Drivers</PackageId>
     <Version>1.0.0</Version>
     <Authors>RabitLogic</Authors>
-    <Description>Brand driver layer for SiameseCat: Siemens and Inovance PLC drivers with native address mapping.</Description>
+    <Description>Brand driver layer for SiameseCat: Siemens PLC driver with native address mapping.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>plc;siemens;inovance;driver</PackageTags>
+    <PackageTags>plc;siemens;driver</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

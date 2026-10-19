@@ -9,8 +9,8 @@ namespace SiameseCat.Protocols.Modbus;
 /// Builds Modbus clients from a pluggable <see cref="DriverConfiguration"/>.
 /// </summary>
 /// <remarks>
-/// Shared by the generic Modbus driver and by vendor drivers that speak Modbus (for example
-/// 汇川/Inovance), so transport, unit id and serial settings are configured in exactly one place.
+/// Shared by the generic Modbus driver and by vendor drivers that speak Modbus, so transport, unit id
+/// and serial settings are configured in exactly one place.
 /// </remarks>
 public static class ModbusClientFactory
 {

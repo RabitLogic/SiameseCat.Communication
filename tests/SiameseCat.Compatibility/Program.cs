@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 
 using SiameseCat.Core;
 using SiameseCat.Drivers;
-using SiameseCat.Drivers.Inovance;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
 using SiameseCat.Server.Modbus;
@@ -35,7 +34,6 @@ internal static class Program
         var failures = 0;
         failures += await CheckAsync("Modbus address parsing", CheckModbusAddressAsync);
         failures += await CheckAsync("S7 address parsing", CheckS7AddressAsync);
-        failures += await CheckAsync("Inovance address parsing", CheckInovanceAddressAsync);
         failures += await CheckAsync("Value model", CheckValueModelAsync);
         failures += await CheckAsync("Argument checks", CheckArgumentChecksAsync);
         failures += await CheckAsync("Modbus TCP round trip", CheckModbusTcpAsync);
@@ -82,18 +80,6 @@ internal static class Program
         var address = S7Address.Parse("DB1.DBX2.3");
         Ensure(address.Area == S7Area.DataBlock && address.DbNumber == 1, "S7 DB address did not parse.");
         Ensure(S7Address.TryParse("MW4", out var word) && word.ByteOffset == 4, "S7 MW4 did not parse.");
-
-        return Task.CompletedTask;
-    }
-
-    private static Task CheckInovanceAddressAsync()
-    {
-        var parser = new InovanceAddressParser();
-        var d = parser.Parse("D100");
-        Ensure(d.Region == ModbusAddressParser.HoldingRegisterRegion && d.Offset == 100, "D100 did not parse.");
-
-        var y = parser.Parse("Y10");
-        Ensure(y.Offset == 8200, "Y10 octal mapping is wrong.");
 
         return Task.CompletedTask;
     }
@@ -229,7 +215,7 @@ internal static class Program
 
             var registry = DriverRegistryExtensions.CreateDefaultRegistry();
             Ensure(
-                registry.Contains("modbus") && registry.Contains("siemens") && registry.Contains("inovance"),
+                registry.Contains("modbus") && registry.Contains("siemens") && !registry.Contains("inovance"),
                 "Built-in drivers are missing.");
 
             var driver = registry.Create("modbus", new DriverConfiguration

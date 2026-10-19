@@ -1,5 +1,4 @@
 using SiameseCat.Core;
-using SiameseCat.Drivers.Inovance;
 using SiameseCat.Drivers.Siemens;
 using SiameseCat.Protocols.Modbus;
 
@@ -13,7 +12,7 @@ namespace SiameseCat.Drivers;
 /// </remarks>
 public static class DriverRegistryExtensions
 {
-    /// <summary>Registers the generic Modbus driver and the Siemens and Inovance brand drivers.</summary>
+    /// <summary>Registers the generic Modbus driver and the Siemens brand driver.</summary>
     /// <param name="registry">Registry to extend.</param>
     /// <returns>The same registry, for chaining.</returns>
     public static DriverRegistry AddSiameseCatDrivers(this DriverRegistry registry)
@@ -22,7 +21,6 @@ public static class DriverRegistryExtensions
 
         registry.Register(new ModbusDriverFactory());
         registry.Register(new SiemensDriverFactory());
-        registry.Register(new InovanceDriverFactory());
         return registry;
     }
 

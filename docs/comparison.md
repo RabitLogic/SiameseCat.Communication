@@ -28,7 +28,7 @@ plc.Read("DB1.DBD0");
 
 | | SiameseCat | S7.Net Plus |
 | --- | --- | --- |
-| Protocols | Modbus RTU/TCP, Siemens S7, Inovance (Modbus mapping), raw TCP/UDP/Serial | S7 only |
+| Protocols | Modbus RTU/TCP, Siemens S7, raw TCP/UDP/Serial | S7 only |
 | Abstraction | Address/value model, `IPlcDriver` + `DriverBase`, registry, capability flags, batch/subscription, metrics | `Plc` class with string addresses and `DataItem`s |
 | Target frameworks | `net8.0` + `netstandard2.0` (package validation for both) | `net452`, `netstandard1.3`, `netstandard2.0` |
 | Simulation | `SiameseCat.Server`: Modbus TCP/RTU **and** S7 slaves | none (tests use the native Snap7 DLL) |
@@ -87,7 +87,7 @@ Choose **S7.Net Plus** when:
 
 Choose **SiameseCat** when:
 
-- one application talks to several protocols (Modbus RTU/TCP, S7, Inovance) behind one driver contract,
+- one application talks to several protocols (Modbus RTU/TCP, S7) behind one driver contract,
 - you need retries, reconnects, keep-alive, state machine and metrics out of the box,
 - you deploy with Native AOT/trimming (no reflection anywhere),
 - you want subscriptions with batched polling and back-off,

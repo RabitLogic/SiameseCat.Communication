@@ -13,7 +13,7 @@
 | `SiameseCat.Core` | 契约层 | 驱动契约、地址/值模型、`DriverBase`、注册表、日志抽象与指标、`ITransport` 抽象 | 无 |
 | `SiameseCat.Transport` | 传输层 | TCP / UDP / 串口传输实现 | Core、`System.IO.Ports` |
 | `SiameseCat.Protocols` | 协议层 | Modbus（RTU/TCP）与 Siemens S7 的帧、客户端，以及通用 Modbus 驱动 | Core、Transport |
-| `SiameseCat.Drivers` | 品牌层 | Siemens / Inovance 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
+| `SiameseCat.Drivers` | 品牌层 | Siemens 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
 | `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器、`IServiceCollection` 注册与从站托管 | Core、Drivers、Server、`Microsoft.Extensions.*` |
 | `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23）与 S7（ISO-on-TCP）从站，含统计与日志，用于联调、仿真与集成测试 | Core、Protocols、Transport |
 
@@ -35,7 +35,7 @@ SiameseCat.Core（契约层）
         │ 品牌层（地址映射 + 工厂）               │ 协议层（帧 / 客户端 / 通用驱动）
  SiameseCat.Drivers                        SiameseCat.Protocols
  ├── Siemens/     SiemensDriver             ├── Modbus/  ModbusDriver、RTU/TCP 客户端、CRC、寄存器转换
- └── Inovance/    InovanceDriver            └── S7/      S7Client（ISO-on-TCP/COTP/S7 PDU）、S7Address
+└── (第三方品牌插件)                        └── S7/      S7Client（ISO-on-TCP/COTP/S7 PDU）、S7Address
         │                                                   │
         └────────── 复用协议客户端 ─────────────────────────┘
                               │
@@ -60,7 +60,6 @@ SiameseCat.Core（契约层）
 | --- | --- | --- |
 | `modbus` | `SiameseCat.Protocols`（`Protocols.Modbus`） | 通用 Modbus 从站、仪表、变频器 |
 | `siemens` | `SiameseCat.Drivers`（`Drivers.Siemens`） | S7-200 SMART / 300 / 400 / 1200 / 1500 |
-| `inovance` | `SiameseCat.Drivers`（`Drivers.Inovance`） | H3U / H5U / AM400 / AM600（Modbus RTU/TCP） |
 
 ## 驱动选项
 
@@ -80,15 +79,14 @@ configuration.Options["slot"] = "1";
 
 | 选项 | 适用驱动 | 取值 | 默认 | 说明 |
 | --- | --- | --- | --- | --- |
-| `unitId` | modbus、inovance | 0–255 | 1 | 从站地址；0 为广播模式（写不等响应，读直接拒绝） |
-| `encoding` | modbus、inovance | `ascii` / `utf8` / `latin1` | `ascii` | `String` 值编码 |
+| `unitId` | modbus | 0–255 | 1 | 从站地址；0 为广播模式（写不等响应，读直接拒绝） |
+| `encoding` | modbus | `ascii` / `utf8` / `latin1` | `ascii` | `String` 值编码 |
 | `encoding` | siemens | `ascii` / `utf8` / `latin1` | `latin1` | S7 `STRING` 编码 |
-| `swapBytes` | modbus、inovance | `true` / `false` | `false` | 寄存器内字节交换（字符串/原始字节） |
+| `swapBytes` | modbus | `true` / `false` | `false` | 寄存器内字节交换（字符串/原始字节） |
 | `interFrameDelayMs` | modbus（RTU） | 0–60000 | 自动 | 帧间静默间隔；0 表示按波特率计算 |
 | `framing` | modbus（Custom 传输） | `tcp` / `rtu` | `tcp` | 自定义传输上的 Modbus 组帧方式 |
 | `discardEcho` | modbus（RTU） | `true` / `false` | `false` | 丢弃 RS-485 转换器回显 |
 | `rack` / `slot` | siemens | 0–7 / 0–31 | 0 / 1 | S7 机架与槽位 |
-| `dBase` / `mBase` / `xBase` / `yBase` | inovance | 0–65535 | 0 / 0 / 0 / 8192 | 软元件到 Modbus 区域的基址 |
 
 需要强类型读取时可用 `DriverConfiguration` 的辅助方法：`GetOption(key, default, min, max)`、`GetByteOption`、`GetUInt16Option`、`GetBooleanOption`、`HasOption`。
 
@@ -295,7 +293,6 @@ services.AddS7Server(options =>
 | --- | --- | --- |
 | Modbus（通用） | `40001` / `HR10` / `IR0` / `C0` / `DI0` | `{ Region="holding", Offset=0, DataType=UInt16 }` |
 | Siemens | `DB1.DBX0.0` / `DB1.DBW2` / `M0.0` / `IW4` | `{ Region="DB1", Offset=0, BitOffset=0, DataType=Bool }` |
-| Inovance | `D100` / `M10` / `X17`（八进制） / `Y10` | `{ Region="holding", Offset=100, DataType=UInt16 }` |
 
 数组/文本使用 `Length`：`String` 为最大字符数，`Raw` 为字节数，**数值类型为元素个数**（`UInt16` + `Length=10` 就是 10 个寄存器/字，`ByteSize` 自动等于 20）。`Bool` 始终表示单个位，多个位请用多个地址。
 
@@ -389,7 +386,6 @@ registry.Register(new MyProtocolFactory());
 | Modbus TCP | MBAP 帧、事务号校验，支持多个并发调用串行化 |
 | Modbus 扩展 | FC23 原子读写（`ReadWriteRegistersAsync`）、广播写（`unitId=0` 只发不等） |
 | Siemens S7 | ISO-on-TCP (RFC 1006) + COTP + S7 PDU，支持 DB/M/I/Q 区、位/字节/字/双字/浮点/字符串、批量读写、位数组写、PDU 分片 |
-| Inovance（汇川） | 品牌驱动，D/M/X/Y 软元件映射到 Modbus，底层复用 Modbus RTU/TCP 的 PDU 与批量优化，区域基址可配置 |
 | TCP | 原始 TCP 客户端传输，可用于自定义文本/二进制协议 |
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
 | SerialPort | 原始串口传输，可配置波特率、校验位、数据位、停止位、流控 |
@@ -435,7 +431,7 @@ broadcast.Options["unitId"] = "0";
 | 契约层 | `SiameseCat.Core` | 驱动契约、`DriverBase`、注册表、`PlcAddress`/`PlcValue`/`PlcTag`、`ITransport` 抽象 |
 | 传输层 | `SiameseCat.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
 | 协议层 | `SiameseCat.Protocols` | Modbus（RTU/TCP）与 S7 的帧、客户端，以及通用 Modbus 驱动 |
-| 品牌层 | `SiameseCat.Drivers` | Siemens / Inovance 的品牌驱动与原生地址映射 |
+| 品牌层 | `SiameseCat.Drivers` | Siemens 品牌驱动与原生地址映射；其他品牌按 `IPlcDriverFactory` 以插件形式接入 |
 | 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器、DI 注册与从站托管（`AddModbusServer` / `AddS7Server`），不参与分层依赖链 |
 | 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站（`IModbusServer`）与 S7 从站（`IS7Server`），用于联调、仿真与集成测试；复用协议层 PDU/CRC 与传输层串口；提供统计与日志 |
 
@@ -468,9 +464,8 @@ src/
 │       ├── S7ReadItem.cs / S7WriteItem.cs
 │       └── Clients/                     # S7Client（连接/读/写/协议 4 个 partial）、S7Options、S7Exception
 ├── SiameseCat.Drivers/                  # 品牌层：品牌地址映射 + 驱动 + 注册入口
-│   ├── DriverRegistryExtensions.cs      # 一次注册 modbus / siemens / inovance
+│   ├── DriverRegistryExtensions.cs      # 一次注册 modbus / siemens
 │   ├── Siemens/                         # SiemensDriver、SiemensAddressParser、SiemensDriverFactory
-│   └── Inovance/                        # InovanceDriver、InovanceAddressParser、InovanceMapping、工厂
 └── SiameseCat.Hosting/                  # 宿主集成（可选）
     ├── MicrosoftLoggerAdapter.cs        # IPlcLogger -> ILogger
     └── ServiceCollectionExtensions.cs   # AddSiameseCat / AddSiameseCatDriver（Microsoft.Extensions.DependencyInjection 命名空间）
@@ -485,7 +480,6 @@ tests/SiameseCat.Tests/
 ├── Core/        # 驱动契约（Mock 驱动）、地址/值模型、传输、选项、可靠性、指标
 ├── Modbus/      # CRC、转换、RTU/TCP 客户端、驱动与地址解析
 ├── Siemens/     # 地址解析、客户端、驱动
-├── Inovance/    # 软元件映射、区域基址、驱动读写与批量合并
 ├── Integration/ # DI 注册与日志适配
 └── Fakes/       # MockTransport、MockDriver、协议帧
 
@@ -506,7 +500,7 @@ scripts/
 ```
 
 > 命名空间按层收口：`SiameseCat.Core`、`SiameseCat.Transport`、`SiameseCat.Protocols.Modbus` / `.S7`、
-> `SiameseCat.Drivers.Siemens` / `.Inovance`、`SiameseCat.Hosting`。层内文件调整不影响引用方。
+> `SiameseCat.Drivers.Siemens`、`SiameseCat.Hosting`。层内文件调整不影响引用方。
 
 ### 命名约定
 
@@ -515,7 +509,7 @@ scripts/
 | 程序集 = 层 | 一个层一个包，包名统一以 `SiameseCat.` 开头 | `SiameseCat.Protocols` |
 | 命名空间 = 层 + 协议/品牌 | 比目录浅一层，避免 `…Modbus.Protocol` 这类冗余段 | `SiameseCat.Protocols.Modbus` |
 | 领域模型统一 `Plc` 前缀 | 核心值类型与契约一律带 `Plc` 前缀，读写代码一眼可辨 | `PlcAddress`、`PlcValue`、`PlcTag`、`IPlcAddressParser` |
-| 驱动类按品牌命名 | 品牌驱动用 `品牌 + Driver`，协议客户端保留协议名 | `SiemensDriver`、`InovanceDriver`、`S7Client`、`ModbusDriver` |
+| 驱动类按品牌命名 | 品牌驱动用 `品牌 + Driver`，协议客户端保留协议名 | `SiemensDriver`、`S7Client`、`ModbusDriver` |
 | 工厂 = 契约入口 | `IPlcDriverFactory` 的实现类以 `DriverFactory` 结尾 | `SiemensDriverFactory`、`ModbusDriverFactory` |
 | 分部类按职责拆文件 | 单类型职责超过 3 块或超过 ~300 行时用 `类型.职责.cs` | `DriverBase.Lifecycle.cs`、`S7Client.Protocol.cs` |
 | 契约与实现同域 | 接口放到它服务的领域目录，而不是统一堆到 `Abstractions`；只有跨多个领域的驱动契约才单独成组 | `Addressing/IPlcAddressParser.cs`、`Transport/ITransport.cs`、`Drivers/Abstractions/` |
@@ -528,7 +522,7 @@ scripts/
 SiameseCat.Core            （契约 + 模型，无 I/O）
 └── SiameseCat.Transport   （TCP / UDP / 串口实现）
     └── SiameseCat.Protocols（Modbus、S7）
-        └── SiameseCat.Drivers（Siemens、Inovance 品牌驱动）
+        └── SiameseCat.Drivers（Siemens 品牌驱动）
 
 SiameseCat.Protocols ← SiameseCat.Server（可选：Modbus TCP/RTU 与 S7 从站，复用协议层 PDU 与 CRC）
 SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting（可选：DI + 日志 + 从站托管）
@@ -543,14 +537,14 @@ dotnet add reference src/SiameseCat.Transport/SiameseCat.Transport.csproj
 # 协议层（Modbus RTU/TCP、S7）
 dotnet add reference src/SiameseCat.Protocols/SiameseCat.Protocols.csproj
 
-# 品牌层（Siemens / Inovance 驱动）
+# 品牌层（Siemens 驱动）
 dotnet add reference src/SiameseCat.Drivers/SiameseCat.Drivers.csproj
 ```
 
 ## 安装
 
 ```powershell
-dotnet add package SiameseCat.Drivers      # 品牌驱动（Siemens / Inovance）+ 协议层 + 传输层
+dotnet add package SiameseCat.Drivers      # 品牌驱动（Siemens）+ 协议层 + 传输层
 dotnet add package SiameseCat.Protocols    # 只用协议层：Modbus、S7
 dotnet add package SiameseCat.Transport    # 只用传输层：TCP / UDP / 串口
 dotnet add package SiameseCat.Core         # 只实现自定义驱动
@@ -752,84 +746,6 @@ S7 注意事项：
 - S7-1200/1500 需要在 TIA Portal 中允许 PUT/GET 通讯。
 - 访问 DB 时，需要关闭该 DB 的“优化的块访问（Optimized block access）”。
 - 大块数据会自动按协商后的 PDU 大小分片读写；`client.PduSize` 可查看协商结果。
-
-### 汇川（Inovance）
-
-汇川 PLC（H3U / H5U / AM 系列）通过 Modbus RTU/TCP 对外提供数据，品牌驱动只负责把软元件变成 Modbus 地址，PDU、批量合并和数据类型转换全部复用协议层的 Modbus 实现。
-
-```csharp
-using SiameseCat.Core;
-using SiameseCat.Drivers;
-
-var registry = DriverRegistryExtensions.CreateDefaultRegistry();
-
-await using var plc = registry.Create("inovance", new DriverConfiguration
-{
-    Transport = TransportKind.Tcp,
-    Host = "192.168.0.30",
-    Port = 502,                        // 默认 502
-    Timeout = TimeSpan.FromSeconds(2),
-});
-
-await plc.ConnectAsync();
-
-var readable = (IReadable)plc;
-var writable = (IWritable)plc;
-var batch = (IBatchReadable)plc;
-
-// D 数据寄存器 -> 保持寄存器
-ushort speed = (await readable.ReadAsync(plc.AddressParser.Parse("D100"))).AsUInt16();
-await writable.WriteAsync(plc.AddressParser.Parse("D100"), PlcValue.FromUInt16(1234));
-
-// M 辅助继电器 -> 线圈
-await writable.WriteAsync(plc.AddressParser.Parse("M10"), PlcValue.FromBool(true));
-
-// X 输入（八进制） -> 离散输入；Y 输出（八进制） -> 线圈（默认 +8192）
-bool input = (await readable.ReadAsync(plc.AddressParser.Parse("X17"))).AsBool();
-await writable.WriteAsync(plc.AddressParser.Parse("Y10"), PlcValue.FromBool(true));
-
-// 批量读：连续的 D 寄存器合并成一次请求
-var values = await batch.ReadBatchAsync(new[]
-{
-    plc.AddressParser.Parse("D0"),
-    plc.AddressParser.Parse("D1"),
-    plc.AddressParser.Parse("D2"),
-});
-
-// 也可以直接写 Modbus 寄存器地址
-ushort raw = (await readable.ReadAsync(plc.AddressParser.Parse("40001"))).AsUInt16();
-```
-
-软元件映射（不区分大小写，`X`/`Y` 为八进制）：
-
-| 软元件 | Modbus 区域 | 默认基址 | 说明 |
-| --- | --- | --- | --- |
-| `D100` | 保持寄存器 | 0 | 数据寄存器，可读写，支持 Float/Int32 等跨寄存器类型 |
-| `M10` | 线圈 | 0 | 辅助继电器，读写 `Bool` |
-| `X17` | 离散输入 | 0 | 输入继电器，只读，八进制 |
-| `Y10` | 线圈 | 8192（`0x2000`） | 输出继电器，八进制 |
-
-不同系列或从站的区域映射不同时，用驱动选项覆盖基址：
-
-```csharp
-var configuration = new DriverConfiguration
-{
-    Transport = TransportKind.Tcp,
-    Host = "192.168.0.30",
-};
-configuration.Options["unitId"] = "1";
-configuration.Options["dBase"] = "0";
-configuration.Options["mBase"] = "0";
-configuration.Options["xBase"] = "0";
-configuration.Options["yBase"] = "8192";
-await using var plc = registry.Create("inovance", configuration);
-```
-
-汇川注意事项：
-
-- 默认映射按 H3U/H5U 常见约定：`D`/`M`/`X` 从 0 开始，`Y` 从线圈 8192 开始；若从站文档给出别的基址，用 `dBase`/`mBase`/`xBase`/`yBase` 覆盖。
-- 支持 Modbus RTU：把 `Transport` 设为 `Serial` 并配置 `Serial` 段即可，串口参数与通用 Modbus 完全一致。
-- 地址也可以直接写 Modbus 形式（`40001`、`HR10`、`C0`），便于对照从站手册。
 
 ### 原始 TCP
 
@@ -1242,7 +1158,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 - 单元号 0 视为广播：写请求只发送不等待响应，读请求直接拒绝。
 - 客户端的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，不会打断进行中的请求。
-- 命名空间跟随分层：`SiameseCat.Core`、`SiameseCat.Transport`、`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens` / `.Inovance`。
+- 命名空间跟随分层：`SiameseCat.Core`、`SiameseCat.Transport`、`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens`。
 - 所有公共 API 都有 XML 文档（`CS1591` 已启用），生成的 `.xml` 随 NuGet 包一起发布。
 
 ### 版本与打包
@@ -1296,20 +1212,12 @@ dotnet pack src/SiameseCat.Protocols/SiameseCat.Protocols.csproj -c Release -o a
 dotnet pack src/SiameseCat.Drivers/SiameseCat.Drivers.csproj -c Release -o artifacts
 ```
 
-示例程序的其它命令：
+示例目录（`samples/SiameseCat.Samples`）用 `-- list` 看目录、`-- run <id>` 跑单步、`-- selftest` 跑全部无硬件示例；每个示例都支持 `--host` / `--port` / `--com` 直连真机，详见 [docs/tutorial.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)。
 
-```text
-dotnet run -- modbus-tcp <host> [port] [unit]
-dotnet run -- modbus-rtu <com> [baud] [unit]
-dotnet run -- siemens <host> [rack] [slot] [address]
-dotnet run -- tcp <host> <port> [text]
-dotnet run -- serial <com> [baud] [text]
-```
 ## 当前限制
 
 - Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Server`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
-- 驱动层内置三个驱动：通用 Modbus（RTU/TCP）、西门子 S7、汇川（D/M/X/Y 映射到 Modbus）；其他品牌可按同一契约扩展。
-- 汇川驱动基于 Modbus，按软元件映射实现；厂商私有 ASCII/串口协议未内置。
+- 驱动层内置两个驱动：通用 Modbus（RTU/TCP）与西门子 S7；其他品牌按 `IPlcDriverFactory` 以插件形式扩展（每个品牌的地址映射都需按真机验证）。
 - 西门子 S7 目前只支持 TCP 传输；Modbus 支持 TCP/RTU。
 - 数值数组支持 `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`；`Bool` 只表示单个位（多位请用多个地址），`String`/`Raw` 继续用 `Length` 表示字符数/字节数。
 - v1 不提供跨协议统一语义地址映射，`PlcTag` 覆盖配置化场景。

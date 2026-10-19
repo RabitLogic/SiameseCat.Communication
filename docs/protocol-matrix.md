@@ -98,21 +98,6 @@ Everything SiameseCat speaks, on the wire and in the API.
   crossing byte boundaries, split by the negotiated PDU.
 - Not supported: upload/download of blocks, diagnostic buffer and other advanced S7 services.
 
-## Inovance
-
-Soft elements are mapped onto Modbus areas; the underlying client is the Modbus client, so all batching
-and conversion rules apply.
-
-| Element | Modbus area | Base offset | Notes |
-| --- | --- | --- | --- |
-| `D` | Holding registers | `dBase` (0) | 16-bit words |
-| `M` | Coils | `mBase` (0) | Bits |
-| `X` | Discrete inputs | `xBase` (0) | Octal numbering (`X10` = 8) |
-| `Y` | Coils | `yBase` (8192) | Octal numbering |
-
-Bases are configurable per series through `InovanceMapping` (option keys `dBase`, `mBase`, `xBase`,
-`yBase`).
-
 ## S7 slave (`SiameseCat.Server`)
 
 `S7Server` speaks ISO-on-TCP (TPKT + COTP + S7 PDU) and answers the same services the client uses:

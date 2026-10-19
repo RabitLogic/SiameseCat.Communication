@@ -221,9 +221,9 @@ internal static class Program
 
         var registry = DriverRegistryExtensions.CreateDefaultRegistry();
         Ensure(
-            registry.Contains("modbus") && registry.Contains("siemens") && registry.Contains("inovance"),
-            "Built-in drivers are not registered.");
-        Ensure(registry.Descriptors.Count() == 3, "Unexpected number of registered drivers.");
+            registry.Contains("modbus") && registry.Contains("siemens") && !registry.Contains("inovance"),
+            "Built-in drivers are not registered correctly.");
+        Ensure(registry.Descriptors.Count() == 2, "Unexpected number of registered drivers.");
 
         await using var driver = registry.Create("modbus", new DriverConfiguration
         {
@@ -298,16 +298,7 @@ internal static class Program
         });
 
         Ensure(siemensDriver.AddressParser.Parse("DB1.DBD0").Region == "DB1", "Siemens address parsing failed.");
-
-        await using var inovanceDriver = registry.Create("inovance", new DriverConfiguration
-        {
-            Transport = TransportKind.Tcp,
-            Host = "127.0.0.1",
-            Port = 502,
-        });
-
-        Ensure(inovanceDriver.AddressParser.Parse("D100").Offset == 100, "Inovance address parsing failed.");
-        Ensure(inovanceDriver.AddressParser.Parse("Y10").Offset == 8200, "Inovance Y base mapping failed.");
+        Ensure(siemensDriver.AddressParser.Parse("MW2").Offset == 2, "Siemens memory address parsing failed.");
     }
 
     private static async Task CheckArrayValuesAsync()
