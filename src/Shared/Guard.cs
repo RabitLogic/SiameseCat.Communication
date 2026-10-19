@@ -1,4 +1,4 @@
-namespace SiameseCat.Core;
+namespace SiameseCat.Communication;
 
 /// <summary>Argument and state checks that work on every target framework.</summary>
 internal static class Guard

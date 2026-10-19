@@ -6,7 +6,7 @@
 NModbus and FluentModbus are the two most used Modbus libraries for .NET. SiameseCat implements its own
 Modbus stack, so this page records how the three compare and what the measured differences are.
 
-All three were exercised against the **same in-process slave** (`SiameseCat.Server.Modbus.ModbusTcpServer`
+All three were exercised against the **same in-process slave** (`SiameseCat.Communication.Server.Modbus.ModbusTcpServer`
 on loopback TCP), so the bytes on the wire, the addressing and the latency are identical:
 
 ```csharp
@@ -37,7 +37,7 @@ fluent.ReadHoldingRegisters<ushort>(1, 0, 10);
 | | SiameseCat | NModbus 3.0.83 | FluentModbus 5.3.2 |
 | --- | --- | --- | --- |
 | Modbus master | RTU, TCP | RTU, ASCII, TCP, UDP | RTU, TCP, UDP (client and server) |
-| Modbus slave | `SiameseCat.Server` (RTU + TCP, FC01…FC17h) | `ModbusFactory.CreateSlave(Network)` | `ModbusTcpServer` / `ModbusRtuServer` |
+| Modbus slave | `SiameseCat.Communication.Server` (RTU + TCP, FC01…FC17h) | `ModbusFactory.CreateSlave(Network)` | `ModbusTcpServer` / `ModbusRtuServer` |
 | Other protocols | S7 (client + slave), raw TCP/UDP/Serial | Modbus only | Modbus only |
 | Abstraction | `IPlcDriver` + capability interfaces + registry + metrics + subscriptions | `IModbusMaster` with sync/async pairs | `ModbusClient` family, span-based, sync-first |
 | Target frameworks | `net8.0`, `netstandard2.0` | `net46`, `netstandard1.3`, `netstandard2.0`, `net6.0` | `netstandard2.0`, `netstandard2.1`, `net5.0`+ |
@@ -122,7 +122,7 @@ throughput is sensitive to machine load; allocations are stable).
 | Modbus only, synchronous code, tight memory budget, spans are fine | **FluentModbus** |
 | Modbus only, familiar API, ASCII/UDP, device identification, file records | **NModbus** |
 | Modbus **and** S7 in one application, one address/value model, retries, metrics, batch and subscriptions | **SiameseCat** |
-| A Modbus/S7 **slave** for tests or offline development | **SiameseCat.Server** (or FluentModbus's server) |
+| A Modbus/S7 **slave** for tests or offline development | **SiameseCat.Communication.Server** (or FluentModbus's server) |
 | Native AOT with no reflection | all three (SiameseCat and FluentModbus also offer AOT-friendly typed helpers) |
 
 The honest summary: for a Modbus-only, allocation-critical, single-protocol reader, FluentModbus's
@@ -132,7 +132,7 @@ matching slave — and it gets there with measurably less allocation than NModbu
 
 ## Reproducing
 
-The numbers come from a console harness that references `SiameseCat.Protocols`, `SiameseCat.Server`,
+The numbers come from a console harness that references `SiameseCat.Communication.Modbus`, `SiameseCat.Communication.Server`,
 `NModbus` 3.0.83 and `FluentModbus` 5.3.2 and points all three clients at one `ModbusTcpServer`. The
 library's own BenchmarkDotNet suite (`benchmarks/SiameseCat.Benchmarks`) measures the same paths without
 third-party packages:

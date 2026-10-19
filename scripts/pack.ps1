@@ -44,15 +44,8 @@ $root = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 if (-not $Output) {
     $Output = Join-Path $root 'artifacts'
 }
-$projects = @(
-    'SiameseCat.Core',
-    'SiameseCat.Transport',
-    'SiameseCat.Protocols',
-    'SiameseCat.Drivers',
-    'SiameseCat.Hosting',
-    'SiameseCat.Server'
-)
 
+$projects = @('SiameseCat.Communication')
 if (Test-Path $Output) {
     Remove-Item -Recurse -Force $Output
 }
@@ -113,7 +106,7 @@ foreach ($package in $packages) {
 $symbols = @(Get-ChildItem $Output -Filter *.snupkg)
 
 Write-Host ''
-Write-Host ("{0} package(s), {1} symbol package(s) in {2}" -f $packages.Count, $symbols.Count, $Output) -ForegroundColor Green
+Write-Host ("{0} package(s), {1} symbol package(s) in {2}" -f @($packages).Count, $symbols.Count, $Output) -ForegroundColor Green
 
 if ($failures -gt 0) {
     throw "$failures package(s) do not contain both target frameworks and README.md."

@@ -6,6 +6,7 @@
 
 ### 新增
 
+- **单包发布**：本仓库只产出一个 NuGet 包 `SiameseCat.Communication`（组织名 `SiameseCat` + 产品名 `Communication`；后续产品如 `SiameseCat.Mes.Template` 各自独立成包）。原先的 `SiameseCat.Core` / `.Transport` / `.Protocols` / `.Drivers` / `.Hosting` / `.Server` 六个包与程序集合并为一个程序集，包内改用命名空间分层：`SiameseCat.Communication`（契约 + 模型）、`.Transport`、`.Modbus`、`.S7`、`.Siemens`、`.Drivers`、`.Server.Modbus` / `.Server.S7`、`.Hosting`。宿主集成（`AddSiameseCat()` / `AddModbusServer()` / `AddS7Server()` / 健康检查）从 `Microsoft.Extensions.DependencyInjection` 命名空间移入 `SiameseCat.Communication.Hosting`。
 - **可插拔驱动架构**（`SiameseCat.Core`）：`IPlcDriver` 生命周期契约 + `IReadable` / `IWritable` / `IBatchReadable` / `ISubscribable` 能力接口；`DriverBase` 统一状态机（Disconnected → Connecting → Connected → Faulted）、事务锁、超时、重试、重连、日志与指标；`DriverRegistry` + `IPlcDriverFactory` 支持运行时发现与第三方插件。
 - **两层地址模型**：协议原生地址字符串由 `IPlcAddressParser` 解析为 `PlcAddress { Region, Offset, BitOffset?, DataType, Length }`；`PlcValue` / `PlcValueCodec` 提供协议无关的值与字节转换；`PlcTag` 提供命名、缩放与单位。
 - **Modbus 驱动**：`ModbusAddressParser` 支持 `40001` / `HR10` / `IR0` / `C0` / `DI0` 与 6 位参考号；`ModbusDriver` 由 TCP 与 RTU 共用 PDU、数据转换与批量合并逻辑，仅帧封装不同。
@@ -66,14 +67,14 @@
 
 ### 质量
 
-- **四层架构**：程序集按层划分——`SiameseCat.Core`（契约 + 模型）→ `SiameseCat.Transport`（TCP + 串口）→ `SiameseCat.Protocols`（Modbus / S7）→ `SiameseCat.Drivers`（Siemens 品牌驱动），引用严格单向；程序集数量 7 → 4。SerialPort 不再单独成层，S7 与 Modbus 归入协议层，品牌驱动统一放在品牌层。
-- **命名空间跟随分层**：`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens`；驱动类统一品牌命名（`SiemensDriver`），协议类保留协议名（`S7Client` / `S7Address`）。
-- **目录收敛**：层内按协议/品牌分组，只保留有内容的目录（`Protocols/Modbus/{Clients,Drivers}`、`Protocols/S7/Clients`、`Drivers/Siemens/`），Core 固定为 `Addressing/` + `Drivers/` + `Transport/` + 库级公共类型；协议根目录直接放帧与地址模型，去掉 `Modbus/Protocol`、`S7/Addressing` 这类冗余嵌套。
-- **工程改名**：`SiameseCat.Integration` → `SiameseCat.Hosting`（宿主集成：DI + `Microsoft.Extensions.Logging`），`tools/SiameseCat.Tools` → `tools/SiameseCat.AotProbe`（名副其实的 AOT 探针），`MicrosoftPlcLogger` → `MicrosoftLoggerAdapter`；`AddSiameseCat()` 放入 `Microsoft.Extensions.DependencyInjection` 命名空间，`using Microsoft.Extensions.DependencyInjection;` 即可调用。
+- **单程序集内分层**：依赖严格单向（契约 → 传输 → 协议 → 品牌），从站（`SiameseCat.Communication.Server.*`）复用协议层 PDU 与 CRC，宿主集成（`.Hosting`）只依赖 DI/日志抽象。
+- **命名空间跟随分层**：`SiameseCat.Communication.Modbus` / `.S7`、`.Siemens`、`.Transport`、`.Hosting`；驱动类统一品牌命名（`SiemensDriver`），协议类保留协议名（`S7Client` / `S7Address`）。
+- **目录收敛**：包内按协议/品牌分组（`Modbus/{Clients,Drivers}`、`S7/Clients`、`Siemens/`、`Server/{Modbus,S7}`、`Hosting/`），契约与模型固定为 `Addressing/` + `Diagnostics/` + `Drivers/` + `Exceptions/` + `Transport/`；去掉 `Modbus/Protocol`、`S7/Addressing` 这类冗余嵌套。
+- **工程改名**：`SiameseCat.Integration` → `SiameseCat.Communication.Hosting`（宿主集成：DI + `Microsoft.Extensions.Logging` + 健康检查），`tools/SiameseCat.Tools` → `tools/SiameseCat.AotProbe`，`MicrosoftPlcLogger` → `MicrosoftLoggerAdapter`；`AddSiameseCat()` 放入 `SiameseCat.Communication.Hosting` 命名空间。
 - **模型命名统一**：`Tag` → `PlcTag`、`IAddressParser` → `IPlcAddressParser`，与 `PlcAddress` / `PlcValue` / `IPlcDriver` 前缀规则一致。
 - **Core 按领域组织**：Core 从「扁平 3 目录 + 根级散落类型」改为「契约与实现同域」——`Addressing/`（地址模型 + `IPlcAddressParser`）、`Diagnostics/`（`IPlcLogger` + 适配器/实现 + `PlcMetrics`）、`Drivers/Abstractions/`（驱动契约、描述符、状态）、`Drivers/Runtime/`（`DriverBase` 5 个 partial、注册表、配置）、`Exceptions/`（异常体系）、`Transport/`（`ITransport` + 助手）；一个公共类型一个文件（扩展类、异常类各自独立）。
 - **DriverBase 拆分**：从 819 行拆成 5 个分部文件——`DriverBase.cs`（契约与读写 API）、`DriverBase.Lifecycle.cs`（连接/断开/释放状态机）、`DriverBase.Execution.cs`（超时、重试、重连管线）、`DriverBase.Health.cs`（`PingAsync` 与 Keep-Alive）、`DriverBase.Subscription.cs`（轮询订阅），公共 API 未变。
-- **测试命名空间对齐目录**：`SiameseCat.Tests.Core` / `.Modbus` / `.Siemens` / `.Integration` / `.Fakes`，不再混用 `SiameseCat.Tests` 与 `.S7`。
+- **测试命名空间对齐目录**：`SiameseCat.Tests.Core` / `.Modbus` / `.S7` / `.Siemens` / `.Server` / `.Integration` / `.Fakes`。
 
 - 全部公共 API 补齐 XML 文档，启用 `CS1591` 检查（构建零警告），文档随 NuGet 包发布。
 - `S7Client` 按职责拆分为连接、读、写、协议四个 partial 文件，便于维护。
@@ -87,6 +88,6 @@
 - **可测试的串口链路**：`SerialPortTransport` 抽出内部的 `ISerialConnection`（真实实现 `SerialPortConnection` 包装 `System.IO.Ports.SerialPort`），并新增 `InternalsVisibleTo("SiameseCat.Tests")`；无需硬件或虚拟串口驱动即可覆盖打开/关闭/超时/IO 错误/取消关闭端口/丢弃缓冲等全部路径，以及「Modbus RTU 客户端 → 串口传输 → 从站帧」的端到端往返（新增 16 个测试）。
 - **健康检查**：`SiameseCat.Hosting` 新增 `AddSiameseCatDriverCheck(...)`（`Microsoft.Extensions.Diagnostics.HealthChecks`），可直接挂到 ASP.NET Core `MapHealthChecks` / Kubernetes 探针：`Healthy`（探针应答）、`Unhealthy`（驱动故障或设备无应答）、`Degraded`（未配置 `ProbeAddress` 或探针被取消）；报告携带 `driver`/`state`/`requests`/`failures`/`retries`/失败分类/P50/P95。既支持由检查自持一个专用驱动，也支持监控应用已注册的驱动。
 - **长稳与故障注入工具**：新增 `tools/SiameseCat.Soak`——多个驱动经 TCP 代理（`FaultProxy` 定期切断链路、拒绝新连接）访问内置从站，逐秒输出 ops/成功率/托管堆/工作集/线程/句柄，结束时校验「最后一次故障后恢复、成功率、堆/句柄/线程增长」，退出码 0/1/2 可直接做 CI 门禁；CI 新增 `soak` 任务（每次推送跑 1 分钟）。
-- 新增 `scripts/pack.ps1`：一次构建并校验 6 个包（`lib/net8.0` + `lib/netstandard2.0` + 包内 README）与 6 个符号包，输出大小与 SHA256；`-Version` 覆盖版本、`-Push` 直接推送（`NUGET_API_KEY`）。
+- 新增 `scripts/pack.ps1`：构建并校验 `SiameseCat.Communication` 包（`lib/net8.0` + `lib/netstandard2.0` + 包内 README）与符号包，输出大小与 SHA256；`-Version` 覆盖版本、`-Push` 直接推送（`NUGET_API_KEY`）。
 - 单元测试从 81 个增加到 95 个。
 - 新增驱动契约测试（Mock 驱动）、Modbus/Siemens 地址解析与驱动测试，测试总数增加到 352 个。

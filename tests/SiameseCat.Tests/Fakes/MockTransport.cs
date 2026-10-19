@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SiameseCat.Core;
+using SiameseCat.Communication;
 
 namespace SiameseCat.Tests.Fakes;
 

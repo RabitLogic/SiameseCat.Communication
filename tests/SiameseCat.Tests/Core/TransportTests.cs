@@ -1,8 +1,8 @@
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
-using SiameseCat.Core;
-using SiameseCat.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Tests.Core;
 

@@ -1,9 +1,9 @@
 using System.Net.Sockets;
 
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 
 namespace SiameseCat.Tests.Server;
 

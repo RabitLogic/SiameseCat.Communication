@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Tests.Core;
 

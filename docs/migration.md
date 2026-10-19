@@ -1,15 +1,23 @@
 # Migration and upgrade notes
 
-## Choosing packages
+## Choosing a package
 
-| Scenario | Packages |
+There is exactly one package:
+
+```bash
+dotnet add package SiameseCat.Communication
+```
+
+It contains the protocol clients, the driver layer, the slaves, the dependency-injection helpers and the
+health checks. Pick what you need by namespace:
+
+| Scenario | Namespaces |
 | --- | --- |
-| Custom host, direct protocol access | `SiameseCat.Core` + `SiameseCat.Transport` + `SiameseCat.Protocols` |
-| Driver abstraction (registry, retries, metrics) | the above + `SiameseCat.Drivers` |
-| ASP.NET Core / `Microsoft.Extensions.Hosting` | + `SiameseCat.Hosting` |
-| Simulator or integration tests | + `SiameseCat.Server` |
+| Direct protocol access (Modbus/S7 clients) | `SiameseCat.Communication`, `.Transport`, `.Modbus`, `.S7` |
+| Driver abstraction (registry, retries, metrics) | + `SiameseCat.Communication.Drivers`, `.Siemens` |
+| ASP.NET Core / `Microsoft.Extensions.Hosting` | + `SiameseCat.Communication.Hosting` |
+| Simulator or integration tests | + `SiameseCat.Communication.Server.Modbus`, `.Server.S7` |
 
-You can start with the protocol clients and move to drivers later: both expose the same options
 (`ModbusTcpOptions`, `ModbusRtuOptions`, `S7Options`) and the same address parsers.
 
 ## Coming from NModbus / Sharp7
@@ -36,14 +44,15 @@ The 1.0.0 release renamed a few types and projects. The table below maps the old
 
 | Old | New |
 | --- | --- |
-| `SiameseCat.Integration` (package/project) | `SiameseCat.Hosting` |
+| `SiameseCat.Integration` (package/project) | `SiameseCat.Communication.Hosting` namespace inside the single `SiameseCat.Communication` package |
 | `MicrosoftPlcLogger` | `MicrosoftLoggerAdapter` |
 | `Tag` | `PlcTag` |
 | `TagExtensions` | `PlcTagExtensions` |
 | `IAddressParser` | `IPlcAddressParser` |
 | `tools/SiameseCat.Tools` | `tools/SiameseCat.AotProbe` |
 | `Modbus/Protocol/*`, `S7/Addressing/*` namespaces | folded into the protocol namespaces |
-| `SiameseCat.Server` (single namespace) | `SiameseCat.Server.Modbus` and `SiameseCat.Server.S7` — add the matching `using`; `AddModbusServer()` / `AddS7Server()` stay in `Microsoft.Extensions.DependencyInjection` |
+| `SiameseCat.Core` / `.Transport` / `.Protocols` / `.Drivers` / `.Hosting` / `.Server` packages | one `SiameseCat.Communication` package with the namespaces `SiameseCat.Communication`, `.Transport`, `.Modbus`, `.S7`, `.Siemens`, `.Drivers`, `.Server.*`, `.Hosting` |
+| `SiameseCat.Communication.Server` (single namespace) | `SiameseCat.Communication.Server.Modbus` and `SiameseCat.Communication.Server.S7` — add the matching `using`; `AddModbusServer()` / `AddS7Server()` moved to `SiameseCat.Communication.Hosting` |
 
 Also in 1.0.0:
 

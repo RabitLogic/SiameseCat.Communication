@@ -26,7 +26,7 @@ Everything SiameseCat speaks, on the wire and in the API.
   set `discardEcho` to drop it.
 - TCP framing is MBAP (transaction id, protocol id, length, unit id); transactions are validated.
 
-### Slave function codes (`SiameseCat.Server`)
+### Slave function codes (`SiameseCat.Communication.Server`)
 
 | FC | Operation | Behaviour |
 | --- | --- | --- |
@@ -98,7 +98,7 @@ Everything SiameseCat speaks, on the wire and in the API.
   crossing byte boundaries, split by the negotiated PDU.
 - Not supported: upload/download of blocks, diagnostic buffer and other advanced S7 services.
 
-## S7 slave (`SiameseCat.Server`)
+## S7 slave (`SiameseCat.Communication.Server`)
 
 `S7Server` speaks ISO-on-TCP (TPKT + COTP + S7 PDU) and answers the same services the client uses:
 

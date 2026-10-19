@@ -9,14 +9,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using SiameseCat.Core;
-using SiameseCat.Drivers;
-using SiameseCat.Hosting;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Protocols.S7;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
-using SiameseCat.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Hosting;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.AotProbe;
 

@@ -1,5 +1,5 @@
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
 
 namespace SiameseCat.Samples.Infrastructure;
 

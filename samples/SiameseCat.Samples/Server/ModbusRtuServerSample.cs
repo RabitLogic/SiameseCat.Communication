@@ -1,8 +1,8 @@
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Transport;
 using SiameseCat.Samples.Infrastructure;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Transport;
 
 namespace SiameseCat.Samples.Server;
 

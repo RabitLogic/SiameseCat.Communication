@@ -22,12 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SiameseCat.Core\SiameseCat.Core.csproj" />
-    <ProjectReference Include="..\..\src\SiameseCat.Transport\SiameseCat.Transport.csproj" />
-    <ProjectReference Include="..\..\src\SiameseCat.Protocols\SiameseCat.Protocols.csproj" />
-    <ProjectReference Include="..\..\src\SiameseCat.Drivers\SiameseCat.Drivers.csproj" />
-    <ProjectReference Include="..\..\src\SiameseCat.Hosting\SiameseCat.Hosting.csproj" />
-    <ProjectReference Include="..\..\src\SiameseCat.Server\SiameseCat.Server.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Communication\SiameseCat.Communication.csproj" />
   </ItemGroup>
 
 </Project>

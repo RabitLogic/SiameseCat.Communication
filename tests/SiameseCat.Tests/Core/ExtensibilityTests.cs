@@ -1,5 +1,5 @@
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;
@@ -489,7 +489,7 @@ public class FrameLoggingTests
         transport.EnqueueResponse(ProtocolFrames.CrConfirm());
         transport.EnqueueResponse(ProtocolFrames.SetupAck(1));
         var logger = new RecordingLogger();
-        await using var client = new SiameseCat.Protocols.S7.S7Client(transport, new SiameseCat.Protocols.S7.S7Options
+        await using var client = new SiameseCat.Communication.S7.S7Client(transport, new SiameseCat.Communication.S7.S7Options
         {
             LogFrames = true,
             Logger = logger,

@@ -1,8 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using SiameseCat.Core;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Hosting;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 
 namespace SiameseCat.Tests.Integration;
 

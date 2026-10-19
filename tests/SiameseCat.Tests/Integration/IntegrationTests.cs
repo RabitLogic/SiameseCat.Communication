@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SiameseCat.Core;
-using SiameseCat.Hosting;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Hosting;
 
 namespace SiameseCat.Tests.Integration;
 

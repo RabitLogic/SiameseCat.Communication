@@ -1,4 +1,4 @@
-using SiameseCat.Core;
+using SiameseCat.Communication;
 
 namespace SiameseCat.Samples.Infrastructure;
 

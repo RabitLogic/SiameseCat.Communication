@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using SiameseCat.Core;
+using SiameseCat.Communication;
 
 namespace SiameseCat.Tests.Fakes;
 

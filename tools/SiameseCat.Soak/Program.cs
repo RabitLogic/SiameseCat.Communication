@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
-using SiameseCat.Drivers;
-using SiameseCat.Server.Modbus;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Server.Modbus;
 using SiameseCat.Soak;
 
 SoakOptions options;

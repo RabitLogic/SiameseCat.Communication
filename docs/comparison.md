@@ -6,7 +6,7 @@
 community S7 driver for .NET. SiameseCat implements its own S7 stack, so this page records how the two
 compare and what the measured differences are.
 
-Both were exercised against the **same in-process S7 slave** (`SiameseCat.Server.S7.S7Server`), so the
+Both were exercised against the **same in-process S7 slave** (`SiameseCat.Communication.Server.S7.S7Server`), so the
 wire format, error handling and network latency are identical:
 
 ```csharp
@@ -31,7 +31,7 @@ plc.Read("DB1.DBD0");
 | Protocols | Modbus RTU/TCP, Siemens S7, raw TCP/UDP/Serial | S7 only |
 | Abstraction | Address/value model, `IPlcDriver` + `DriverBase`, registry, capability flags, batch/subscription, metrics | `Plc` class with string addresses and `DataItem`s |
 | Target frameworks | `net8.0` + `netstandard2.0` (package validation for both) | `net452`, `netstandard1.3`, `netstandard2.0` |
-| Simulation | `SiameseCat.Server`: Modbus TCP/RTU **and** S7 slaves | none (tests use the native Snap7 DLL) |
+| Simulation | `SiameseCat.Communication.Server`: Modbus TCP/RTU **and** S7 slaves | none (tests use the native Snap7 DLL) |
 | History | new (1.0) | continuation of S7.Net (2009), 657 forks, 116 open issues |
 
 ## Feature matrix (S7)
@@ -96,7 +96,7 @@ Choose **SiameseCat** when:
 
 ## Interoperability finding
 
-S7.Net Plus 0.20.0 connects to `SiameseCat.Server`'s S7 slave without any tweaks and both reads and writes
+S7.Net Plus 0.20.0 connects to `SiameseCat.Communication.Server`'s S7 slave without any tweaks and both reads and writes
 behave correctly, which confirms the simulator speaks standard S7comm (COTP handshake, Setup
 Communication, read variable, write variable). This also means you can use S7.Net Plus as an independent
 client when validating the simulator.
@@ -104,7 +104,7 @@ client when validating the simulator.
 ## Reproducing
 
 ```powershell
-# scratch project outside the solution (add S7netplus 0.20.0 + a SiameseCat.Server reference)
+# scratch project outside the solution (add S7netplus 0.20.0 + a SiameseCat.Communication.Server reference)
 dotnet run --project <scratch>/Compare.csproj -c Release
 ```
 

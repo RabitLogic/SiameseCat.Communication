@@ -1,54 +1,56 @@
 # Architecture
 
-SiameseCat is split into one package per layer. Dependencies only point downwards, so a host can take a
-single package (for example `SiameseCat.Protocols` for a quick Modbus client) without pulling the whole
-stack.
+`SiameseCat.Communication` is a single package with one assembly. Inside it, code is grouped by
+responsibility into separate namespaces, and dependencies only point inwards — contracts ← transport ←
+protocol ← drivers — so a custom driver only needs the contracts and a custom protocol only needs the
+transport abstractions.
 
-```text
-SiameseCat.Core            contracts + models, no I/O
-└── SiameseCat.Transport   TCP / UDP / serial implementations
-    └── SiameseCat.Protocols (Modbus, S7) + generic Modbus driver
-        └── SiameseCat.Drivers (Siemens)
+## Namespaces
 
-SiameseCat.Protocols ← SiameseCat.Server (optional Modbus TCP/RTU slaves, reuses PDU + CRC)
-SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting (optional DI, logging, slave hosting)
-```
-
-## Layers
-
-| Layer | Assembly | Contents |
+| Namespace | Folder | Contents |
 | --- | --- | --- |
-| Contracts | `SiameseCat.Core` | `IPlcDriver`, capability interfaces, `DriverBase`, `DriverRegistry`, `PlcAddress` / `PlcValue` / `PlcValueCodec` / `PlcTag`, `ITransport` + helpers, logging abstraction, metrics, exceptions |
-| Transport | `SiameseCat.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
-| Protocol | `SiameseCat.Protocols` | Modbus frames/CRC/converters, `ModbusTcpClient` / `ModbusRtuClient`, `S7Client`, `ModbusDriver`, `ModbusAddressParser` |
-| Brand | `SiameseCat.Drivers` | `SiemensDriver` + `SiemensAddressParser`; other brands plug in through `IPlcDriverFactory` |
-| Host integration | `SiameseCat.Hosting` | `MicrosoftLoggerAdapter`, `AddSiameseCat()` / `AddSiameseCatDriver()`, `AddModbusServer()` / `AddModbusRtuServer()` / `AddS7Server()` |
-| Slave | `SiameseCat.Server` | `IModbusServer` / `IS7Server`, `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics`, `S7Server`, `S7PduProcessor`, `S7DataStore`, `S7ServerStatistics` |
+| `SiameseCat.Communication` | root, `Addressing/`, `Diagnostics/`, `Drivers/`, `Exceptions/` | driver contracts, address/value model, `DriverBase`, registry, options, metrics, exceptions |
+| `SiameseCat.Communication.Transport` | `Transport/` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
+| `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus frames/CRC/converters, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
+| `SiameseCat.Communication.S7` | `S7/` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options` |
+| `SiameseCat.Communication.Siemens` | `Siemens/` | `SiemensDriver` + `SiemensAddressParser`; other brands plug in through `IPlcDriverFactory` |
+| `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
+| `SiameseCat.Communication.Server` | `Server/` | `IModbusServer`, `IS7Server`, shared buffer-size validation |
+| `SiameseCat.Communication.Server.Modbus` | `Server/Modbus/` | `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics` |
+| `SiameseCat.Communication.Server.S7` | `Server/S7/` | `S7Server`, `S7PduProcessor`, `S7DataStore`, `S7ServerStatistics` |
+| `SiameseCat.Communication.Hosting` | `Hosting/` | `AddSiameseCat()` / `AddSiameseCatDriver()`, slave hosting, health checks, `Microsoft.Extensions.Logging` adapter |
 
-## Core layout
+## Source layout
 
 ```text
-src/SiameseCat.Core/
-├── Addressing/          PlcAddress, PlcValue, PlcValueCodec, PlcTag, IPlcAddressParser
-├── Diagnostics/         IPlcLogger, NullPlcLogger, PlcLoggerExtensions, PlcMetrics, PlcDiagnostics
+src/SiameseCat.Communication/
+├── CommunicationOptions.cs / RetryPolicy.cs
+├── Addressing/          PlcAddress, PlcValue, PlcValueCodec, PlcTag, IPlcAddressParser   (SiameseCat.Communication)
+├── Diagnostics/         IPlcLogger, NullPlcLogger, PlcMetrics, PlcDiagnostics            (SiameseCat.Communication)
 ├── Drivers/
-│   ├── Abstractions/    IPlcDriver + capability interfaces + descriptor + state
-│   └── Runtime/         DriverBase (partials), DriverRegistry, DriverConfiguration, RequestLock
-├── Exceptions/          one file per exception type
-└── Transport/           ITransport, ITransportFactory, TransportKind
+│   ├── Abstractions/    IPlcDriver + capability interfaces + descriptor + state           (SiameseCat.Communication)
+│   ├── Runtime/         DriverBase (partials), DriverRegistry, DriverConfiguration        (SiameseCat.Communication)
+│   └── DriverRegistryExtensions.cs                                                        (…Communication.Drivers)
+├── Exceptions/          one file per exception type                                       (SiameseCat.Communication)
+├── Transport/           ITransport + TCP/UDP/serial implementations                       (…Communication.Transport)
+├── Modbus/              frames, clients, driver                                           (…Communication.Modbus)
+├── S7/                  S7 client, addresses, options                                     (…Communication.S7)
+├── Siemens/             SiemensDriver, SiemensAddressParser, factory                      (…Communication.Siemens)
+├── Server/              Modbus and S7 slaves                                              (…Communication.Server.*)
+└── Hosting/             DI registration, health checks, logger adapter                    (…Communication.Hosting)
 ```
 
-The slave package follows the same protocol-first layout, and namespaces track the folders so the
-protocol is obvious from an `using` directive:
+Namespaces track the folders, so the protocol or layer is obvious from the `using` directive. The slave
+layout follows the same protocol-first structure:
 
 ```text
-src/SiameseCat.Server/
-├── Modbus/              namespace SiameseCat.Server.Modbus
+src/SiameseCat.Communication/Server/
+├── Modbus/              namespace SiameseCat.Communication.Server.Modbus
 │   ├── ModbusTcpServer / ModbusRtuServer / IModbusServer
 │   ├── ModbusServerOptions / ModbusRtuServerOptions / ModbusServerIdentifier
 │   ├── ModbusPduProcessor / ModbusServerStatistics
 │   └── ModbusDataStore / ModbusDataStoreSnapshot / *WriteEventArgs
-├── S7/                  namespace SiameseCat.Server.S7
+├── S7/                  namespace SiameseCat.Communication.Server.S7
 │   ├── S7Server / IS7Server / S7ServerOptions
 │   ├── S7PduProcessor / S7ServerStatistics
 │   └── S7DataStore / S7WriteEventArgs
@@ -114,7 +116,7 @@ Declaring `KeepAliveInterval` without the `Health` capability is rejected in the
 
 ## Multi-targeting and AOT
 
-All libraries target `net8.0` and `netstandard2.0`:
+The package targets `net8.0` and `netstandard2.0`:
 
 - `netstandard2.0` covers .NET Framework 4.6.1+, .NET Core 2.x+ and .NET 5–7 hosts.
 - `net8.0` covers .NET 8 and later; newer hosts consume this asset (verified for .NET 10 and .NET 11).
@@ -179,7 +181,7 @@ numbers on your hardware.
 | Drivers use the brand name | `SiemensDriver`, `SiemensAddressParser` |
 | Contract types use `Plc` prefixes or `I…` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `IPlcAddressParser` |
 | One public type per file | `Exceptions/CommunicationTimeoutException.cs` |
-| Optional features are separate packages | `SiameseCat.Hosting`, `SiameseCat.Server` |
+| Optional features are separate namespaces | `SiameseCat.Communication.Hosting`, `SiameseCat.Communication.Server` |
 
 See [protocol-matrix.md](protocol-matrix.md) for the wire-level details and
 [migration.md](migration.md) before upgrading an existing integration.

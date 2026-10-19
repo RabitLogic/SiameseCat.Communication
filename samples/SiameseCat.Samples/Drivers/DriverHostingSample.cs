@@ -1,10 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SiameseCat.Core;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Hosting;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 using SiameseCat.Samples.Infrastructure;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
 
 namespace SiameseCat.Samples.Drivers;
 

@@ -1,8 +1,8 @@
-using SiameseCat.Core;
-using SiameseCat.Drivers.Siemens;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Protocols.S7;
-using SiameseCat.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Siemens;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Tests.Core;
 

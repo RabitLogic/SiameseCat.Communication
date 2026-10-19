@@ -1,6 +1,6 @@
-using SiameseCat.Protocols.S7;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
+using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 
 namespace SiameseCat.Tests.Server;
 
@@ -176,15 +176,15 @@ public class S7ServerTests
             ConnectTimeout = TimeSpan.FromSeconds(2),
         });
 
-        await using var driver = new SiameseCat.Drivers.Siemens.SiemensDriver(
+        await using var driver = new SiameseCat.Communication.Siemens.SiemensDriver(
             client,
-            new SiameseCat.Core.DriverConfiguration { Timeout = TimeSpan.FromSeconds(2) });
+            new SiameseCat.Communication.DriverConfiguration { Timeout = TimeSpan.FromSeconds(2) });
 
         await driver.ConnectAsync();
 
-        var address = driver.AddressParser.Parse("DB1.DBD2", SiameseCat.Core.PlcDataType.Float);
-        await ((SiameseCat.Core.IWritable)driver).WriteAsync(address, SiameseCat.Core.PlcValue.FromFloat(2.5f));
-        var value = await ((SiameseCat.Core.IReadable)driver).ReadAsync(address);
+        var address = driver.AddressParser.Parse("DB1.DBD2", SiameseCat.Communication.PlcDataType.Float);
+        await ((SiameseCat.Communication.IWritable)driver).WriteAsync(address, SiameseCat.Communication.PlcValue.FromFloat(2.5f));
+        var value = await ((SiameseCat.Communication.IReadable)driver).ReadAsync(address);
 
         Assert.Equal(2.5f, value.AsFloat(), 4);
     }

@@ -6,12 +6,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SiameseCat.Core;
-using SiameseCat.Drivers;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Protocols.S7;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 
 namespace SiameseCat.Compatibility;
 
@@ -186,7 +186,7 @@ internal static class Program
         {
             await slave.StartAsync().ConfigureAwait(false);
 
-            await using (var client = new SiameseCat.Protocols.S7.S7Client(new SiameseCat.Protocols.S7.S7Options
+            await using (var client = new SiameseCat.Communication.S7.S7Client(new SiameseCat.Communication.S7.S7Options
             {
                 Host = "127.0.0.1",
                 Port = slave.Port,
@@ -196,7 +196,7 @@ internal static class Program
             {
                 await client.ConnectAsync().ConfigureAwait(false);
 
-                var address = SiameseCat.Protocols.S7.S7Address.Parse("DB1.DBW4");
+                var address = SiameseCat.Communication.S7.S7Address.Parse("DB1.DBW4");
                 await client.WriteUInt16Async(address, 0x4321).ConfigureAwait(false);
                 var value = await client.ReadUInt16Async(address).ConfigureAwait(false);
 

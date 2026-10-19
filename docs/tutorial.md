@@ -21,19 +21,24 @@ dotnet run --project samples/SiameseCat.Samples -- selftest      # every offline
 | Slaves | `samples/SiameseCat.Samples/Server/` | Modbus TCP/RTU and S7 simulators |
 | Transports | `samples/SiameseCat.Samples/Transports/` | raw frames and custom `ITransport` injection |
 
-Pick the packages you need:
+Install one package:
 
-| Package | Use it for |
+```bash
+dotnet add package SiameseCat.Communication
+```
+
+It contains every layer; pick the namespace you need:
+
+| Namespace | Use it for |
 | --- | --- |
-| `SiameseCat.Core` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `DriverBase`, metrics, transport contracts |
-| `SiameseCat.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport` |
-| `SiameseCat.Protocols` | `ModbusTcpClient`, `ModbusRtuClient`, `S7Client`, the `modbus` driver |
-| `SiameseCat.Drivers` | the `siemens` brand driver, `DriverRegistry` |
-| `SiameseCat.Server` | Modbus TCP/RTU and S7 slaves |
-| `SiameseCat.Hosting` | dependency injection, `Microsoft.Extensions.Logging` bridge |
-
-`SiameseCat.Protocols` and `SiameseCat.Drivers` both depend on `SiameseCat.Core`; you rarely reference
-`SiameseCat.Core` explicitly except for the abstractions.
+| `SiameseCat.Communication` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `DriverBase`, metrics, transport contracts |
+| `SiameseCat.Communication.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport` |
+| `SiameseCat.Communication.Modbus` | `ModbusTcpClient`, `ModbusRtuClient`, the `modbus` driver |
+| `SiameseCat.Communication.S7` | `S7Client`, `S7Address` |
+| `SiameseCat.Communication.Siemens` | the `siemens` brand driver |
+| `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
+| `SiameseCat.Communication.Server.*` | Modbus TCP/RTU and S7 slaves |
+| `SiameseCat.Communication.Hosting` | dependency injection, slave hosting, health checks, logging bridge |
 
 ## 1. Modbus: first read and write (`modbus/tcp`)
 

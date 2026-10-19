@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
+using SiameseCat.Communication.Hosting;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Server;
@@ -48,9 +48,9 @@ public class ModbusServerHostingTests
         await provider.GetRequiredService<IHostedService>().StartAsync(CancellationToken.None);
         Assert.True(server.IsRunning);
 
-        server.Data.TryWriteBytes(SiameseCat.Protocols.S7.S7Area.Merkers, 0, 0, new byte[] { 0x12, 0x34 });
+        server.Data.TryWriteBytes(SiameseCat.Communication.S7.S7Area.Merkers, 0, 0, new byte[] { 0x12, 0x34 });
 
-        await using var client = new SiameseCat.Protocols.S7.S7Client(new SiameseCat.Protocols.S7.S7Options
+        await using var client = new SiameseCat.Communication.S7.S7Client(new SiameseCat.Communication.S7.S7Options
         {
             Host = "127.0.0.1",
             Port = ((S7Server)server).Port,
@@ -59,7 +59,7 @@ public class ModbusServerHostingTests
         });
 
         await client.ConnectAsync();
-        var value = await client.ReadUInt16Async(SiameseCat.Protocols.S7.S7Address.Parse("MW0"));
+        var value = await client.ReadUInt16Async(SiameseCat.Communication.S7.S7Address.Parse("MW0"));
         Assert.Equal((ushort)0x1234, value);
 
         await provider.GetRequiredService<IHostedService>().StopAsync(CancellationToken.None);
@@ -101,15 +101,15 @@ public class ModbusServerHostingTests
     {
         var logger = new RecordingLogger();
         var services = new ServiceCollection();
-        services.AddSingleton<SiameseCat.Core.IPlcLogger>(logger);
+        services.AddSingleton<SiameseCat.Communication.IPlcLogger>(logger);
         services.AddModbusServer(options => options.Port = 0);
 
         await using var provider = services.BuildServiceProvider();
         var server = (ModbusTcpServer)provider.GetRequiredService<IModbusServer>();
 
         await provider.GetRequiredService<IHostedService>().StartAsync(CancellationToken.None);
-        await using var client = new SiameseCat.Protocols.Modbus.ModbusTcpClient(
-            new SiameseCat.Protocols.Modbus.ModbusTcpOptions
+        await using var client = new SiameseCat.Communication.Modbus.ModbusTcpClient(
+            new SiameseCat.Communication.Modbus.ModbusTcpOptions
             {
                 UnitId = 1,
                 Timeout = TimeSpan.FromSeconds(2),
@@ -119,6 +119,6 @@ public class ModbusServerHostingTests
         await client.ConnectAsync();
         await client.ReadHoldingRegistersAsync(1, 0, 1);
 
-        Assert.True(logger.Contains(SiameseCat.Core.PlcLogLevel.Debug, "client connected"));
+        Assert.True(logger.Contains(SiameseCat.Communication.PlcLogLevel.Debug, "client connected"));
     }
 }

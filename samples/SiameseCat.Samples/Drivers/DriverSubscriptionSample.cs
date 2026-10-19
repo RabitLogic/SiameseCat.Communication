@@ -1,7 +1,7 @@
-using SiameseCat.Core;
-using SiameseCat.Drivers;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Server.Modbus;
 using SiameseCat.Samples.Infrastructure;
-using SiameseCat.Server.Modbus;
 
 namespace SiameseCat.Samples.Drivers;
 

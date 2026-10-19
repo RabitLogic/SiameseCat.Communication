@@ -9,8 +9,10 @@ A lightweight .NET communication library for PLCs and industrial devices. It tar
   read/write, polling or native subscriptions, health probes and metrics.
 - **Protocols built in-house** — Modbus RTU/TCP, Siemens S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
   TCP, UDP and serial transports. No NModbus/Sharp7 dependency.
-- **Simulation included** — `SiameseCat.Server` ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
+- **Simulation included** — the same package ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
   with thread-safe data stores, write events, snapshots and per-request statistics.
+- **One package** — `SiameseCat.Communication` contains the contracts, transports, protocols, drivers,
+  slaves, dependency injection and health checks; there is nothing else to install.
 - **Zero-warning, multi-target, Native AOT ready** — analyzer-clean builds, package validation for both
   TFMs, and an AOT probe that is published and executed in CI for Windows, Linux and macOS.
 
@@ -43,35 +45,38 @@ dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp --host 192.168
 dotnet run --project samples/SiameseCat.Samples -- selftest
 ```
 
-## Packages
+## Package
 
-| Package | Layer | Responsibility | Depends on |
-| --- | --- | --- | --- |
-| `SiameseCat.Core` | Contracts | Driver contracts, address/value model, `DriverBase`, registry, logging, metrics, `ITransport` | — |
-| `SiameseCat.Transport` | Transport | TCP, UDP and serial port transports | Core, `System.IO.Ports` |
-| `SiameseCat.Protocols` | Protocol | Modbus (RTU/TCP) and Siemens S7 frames/clients, generic Modbus driver | Core, Transport |
-| `SiameseCat.Drivers` | Brand | Siemens driver (native address mapping) + registration entry point | Core, Protocols |
-| `SiameseCat.Hosting` | Host integration (optional) | `Microsoft.Extensions.Logging` adapter, DI registration, slave hosting | Core, Drivers, Server, `Microsoft.Extensions.*` |
-| `SiameseCat.Server` | Slave (optional) | Modbus TCP/RTU and S7 (ISO-on-TCP) slaves with statistics and logging, for integration tests and simulation | Core, Protocols, Transport |
+`SiameseCat` is the organization name; this repository ships a single package, `SiameseCat.Communication`.
+Other products (for example `SiameseCat.Mes.Template`) are separate repositories and packages.
+
+| Namespace | Responsibility |
+| --- | --- |
+| `SiameseCat.Communication` | Driver contracts, `DriverBase`, registry, `PlcAddress`/`PlcValue`/`PlcTag`, options, exceptions, metrics, `ITransport` |
+| `SiameseCat.Communication.Transport` | TCP, UDP and serial port transports |
+| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames, clients, address parser and generic Modbus driver |
+| `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client, addresses and options |
+| `SiameseCat.Communication.Siemens` | Siemens brand driver and address mapper |
+| `SiameseCat.Communication.Server` | Modbus TCP/RTU and S7 slaves (`.Server.Modbus`, `.Server.S7`) |
+| `SiameseCat.Communication.Hosting` | `AddSiameseCat()`, keyed drivers, slave hosting, logging adapter, health checks |
 
 ## Install
 
 ```bash
-dotnet add package SiameseCat.Core
-dotnet add package SiameseCat.Transport
-dotnet add package SiameseCat.Protocols
-dotnet add package SiameseCat.Drivers        # Siemens S7 brand driver
-dotnet add package SiameseCat.Hosting        # optional: DI + Microsoft.Extensions.Logging
-dotnet add package SiameseCat.Server         # optional: Modbus TCP/RTU slaves
+dotnet add package SiameseCat.Communication
 ```
+
+The package targets `net8.0` and `netstandard2.0` and brings only `System.IO.Ports` plus the
+`Microsoft.Extensions.*` abstractions (and `Microsoft.Extensions.Diagnostics.HealthChecks` for the
+health-check integration). DI, logging, ASP.NET Core and worker hosts already provide the full implementations.
 
 ## Using a driver
 
 The registry is the recommended entry point: it hides which protocol client and address parser are used.
 
 ```csharp
-using SiameseCat.Core;
-using SiameseCat.Drivers;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 
 var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens
 
@@ -186,7 +191,7 @@ Use the clients directly when you do not need the driver lifecycle.
 ### Modbus TCP
 
 ```csharp
-using SiameseCat.Protocols.Modbus;
+using SiameseCat.Communication.Modbus;
 
 var options = new ModbusTcpOptions
 {
@@ -212,8 +217,8 @@ float value = ModbusRegisterConverter.ReadSingle(await client.ReadHoldingRegiste
 
 ```csharp
 using System.IO.Ports;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Transport;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport;
 
 var options = new ModbusRtuOptions
 {
@@ -244,7 +249,7 @@ var registers = await client.ReadHoldingRegistersAsync(0, 10);
 ### Siemens S7
 
 ```csharp
-using SiameseCat.Protocols.S7;
+using SiameseCat.Communication.S7;
 
 var options = new S7Options
 {
@@ -270,7 +275,7 @@ answer is capped at 960); multi-variable requests are split automatically for la
 ### Raw TCP / UDP / serial
 
 ```csharp
-using SiameseCat.Transport;
+using SiameseCat.Communication.Transport;
 
 await using var tcp = new TcpTransport(new TcpTransportOptions { Host = "127.0.0.1", Port = 9000 });
 await tcp.OpenAsync();
@@ -352,8 +357,8 @@ await using var many = await driver.SubscribeBatchAsync(
 ## Shared transports (RS-485 multi-drop)
 
 ```csharp
-using SiameseCat.Core;
-using SiameseCat.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Transport;
 
 await using var link = new SharedTransportFactory(() => new SerialPortTransport(new SerialPortOptions
 {
@@ -406,6 +411,8 @@ var value = await readable.ReadAsync(driver.AddressParser.Parse("HR0"), TimeSpan
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Hosting;
 
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole());
@@ -429,7 +436,7 @@ await driver.ConnectAsync();
 
 ### Health checks
 
-`SiameseCat.Hosting` registers a health check per driver, so ASP.NET Core endpoints, Kubernetes probes
+`SiameseCat.Communication.Hosting` registers a health check per driver, so ASP.NET Core endpoints, Kubernetes probes
 and any `HealthCheckService` consumer can watch the PLC like any other dependency:
 
 ```csharp
@@ -478,11 +485,11 @@ services.AddS7Server(options =>
 
 ## Modbus slaves (TCP and RTU)
 
-`SiameseCat.Server` provides in-process slaves for integration tests, demos and offline development.
+`SiameseCat.Communication.Server` provides in-process slaves for integration tests, demos and offline development.
 Both share one PDU processor and the same data store.
 
 ```csharp
-using SiameseCat.Server.Modbus;
+using SiameseCat.Communication.Server.Modbus;
 
 await using var server = new ModbusTcpServer(new ModbusServerOptions
 {
@@ -598,7 +605,7 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 ### S7 slave (ISO-on-TCP)
 
 ```csharp
-using SiameseCat.Server.S7;
+using SiameseCat.Communication.Server.S7;
 
 await using var s7 = new S7Server(new S7ServerOptions
 {
@@ -661,7 +668,7 @@ float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
 
 ## Native AOT
 
-All libraries enable `IsAotCompatible`; there is no reflection, `dynamic`, runtime serialization or code
+The package enables `IsAotCompatible`; there is no reflection, `dynamic`, runtime serialization or code
 generation, and `S7Address` uses a source-generated regex. `tools/SiameseCat.AotProbe` is a
 hardware-free probe covering 15 scenarios (CRC, register conversion, address parsing, TCP loopback,
 Modbus round trips, numeric arrays, batch subscription, slave data store, DI hosting, S7 slave round
@@ -711,7 +718,7 @@ dotnet run --project tests/SiameseCat.Compatibility -c Release
 # Benchmarks (BenchmarkDotNet; results go to BenchmarkDotNet.Artifacts/)
 dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 
-# Build and verify all six packages (both TFMs + bundled README + SHA256)
+# Build and verify the package (both TFMs + bundled README + SHA256)
 ./scripts/pack.ps1
 
 # Override the version or push straight to a feed
@@ -719,10 +726,10 @@ dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 $env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
 ```
 
-Packaging: every library is packed for `net8.0` and `netstandard2.0`, with
-`EnablePackageValidation` ensuring both TFMs expose the same public API. CI verifies that each `.nupkg`
-contains both `lib/net8.0` and `lib/netstandard2.0` and that the coverage gate passes. Dependencies are
-updated weekly by Dependabot; see [SECURITY.md](https://github.com/RabitLogic/SiameseCat/blob/main/SECURITY.md)
+Packaging: the library is packed for `net8.0` and `netstandard2.0`, with
+`EnablePackageValidation` ensuring both TFMs expose the same public API. CI verifies that the `.nupkg`
+contains `lib/net8.0`, `lib/netstandard2.0` and `README.md`, and that the coverage gate passes.
+Dependencies are updated weekly by Dependabot; see [SECURITY.md](https://github.com/RabitLogic/SiameseCat/blob/main/SECURITY.md)
 for the vulnerability reporting process.
 
 ## Known limitations

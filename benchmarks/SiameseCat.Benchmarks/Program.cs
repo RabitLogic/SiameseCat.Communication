@@ -3,11 +3,11 @@ using System.Text;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Protocols.S7;
-using SiameseCat.Server.Modbus;
-using SiameseCat.Server.S7;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Server.S7;
 
 namespace SiameseCat.Benchmarks;
 

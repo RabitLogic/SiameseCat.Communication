@@ -6,16 +6,18 @@
 
 > 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与升级](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
-按**分层**拆分程序集（4 层 + 1 个可选宿主集成 + 1 个可选从站包，共 6 个包），一层一个包，层内再按协议/品牌分组：
+本仓库只产出**一个** NuGet 包 `SiameseCat.Communication`：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。包内按**命名空间**分层，层内再按协议/品牌分组：
 
-| 包 | 层 | 职责 | 依赖 |
-| --- | --- | --- | --- |
-| `SiameseCat.Core` | 契约层 | 驱动契约、地址/值模型、`DriverBase`、注册表、日志抽象与指标、`ITransport` 抽象 | 无 |
-| `SiameseCat.Transport` | 传输层 | TCP / UDP / 串口传输实现 | Core、`System.IO.Ports` |
-| `SiameseCat.Protocols` | 协议层 | Modbus（RTU/TCP）与 Siemens S7 的帧、客户端，以及通用 Modbus 驱动 | Core、Transport |
-| `SiameseCat.Drivers` | 品牌层 | Siemens 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
-| `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器、`IServiceCollection` 注册与从站托管 | Core、Drivers、Server、`Microsoft.Extensions.*` |
-| `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23）与 S7（ISO-on-TCP）从站，含统计与日志，用于联调、仿真与集成测试 | Core、Protocols、Transport |
+| 命名空间 | 目录 | 职责 |
+| --- | --- | --- |
+| `SiameseCat.Communication` | 根、`Addressing/`、`Diagnostics/`、`Drivers/`、`Exceptions/` | 驱动契约、地址/值模型、`DriverBase`、注册表、日志抽象与指标、`ITransport` 抽象 |
+| `SiameseCat.Communication.Transport` | `Transport/` | TCP / UDP / 串口传输实现 |
+| `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus（RTU/TCP）帧、客户端、地址解析与通用 Modbus 驱动 |
+| `SiameseCat.Communication.S7` | `S7/` | `S7Client`、`S7Address`、S7 选项与读写项 |
+| `SiameseCat.Communication.Siemens` | `Siemens/` | Siemens 品牌驱动（地址映射） |
+| `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
+| `SiameseCat.Communication.Server.Modbus` / `.S7` | `Server/` | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23）与 S7（ISO-on-TCP）从站，含统计与日志 |
+| `SiameseCat.Communication.Hosting` | `Hosting/` | `IServiceCollection` 注册、从站托管、健康检查、`Microsoft.Extensions.Logging` 适配器 |
 
 协议栈自行实现，不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
 
@@ -23,24 +25,24 @@
 
 ```text
 应用
- │  只依赖 Driver 契约（Core），不依赖品牌或协议
+ │  只依赖驱动契约与 PlcAddress/PlcValue，不依赖品牌或协议
  ▼
-SiameseCat.Core（契约层）
+SiameseCat.Communication（契约 + 模型）
  ├── IPlcDriver / IReadable / IWritable / IBatchReadable / IBatchWritable / ISubscribable / IHealthCheckable
  ├── DriverBase        状态机 / 事务锁 / 超时 / 重试 / 重连 / 日志 / 指标（5 个 partial）
  ├── PlcAddress / PlcValue / PlcTag / IPlcAddressParser
  ├── ITransport        字节收发抽象
  └── DriverRegistry    驱动发现与创建
         ▲                                        ▲
-        │ 品牌层（地址映射 + 工厂）               │ 协议层（帧 / 客户端 / 通用驱动）
- SiameseCat.Drivers                        SiameseCat.Protocols
- ├── Siemens/     SiemensDriver             ├── Modbus/  ModbusDriver、RTU/TCP 客户端、CRC、寄存器转换
-└── (第三方品牌插件)                        └── S7/      S7Client（ISO-on-TCP/COTP/S7 PDU）、S7Address
+        │ 品牌（地址映射 + 工厂）                 │ 协议（帧 / 客户端 / 通用驱动）
+ SiameseCat.Communication.Siemens                SiameseCat.Communication.Modbus
+ ├── SiemensDriver、SiemensAddressParser    ├── ModbusDriver、RTU/TCP 客户端、CRC、寄存器转换
+└── (第三方品牌插件)                        └── S7Client（ISO-on-TCP/COTP/S7 PDU）、S7Address
         │                                                   │
         └────────── 复用协议客户端 ─────────────────────────┘
                               │
                               ▼
-                     SiameseCat.Transport（传输层）
+                     SiameseCat.Communication.Transport（传输实现）
                      ├── TcpTransport
                      ├── UdpTransport
                      └── SerialPortTransport
@@ -58,8 +60,8 @@ SiameseCat.Core（契约层）
 
 | 驱动 id | 定义位置 | 典型设备 |
 | --- | --- | --- |
-| `modbus` | `SiameseCat.Protocols`（`Protocols.Modbus`） | 通用 Modbus 从站、仪表、变频器 |
-| `siemens` | `SiameseCat.Drivers`（`Drivers.Siemens`） | S7-200 SMART / 300 / 400 / 1200 / 1500 |
+| `modbus` | `SiameseCat.Communication.Modbus` | 通用 Modbus 从站、仪表、变频器 |
+| `siemens` | `SiameseCat.Communication.Siemens` | S7-200 SMART / 300 / 400 / 1200 / 1500 |
 
 ## 驱动选项
 
@@ -109,8 +111,8 @@ configuration.Options["slot"] = "1";
 ### 使用驱动
 
 ```csharp
-using SiameseCat.Core;
-using SiameseCat.Drivers;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 
 var registry = DriverRegistryExtensions.CreateDefaultRegistry();
 
@@ -172,8 +174,8 @@ Console.WriteLine(driver.Metrics.Snapshot());
 默认情况下驱动自己创建传输（TCP 连接或串口）。设置 `TransportFactory` 后驱动改用它提供的 `ITransport`，于是可以复用已有链路、把协议塞进自定义隧道，或者让一条 RS-485 总线上的多个站共用一个串口：
 
 ```csharp
-using SiameseCat.Core;
-using SiameseCat.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Transport;
 
 // 一条物理链路 + 一把共享请求锁
 await using var link = new SharedTransportFactory(() => new SerialPortTransport(new SerialPortOptions
@@ -232,12 +234,12 @@ var value = await readable.ReadAsync(driver.AddressParser.Parse("HR0"), TimeSpan
 
 ### 宿主集成（DI / 日志）
 
-`SiameseCat.Hosting` 是可选宿主集成包，把驱动的日志接到 `Microsoft.Extensions.Logging`，并支持从 DI 解析：
+`SiameseCat.Communication.Hosting` 是同包内的宿主集成命名空间，把驱动的日志接到 `Microsoft.Extensions.Logging`，并支持从 DI 解析：
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
-using SiameseCat.Core;
-using SiameseCat.Hosting;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Hosting;
 
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole());
@@ -256,7 +258,7 @@ await driver.ConnectAsync();
 ```
 
 - 每次解析 keyed 驱动都会创建新实例（transient），作用域释放时自动 `DisposeAsync`。
-- 未注册日志时自动退化为 `NullPlcLogger`，因此宿主集成包不强制引入日志实现。
+- 未注册日志时自动退化为 `NullPlcLogger`，因此不强制引入日志实现。
 - 单独使用适配器：`new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`。
 
 Modbus 与 S7 从站也可以交给 DI 管理（注册为 `IModbusServer` / `IS7Server` 单例，随宿主自动启停）：
@@ -394,9 +396,9 @@ registry.Register(new MyProtocolFactory());
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
-| Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
-| S7 从站 | `SiameseCat.Server`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
-| Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
+| Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
+| S7 从站 | `SiameseCat.Communication.Server.S7`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
+| Native AOT | 程序集标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
 
@@ -424,133 +426,78 @@ broadcast.Options["unitId"] = "0";
 
 ## 项目结构
 
-四层，一层一个程序集，依赖严格单向（契约 → 传输 → 协议 → 品牌），另有一个可选的宿主集成包：
+一个包、一个程序集，包内按命名空间分层，依赖严格单向（契约 → 传输 → 协议 → 品牌），从站与宿主集成同包提供：
 
-| 层 | 程序集 | 职责 |
-| --- | --- | --- |
-| 契约层 | `SiameseCat.Core` | 驱动契约、`DriverBase`、注册表、`PlcAddress`/`PlcValue`/`PlcTag`、`ITransport` 抽象 |
-| 传输层 | `SiameseCat.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
-| 协议层 | `SiameseCat.Protocols` | Modbus（RTU/TCP）与 S7 的帧、客户端，以及通用 Modbus 驱动 |
-| 品牌层 | `SiameseCat.Drivers` | Siemens 品牌驱动与原生地址映射；其他品牌按 `IPlcDriverFactory` 以插件形式接入 |
-| 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器、DI 注册与从站托管（`AddModbusServer` / `AddS7Server`），不参与分层依赖链 |
-| 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站（`IModbusServer`）与 S7 从站（`IS7Server`），用于联调、仿真与集成测试；复用协议层 PDU/CRC 与传输层串口；提供统计与日志 |
+| 命名空间 | 职责 |
+| --- | --- |
+| `SiameseCat.Communication` | 驱动契约、`DriverBase`、注册表、`PlcAddress`/`PlcValue`/`PlcTag`、选项、异常、指标、`ITransport` 抽象 |
+| `SiameseCat.Communication.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
+| `SiameseCat.Communication.Modbus` | Modbus（RTU/TCP）帧、客户端与通用 Modbus 驱动 |
+| `SiameseCat.Communication.S7` | `S7Client`、`S7Address`、S7 选项与读写项 |
+| `SiameseCat.Communication.Siemens` | Siemens 品牌驱动与原生地址映射；其他品牌按 `IPlcDriverFactory` 以插件形式接入 |
+| `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
+| `SiameseCat.Communication.Server.Modbus` / `.S7` | Modbus TCP/RTU 从站（`IModbusServer`）与 S7 从站（`IS7Server`），复用协议层 PDU/CRC 与传输层串口，提供统计与日志 |
+| `SiameseCat.Communication.Hosting` | DI 注册（`AddSiameseCat` / `AddModbusServer` / `AddS7Server`）、健康检查、`Microsoft.Extensions.Logging` 适配器 |
 
 ```text
-src/
-├── SiameseCat.Core/                     # 契约层：无第三方依赖；每个领域目录内「契约 + 实现」相邻
-│   ├── Addressing/                      # 地址与值：IPlcAddressParser + PlcAddress / PlcValue / PlcTag / 编解码
-│   ├── Diagnostics/                     # 日志与指标：IPlcLogger + NullPlcLogger + PlcMetrics / PlcDiagnostics
-│   ├── Drivers/
-│   │   ├── Abstractions/                # 驱动契约：IPlcDriver、读写/批量/订阅/健康接口、工厂、描述符、状态
-│   │   └── Runtime/                     # 驱动运行时：DriverBase（5 个 partial）、DriverRegistry、DriverConfiguration
-│   ├── Exceptions/                      # 异常体系：CommunicationException 及 3 个子类，一类一个文件
-│   ├── Transport/                       # 传输契约与助手：ITransport + TransportReader / TransportExtensions
-│   ├── CommunicationOptions.cs          # 通讯选项基类
-│   └── RetryPolicy.cs                   # 瞬时错误判定与退避策略
-├── SiameseCat.Transport/                # 传输层：TCP + UDP + 串口（唯一 System.IO.Ports 依赖）
-│   ├── TcpTransport.cs / TcpTransportOptions.cs
-│   ├── UdpTransport.cs / UdpTransportOptions.cs
-│   └── SerialPortTransport.cs / SerialPortOptions.cs
-├── SiameseCat.Protocols/                # 协议层：帧 + 客户端 + 通用 Modbus 驱动
-│   ├── Modbus/                          # Modbus 协议公共逻辑
-│   │   ├── ModbusCrc16.cs
-│   │   ├── ModbusFunctionCode.cs
-│   │   ├── ModbusException.cs
-│   │   ├── ModbusRegisterConverter.cs
-│   │   ├── Clients/                     # 主站基类、RTU 客户端、TCP 客户端、ModbusOptions
-│   │   └── Drivers/                     # ModbusDriver、ModbusClientFactory、地址解析、工厂
-│   └── S7/                              # S7comm 协议
-│       ├── S7Address.cs / S7Area.cs      # 地址模型
-│       ├── S7ReadItem.cs / S7WriteItem.cs
-│       └── Clients/                     # S7Client（连接/读/写/协议 4 个 partial）、S7Options、S7Exception
-├── SiameseCat.Drivers/                  # 品牌层：品牌地址映射 + 驱动 + 注册入口
-│   ├── DriverRegistryExtensions.cs      # 一次注册 modbus / siemens
-│   ├── Siemens/                         # SiemensDriver、SiemensAddressParser、SiemensDriverFactory
-└── SiameseCat.Hosting/                  # 宿主集成（可选）
-    ├── MicrosoftLoggerAdapter.cs        # IPlcLogger -> ILogger
-    └── ServiceCollectionExtensions.cs   # AddSiameseCat / AddSiameseCatDriver（Microsoft.Extensions.DependencyInjection 命名空间）
+src/SiameseCat.Communication/
+├── CommunicationOptions.cs / RetryPolicy.cs                                  # 契约 + 模型
+├── Addressing/          IPlcAddressParser、PlcAddress、PlcValue、PlcValueCodec、PlcTag
+├── Diagnostics/         IPlcLogger、NullPlcLogger、PlcMetrics、PlcDiagnostics
+├── Drivers/
+│   ├── Abstractions/    IPlcDriver、读写/批量/订阅/健康接口、工厂、描述符、状态
+│   ├── Runtime/         DriverBase（5 个 partial）、DriverRegistry、DriverConfiguration、RequestLock
+│   └── DriverRegistryExtensions.cs                                          # 命名空间 …Communication.Drivers
+├── Exceptions/          CommunicationException 及子类，一类一个文件
+├── Transport/           ITransport 契约 + Tcp/Udp/SerialPort 实现（唯一 System.IO.Ports 依赖）
+├── Modbus/              帧、CRC、寄存器转换、RTU/TCP 客户端、地址解析、ModbusDriver
+├── S7/                  S7Client（连接/读/写/协议 4 个 partial）、S7Address、读写项、选项
+├── Siemens/             SiemensDriver、SiemensAddressParser、SiemensDriverFactory
+├── Server/              Modbus/ 与 S7/ 从站，ServerBufferSizes 共享缓冲区校验
+└── Hosting/             ServiceCollectionExtensions、SlaveServerServiceCollectionExtensions、健康检查、日志适配器
 
-src/SiameseCat.Server/                   # Modbus 从站（可选）：TCP + RTU，联调 / 仿真 / 集成测试
-├── ModbusTcpServer.cs                   # MBAP 会话处理、并发客户端、广播写
-├── ModbusTcpServer.Pdu.cs               # FC01/02/03/04/05/06/15/16/23 与异常码
-├── ModbusDataStore.cs                   # 线程安全的寄存器 / 线圈存储
-└── ModbusServerOptions.cs               # 监听地址、端口与缓冲区大小
-
-tests/SiameseCat.Tests/
-├── Core/        # 驱动契约（Mock 驱动）、地址/值模型、传输、选项、可靠性、指标
-├── Modbus/      # CRC、转换、RTU/TCP 客户端、驱动与地址解析
-├── Siemens/     # 地址解析、客户端、驱动
-├── Integration/ # DI 注册与日志适配
-└── Fakes/       # MockTransport、MockDriver、协议帧
-
-tests/SiameseCat.Compatibility/   # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
-
-samples/SiameseCat.Samples/   # 按目录分层的使用教程，-- list / -- run <id> / -- selftest
-├── Modbus/      # TCP、RTU、全功能码、错误处理
-├── S7/          # S7Client 与 siemens 驱动
-├── Drivers/     # 注册表、Tag、批量、订阅、韧性、依赖注入
-├── Server/      # Modbus TCP/RTU 与 S7 从站
-└── Transports/  # 原始帧与自定义 ITransport
-
-tools/SiameseCat.AotProbe/   # 无硬件 AOT 探针，支持跨平台交叉编译
-
-scripts/
-├── publish-aot.ps1 / publish-aot.sh
-└── run-aot-docker.ps1 / run-aot-docker.sh
+tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus / S7 / Siemens / Server / Integration / Fakes）
+tests/SiameseCat.Compatibility/          # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
+samples/SiameseCat.Samples/              # 按目录分层的使用教程：list / run <id> / selftest
+tools/SiameseCat.AotProbe/               # 无硬件 AOT 探针，支持跨平台交叉编译
+tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成功率、堆/句柄/线程增长校验
+benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 ```
 
-> 命名空间按层收口：`SiameseCat.Core`、`SiameseCat.Transport`、`SiameseCat.Protocols.Modbus` / `.S7`、
-> `SiameseCat.Drivers.Siemens`、`SiameseCat.Hosting`。层内文件调整不影响引用方。
+> 命名空间：`SiameseCat.Communication`、`.Transport`、`.Modbus`、`.S7`、`.Siemens`、`.Drivers`、`.Server.Modbus`、`.Server.S7`、`.Hosting`。包内文件调整不影响引用方。
 
 ### 命名约定
 
 | 约定 | 说明 | 示例 |
 | --- | --- | --- |
-| 程序集 = 层 | 一个层一个包，包名统一以 `SiameseCat.` 开头 | `SiameseCat.Protocols` |
-| 命名空间 = 层 + 协议/品牌 | 比目录浅一层，避免 `…Modbus.Protocol` 这类冗余段 | `SiameseCat.Protocols.Modbus` |
+| 包名 = 产品 | 组织名 `SiameseCat` + 产品名，一个产品一个包 | `SiameseCat.Communication` |
+| 命名空间 = 产品 + 层/协议/品牌 | 一个包内用命名空间表达分层，避免再拆程序集 | `SiameseCat.Communication.Modbus` |
 | 领域模型统一 `Plc` 前缀 | 核心值类型与契约一律带 `Plc` 前缀，读写代码一眼可辨 | `PlcAddress`、`PlcValue`、`PlcTag`、`IPlcAddressParser` |
 | 驱动类按品牌命名 | 品牌驱动用 `品牌 + Driver`，协议客户端保留协议名 | `SiemensDriver`、`S7Client`、`ModbusDriver` |
 | 工厂 = 契约入口 | `IPlcDriverFactory` 的实现类以 `DriverFactory` 结尾 | `SiemensDriverFactory`、`ModbusDriverFactory` |
 | 分部类按职责拆文件 | 单类型职责超过 3 块或超过 ~300 行时用 `类型.职责.cs` | `DriverBase.Lifecycle.cs`、`S7Client.Protocol.cs` |
-| 契约与实现同域 | 接口放到它服务的领域目录，而不是统一堆到 `Abstractions`；只有跨多个领域的驱动契约才单独成组 | `Addressing/IPlcAddressParser.cs`、`Transport/ITransport.cs`、`Drivers/Abstractions/` |
-| 一个公共类型一个文件 | 仅紧耦合的辅助类型可同文件（枚举、事件参数、选项族） | `PlcDataTypeExtensions.cs`、`Exceptions/*.cs`、`ModbusOptions` 三兄弟 |
+| 一个公共类型一个文件 | 仅紧耦合的辅助类型可同文件（枚举、事件参数、选项族） | `PlcDataTypeExtensions.cs`、`Exceptions/*.cs` |
 | 目录只留一层实现分组 | 协议根目录放帧与地址模型，`Clients/` 放会话，`Drivers/` 放驱动适配 | `Modbus/Clients/`、`S7/Clients/` |
 
-项目引用关系（严格单向，无环）：
+依赖方向（严格单向，无环）：
 
 ```text
-SiameseCat.Core            （契约 + 模型，无 I/O）
-└── SiameseCat.Transport   （TCP / UDP / 串口实现）
-    └── SiameseCat.Protocols（Modbus、S7）
-        └── SiameseCat.Drivers（Siemens 品牌驱动）
+SiameseCat.Communication                     契约 + 模型，无 I/O
+└── …Communication.Transport                 TCP / UDP / 串口实现
+    └── …Communication.Modbus / .S7          协议帧、客户端、通用 Modbus 驱动
+        └── …Communication.Siemens           品牌地址映射
 
-SiameseCat.Protocols ← SiameseCat.Server（可选：Modbus TCP/RTU 与 S7 从站，复用协议层 PDU 与 CRC）
-SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting（可选：DI + 日志 + 从站托管）
-```
-
-引用对应层的项目/包：
-
-```powershell
-# 传输层（TCP / UDP / 串口）
-dotnet add reference src/SiameseCat.Transport/SiameseCat.Transport.csproj
-
-# 协议层（Modbus RTU/TCP、S7）
-dotnet add reference src/SiameseCat.Protocols/SiameseCat.Protocols.csproj
-
-# 品牌层（Siemens 驱动）
-dotnet add reference src/SiameseCat.Drivers/SiameseCat.Drivers.csproj
+…Communication.Server.*                      可选：Modbus TCP/RTU 与 S7 从站（复用 PDU + CRC）
+…Communication.Hosting                       可选：DI + 日志 + 健康检查 + 从站托管
 ```
 
 ## 安装
 
 ```powershell
-dotnet add package SiameseCat.Drivers      # 品牌驱动（Siemens）+ 协议层 + 传输层
-dotnet add package SiameseCat.Protocols    # 只用协议层：Modbus、S7
-dotnet add package SiameseCat.Transport    # 只用传输层：TCP / UDP / 串口
-dotnet add package SiameseCat.Core         # 只实现自定义驱动
-dotnet add package SiameseCat.Hosting  # 可选：Microsoft.Extensions.Logging + 依赖注入
-dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 与 S7 从站（联调 / 仿真）
+dotnet add package SiameseCat.Communication
 ```
+
+包同时提供 `net8.0` 与 `netstandard2.0` 资产，只引入 `System.IO.Ports` 与 `Microsoft.Extensions.*` 抽象包（健康检查用到 `Microsoft.Extensions.Diagnostics.HealthChecks`）；DI、日志、ASP.NET Core、Worker 宿主本身已提供完整实现。
 
 ## Native AOT
 
@@ -618,8 +565,8 @@ docker buildx build --platform linux/arm64 -f tools/SiameseCat.AotProbe/Dockerfi
 ### Modbus TCP
 
 ```csharp
-using SiameseCat.Core;
-using SiameseCat.Protocols.Modbus;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Modbus;
 
 var options = new ModbusTcpOptions
 {
@@ -651,8 +598,8 @@ float value = ModbusRegisterConverter.ReadSingle(readBack, 0);
 
 ```csharp
 using System.IO.Ports;
-using SiameseCat.Protocols.Modbus;
-using SiameseCat.Transport;
+using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport;
 
 var options = new ModbusRtuOptions
 {
@@ -685,7 +632,7 @@ RTU 说明：
 ### 西门子（Siemens）
 
 ```csharp
-using SiameseCat.Protocols.S7;
+using SiameseCat.Communication.S7;
 
 var options = new S7Options
 {
@@ -751,7 +698,7 @@ S7 注意事项：
 
 ```csharp
 using System.Text;
-using SiameseCat.Core;
+using SiameseCat.Communication;
 
 await using var transport = new TcpTransport(new TcpTransportOptions
 {
@@ -771,7 +718,7 @@ int read = await transport.ReadAsync(buffer);
 ### 原始 UDP
 
 ```csharp
-using SiameseCat.Transport;
+using SiameseCat.Communication.Transport;
 
 await using var transport = new UdpTransport(new UdpTransportOptions
 {
@@ -790,7 +737,7 @@ UDP 不保证送达与顺序：协议层超时与驱动的 `RetryCount` 负责�
 ### 原始串口
 
 ```csharp
-using SiameseCat.Transport;
+using SiameseCat.Communication.Transport;
 
 await using var transport = new SerialPortTransport(new SerialPortOptions
 {
@@ -808,10 +755,10 @@ int read = await transport.ReadAsync(buffer);
 
 ## Modbus 从站（联调 / 仿真）
 
-`SiameseCat.Server` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实 PLC 时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
+`SiameseCat.Communication.Server.Modbus` / `.S7` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实 PLC 时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
 
 ```csharp
-using SiameseCat.Server.Modbus;
+using SiameseCat.Communication.Server.Modbus;
 
 await using var server = new ModbusTcpServer(new ModbusServerOptions
 {
@@ -899,7 +846,7 @@ server.Data.Load(snapshot);              // 恢复快照，尺寸不一致会抛
 同一套 PDU 逻辑也提供 RTU 版本，用于 RS-485 联调或串口仿真：
 
 ```csharp
-using SiameseCat.Server.Modbus;
+using SiameseCat.Communication.Server.Modbus;
 
 await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
 {
@@ -920,8 +867,8 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 ### S7 从站（ISO-on-TCP）
 
 ```csharp
-using SiameseCat.Server.S7;
-using SiameseCat.Protocols.S7;
+using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.S7;
 
 await using var s7 = new S7Server(new S7ServerOptions
 {
@@ -1158,7 +1105,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 - 单元号 0 视为广播：写请求只发送不等待响应，读请求直接拒绝。
 - 客户端的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，不会打断进行中的请求。
-- 命名空间跟随分层：`SiameseCat.Core`、`SiameseCat.Transport`、`SiameseCat.Protocols.Modbus` / `.S7`、`SiameseCat.Drivers.Siemens`。
+- 命名空间跟随分层：`SiameseCat.Communication`、`SiameseCat.Communication.Transport`、`SiameseCat.Communication.Modbus` / `.S7`、`SiameseCat.Communication.Siemens`。
 - 所有公共 API 都有 XML 文档（`CS1591` 已启用），生成的 `.xml` 随 NuGet 包一起发布。
 
 ### 版本与打包
@@ -1169,7 +1116,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 - 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
 - 集中包版本管理（`Directory.Packages.props`）
 - Release 构建生成 `.nupkg` 与 `.snupkg`，并启用 SourceLink
-- 一键打包脚本：`./scripts/pack.ps1` 构建并校验 6 个包（双 TFM + 包内 README），输出大小与 SHA256；`-Version 1.0.0-preview.1` 覆盖版本，`-Push <源>` 直接推送（`NUGET_API_KEY` 环境变量提供密钥）
+- 一键打包脚本：`./scripts/pack.ps1` 构建并校验包（双 TFM + 包内 README）与符号包，输出大小与 SHA256；`-Version 1.0.0-preview.1` 覆盖版本，`-Push <源>` 直接推送（`NUGET_API_KEY` 环境变量提供密钥）
 - CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）；测试同时收集 XPlat 覆盖率，行覆盖率低于 **75%** 时任务失败（当前约 79%）
 - 依赖升级由 `.github/dependabot.yml` 每周自动发起（NuGet 按 `Microsoft.Extensions.*`、测试工具分组；GitHub Actions 每月）；安全报告流程见 [SECURITY.md](SECURITY.md)
 
@@ -1206,18 +1153,15 @@ dotnet run --project tests/SiameseCat.Compatibility -c Release
 dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*AddressParsing*" --job short
 
-# 打包全部库
-dotnet pack src/SiameseCat.Core/SiameseCat.Core.csproj -c Release -o artifacts
-dotnet pack src/SiameseCat.Transport/SiameseCat.Transport.csproj -c Release -o artifacts
-dotnet pack src/SiameseCat.Protocols/SiameseCat.Protocols.csproj -c Release -o artifacts
-dotnet pack src/SiameseCat.Drivers/SiameseCat.Drivers.csproj -c Release -o artifacts
+# 打包
+dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Release -o artifacts
 ```
 
 示例目录（`samples/SiameseCat.Samples`）用 `-- list` 看目录、`-- run <id>` 跑单步、`-- selftest` 跑全部无硬件示例；每个示例都支持 `--host` / `--port` / `--com` 直连真机，详见 [docs/tutorial.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)。
 
 ## 当前限制
 
-- Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Server`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
+- Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Communication.Server.Modbus`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
 - 驱动层内置两个驱动：通用 Modbus（RTU/TCP）与西门子 S7；其他品牌按 `IPlcDriverFactory` 以插件形式扩展（每个品牌的地址映射都需按真机验证）。
 - 西门子 S7 目前只支持 TCP 传输；Modbus 支持 TCP/RTU。
 - 数值数组支持 `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`；`Bool` 只表示单个位（多位请用多个地址），`String`/`Raw` 继续用 `Length` 表示字符数/字节数。

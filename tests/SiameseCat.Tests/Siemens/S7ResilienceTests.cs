@@ -1,5 +1,5 @@
-using SiameseCat.Core;
-using SiameseCat.Protocols.S7;
+using SiameseCat.Communication;
+using SiameseCat.Communication.S7;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Siemens;

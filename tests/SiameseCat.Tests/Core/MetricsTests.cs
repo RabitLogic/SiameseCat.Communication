@@ -1,5 +1,5 @@
 using System.Diagnostics.Metrics;
-using SiameseCat.Core;
+using SiameseCat.Communication;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;

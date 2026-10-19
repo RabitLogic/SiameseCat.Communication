@@ -1,6 +1,6 @@
-using SiameseCat.Protocols.S7;
+using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Server.S7;
 using SiameseCat.Samples.Infrastructure;
-using SiameseCat.Server.S7;
 
 namespace SiameseCat.Samples.S7;
 

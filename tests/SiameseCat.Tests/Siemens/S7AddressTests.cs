@@ -1,4 +1,4 @@
-using SiameseCat.Protocols.S7;
+using SiameseCat.Communication.S7;
 
 namespace SiameseCat.Tests.Siemens;
 

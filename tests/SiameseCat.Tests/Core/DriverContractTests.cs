@@ -1,5 +1,5 @@
-using SiameseCat.Core;
-using SiameseCat.Drivers;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;netstandard2.0</TargetFrameworks>
+    <RootNamespace>SiameseCat.Communication</RootNamespace>
+    <AssemblyName>SiameseCat.Communication</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
+    <PackageId>SiameseCat.Communication</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>RabitLogic</Authors>
+    <Description>Industrial communication library for .NET: Modbus RTU/TCP, Siemens S7, pluggable PLC drivers, TCP/UDP/serial transports, Modbus and S7 slaves, dependency injection, health checks and metrics.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>plc;modbus;modbus-tcp;modbus-rtu;s7;siemens;industrial;automation;serialport;scada</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+    <PackageReference Include="System.Memory" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SiameseCat.Tests" />
+  </ItemGroup>
+
+</Project>

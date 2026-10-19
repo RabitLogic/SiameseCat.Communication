@@ -1,7 +1,7 @@
-using SiameseCat.Core;
-using SiameseCat.Drivers.Siemens;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Siemens;
 using SiameseCat.Samples.Infrastructure;
-using SiameseCat.Server.S7;
 
 namespace SiameseCat.Samples.S7;
 
