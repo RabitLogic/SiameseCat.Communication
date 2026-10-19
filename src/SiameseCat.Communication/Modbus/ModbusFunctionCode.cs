@@ -27,6 +27,15 @@ public enum ModbusFunctionCode : byte
     /// <summary>Write multiple registers (0x10).</summary>
     WriteMultipleRegisters = 0x10,
 
+    /// <summary>Read file record (0x14).</summary>
+    ReadFileRecord = 0x14,
+
+    /// <summary>Write file record (0x15).</summary>
+    WriteFileRecord = 0x15,
+
     /// <summary>Read and write multiple registers in one transaction (0x17).</summary>
     ReadWriteMultipleRegisters = 0x17,
+
+    /// <summary>Read device identification (0x2B, MEI type 0x0E).</summary>
+    ReadDeviceIdentification = 0x2B,
 }

@@ -156,6 +156,60 @@ public class ModbusRtuServerTests
             () => new ModbusRtuServerOptions { UnitId = 0 }.Validate());
     }
 
+    [Fact]
+    public async Task ReadDeviceIdentification_InfersVariableFrameLength()
+    {
+        var transport = new MockTransport();
+        transport.EnqueueResponse(ProtocolFrames.Rtu(0x01, 0x2B, 0x0E, 0x01, 0x00));
+        var options = new ModbusRtuServerOptions();
+        options.DeviceIdentification.Clear();
+        options.DeviceIdentification[0x00] = "A";
+        await using var server = new ModbusRtuServer(transport, options);
+
+        await server.StartAsync();
+        await WaitForAsync(() => transport.Writes.Count == 1);
+
+        Assert.Equal(
+            ProtocolFrames.Rtu(
+                0x01, 0x2B, 0x0E, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, (byte)'A'),
+            transport.Writes[0]);
+    }
+
+    [Fact]
+    public async Task ReadFileRecord_InfersVariableFrameLength()
+    {
+        var transport = new MockTransport();
+        transport.EnqueueResponse(ProtocolFrames.Rtu(
+            0x01, 0x14, 0x07, 0x06, 0x00, 0x04, 0x00, 0x00, 0x00, 0x02));
+        await using var server = new ModbusRtuServer(transport, new ModbusRtuServerOptions());
+        server.Data.DefineFile(4, 2, 1);
+        server.Data.TryWriteFileRecord(4, 0, new ushort[] { 7, 8 });
+
+        await server.StartAsync();
+        await WaitForAsync(() => transport.Writes.Count == 1);
+
+        Assert.Equal(
+            ProtocolFrames.Rtu(0x01, 0x14, 0x06, 0x05, 0x06, 0x00, 0x07, 0x00, 0x08),
+            transport.Writes[0]);
+    }
+
+    [Fact]
+    public async Task WriteFileRecord_InfersVariableFrameLength()
+    {
+        var transport = new MockTransport();
+        var request = ProtocolFrames.Rtu(
+            0x01, 0x15, 0x0B, 0x06, 0x00, 0x04, 0x00, 0x00, 0x00, 0x02, 0x12, 0x34, 0x56, 0x78);
+        transport.EnqueueResponse(request);
+        await using var server = new ModbusRtuServer(transport, new ModbusRtuServerOptions());
+        server.Data.DefineFile(4, 2, 1);
+
+        await server.StartAsync();
+        await WaitForAsync(() => transport.Writes.Count == 1);
+
+        Assert.Equal(request, transport.Writes[0]);
+        Assert.Equal(new ushort[] { 0x1234, 0x5678 }, server.Data.ReadFileRecord(4, 0, 2));
+    }
+
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 2000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

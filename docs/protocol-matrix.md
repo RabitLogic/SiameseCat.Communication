@@ -8,15 +8,18 @@ Everything SiameseCat speaks, on the wire and in the API.
 
 | FC | Operation | API | Limits |
 | --- | --- | --- | --- |
-| `01` | Read coils | `ReadCoilsAsync` | 2000 bits per request |
-| `02` | Read discrete inputs | `ReadDiscreteInputsAsync` | 2000 bits per request |
-| `03` | Read holding registers | `ReadHoldingRegistersAsync` | 125 registers per request |
-| `04` | Read input registers | `ReadInputRegistersAsync` | 125 registers per request |
-| `05` | Write single coil | `WriteSingleCoilAsync` | one bit |
-| `06` | Write single register | `WriteSingleRegisterAsync` | one register |
-| `15` | Write multiple coils | `WriteMultipleCoilsAsync` | 1968 bits per request |
-| `16` | Write multiple registers | `WriteMultipleRegistersAsync` | 123 registers per request |
-| `23` | Read/write multiple registers | `ReadWriteMultipleRegistersAsync` | read ≤125, write ≤123 |
+| `0x01` | Read coils | `ReadCoilsAsync` | 2000 bits per request |
+| `0x02` | Read discrete inputs | `ReadDiscreteInputsAsync` | 2000 bits per request |
+| `0x03` | Read holding registers | `ReadHoldingRegistersAsync` | 125 registers per request |
+| `0x04` | Read input registers | `ReadInputRegistersAsync` | 125 registers per request |
+| `0x05` | Write single coil | `WriteSingleCoilAsync` | one bit |
+| `0x06` | Write single register | `WriteSingleRegisterAsync` | one register |
+| `0x0F` | Write multiple coils | `WriteMultipleCoilsAsync` | 1968 bits per request |
+| `0x10` | Write multiple registers | `WriteMultipleRegistersAsync` | 123 registers per request |
+| `0x14` | Read file record | `ReadFileRecordsAsync` | up to 35 records, response PDU ≤ 253 bytes |
+| `0x15` | Write file record | `WriteFileRecordsAsync` | request PDU ≤ 253 bytes |
+| `0x17` | Read/write multiple registers | `ReadWriteMultipleRegistersAsync` | read ≤125, write ≤123 |
+| `0x2B` | Read device identification | `ReadDeviceIdentificationAsync` | MEI type `0x0E`, continuation pages followed automatically |
 
 - Larger batches are split automatically by the driver (`IBatchReadable` / `IBatchWritable`).
 - `unitId = 0` switches to broadcast: writes are sent without waiting for a response, reads are rejected
@@ -30,26 +33,91 @@ Everything SiameseCat speaks, on the wire and in the API.
 
 | FC | Operation | Behaviour |
 | --- | --- | --- |
-| `01` / `02` | Read coils / discrete inputs | `02` when the range exceeds the buffer |
-| `03` / `04` | Read holding / input registers | `02` when the range exceeds the buffer |
-| `05` | Write single coil | Value must be `0x0000` or `0xFF00`, otherwise `03` |
-| `06` | Write single register | Echoes the request |
-| `07` | Read exception status | Returns `ModbusDataStore.ExceptionStatus` |
-| `0B` | Get communication event counter | Status `0x0000`, counter = `Data.EventCount` |
-| `0F` | Write multiple coils | Echoes start + quantity |
-| `10` | Write multiple registers | Echoes start + quantity |
-| `11` | Report server ID | `ServerIdentifier` bytes + run indicator (`0xFF` / `0x00`) |
-| `16` | Mask write register | `(current AND andMask) OR (orMask AND NOT andMask)`, echoes the request |
-| `17` | Read/write multiple registers | Write first, then read (atomic within the slave) |
+| `0x01` / `0x02` | Read coils / discrete inputs | `02` when the range exceeds the buffer |
+| `0x03` / `0x04` | Read holding / input registers | `02` when the range exceeds the buffer |
+| `0x05` | Write single coil | Value must be `0x0000` or `0xFF00`, otherwise `03` |
+| `0x06` | Write single register | Echoes the request |
+| `0x07` | Read exception status | Returns `ModbusDataStore.ExceptionStatus` |
+| `0x0B` | Get communication event counter | Status `0x0000`, counter = `Data.EventCount` |
+| `0x0F` | Write multiple coils | Echoes start + quantity |
+| `0x10` | Write multiple registers | Echoes start + quantity |
+| `0x11` | Report server ID | `ServerIdentifier` bytes + run indicator (`0xFF` / `0x00`) |
+| `0x14` | Read file record | `ModbusDataStore` file records; `02` for an unknown file or record |
+| `0x15` | Write file record | Echoes the request; `02` for an unknown file, `03` for malformed lengths |
+| `0x16` | Mask write register | `(current AND andMask) OR (orMask AND NOT andMask)`, echoes the request |
+| `0x17` | Read/write multiple registers | Write first, then read (atomic within the slave) |
+| `0x2B` | Read device identification | `ModbusServerOptions.DeviceIdentification`, paged to fit 253 bytes |
 
 - Exception codes: `01` illegal function, `02` illegal data address, `03` illegal data value.
 - Unit id is echoed back, so one slave serves several stations; unit id `0` = broadcast (writes applied,
   no response).
-- TCP accepts 1-byte PDUs (FC07/0B/11 requests are function code only); RTU infers the request length per
-  function code (fixed 8-byte frames for FC01–06, 4 bytes for FC07/0B/11, 10 bytes for FC16, variable for
-  FC0F/10/17).
+- TCP accepts 1-byte PDUs (`0x07`/`0x0B`/`0x11` requests are function code only); RTU infers the request
+  length per function code (fixed 8-byte frames for `0x01`–`0x06`, 4 bytes for `0x07`/`0x0B`/`0x11`,
+  7 bytes for `0x2B`, 10 bytes for `0x16`, variable for `0x0F`/`0x10`/`0x17`, and 5 + byte count for
+  `0x14`/`0x15`).
 - `ModbusServerStatistics` records total requests, per-FC requests and exceptions, received frames and
   discarded frames (bad CRC, invalid MBAP length, truncated frames).
+
+### Device identification
+
+`ReadDeviceIdentificationAsync` sends function code `0x2B` with MEI type `0x0E` and returns the objects as
+raw bytes (vendor specific objects are not always text) plus typed accessors for the standard ones.
+
+```csharp
+var basic = await client.ReadDeviceIdentificationAsync();                               // 0x00..0x02
+var regular = await client.ReadDeviceIdentificationAsync(1, ModbusDeviceIdCode.Regular); // 0x00..0x06
+
+Console.WriteLine($"{regular.VendorName} / {regular.ProductCode} rev {regular.MajorMinorRevision}");
+
+foreach (var pair in regular.Objects)
+{
+    Console.WriteLine($"0x{pair.Key:X2} = {regular.GetObjectText(pair.Key)}");
+}
+```
+
+| Object | Meaning | Category |
+| --- | --- | --- |
+| `0x00` | Vendor name | basic |
+| `0x01` | Product code | basic |
+| `0x02` | Major/minor revision | basic |
+| `0x03` | Vendor URL | regular |
+| `0x04` | Product name | regular |
+| `0x05` | Model name | regular |
+| `0x06` | User application name | regular |
+| `0x80`–`0xFF` | Vendor specific | extended |
+
+The client follows continuation pages (`MoreFollows` / `NextObjectId`) by default, so `Objects` holds the
+whole category; pass `followMore: false` to read a single page, or use `ModbusDeviceIdCode.Individual` to
+read one object id. On the slave side the objects are configured through
+`ModbusServerOptions.DeviceIdentification` and default to the vendor name, the package id and the assembly
+version.
+
+### File records
+
+File records are register blocks addressed by file number and record number. Every record in a file has
+the same length, and the slave keeps them in `ModbusDataStore`:
+
+```csharp
+var options = new ModbusServerOptions { Port = 0 };
+await using var slave = new ModbusTcpServer(options);
+slave.Data.DefineFile(fileNumber: 4, recordLength: 2, recordCount: 16);  // 16 records of 2 registers
+```
+
+```csharp
+await client.WriteFileRecordsAsync(new[]
+{
+    new ModbusFileRecord(4, 0, new ushort[] { 0x1234, 0x5678 }),
+});
+
+var records = await client.ReadFileRecordsAsync(new[]
+{
+    new ModbusFileRecordRequest(4, 0, 2),
+});
+```
+
+One request can carry several records (up to 35 read sub-requests) and the result is ordered like the
+request. File numbers start at 1, record numbers at 0, and a record holds 1 to 125 registers. The slave
+echoes writes and the client validates the echo; `unitId = 0` broadcasts a write.
 
 ### Address syntax
 

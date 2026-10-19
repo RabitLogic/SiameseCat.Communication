@@ -61,7 +61,8 @@ public sealed class ModbusRtuServer : IModbusServer
             Statistics,
             _options.ServerIdentifier,
             _options.RunIndicator,
-            _options.Logger);
+            _options.Logger,
+            _options.DeviceIdentification);
     }
 
     /// <summary>Gets the register and coil storage that the slave exposes.</summary>
@@ -214,55 +215,70 @@ public sealed class ModbusRtuServer : IModbusServer
         }
 
         var function = buffer[1];
-        int expected;
+        int headerLength;
 
         switch (function)
         {
             case 0x0F:
             case 0x10:
-                if (!await TryReadAsync(buffer, 2, 5, token).ConfigureAwait(false))
-                {
-                    return 0;
-                }
-
-                expected = 9 + buffer[6];
+                headerLength = 7;
                 break;
 
             case 0x17:
-                if (!await TryReadAsync(buffer, 2, 9, token).ConfigureAwait(false))
-                {
-                    return 0;
-                }
+                headerLength = 11;
+                break;
 
-                expected = 13 + buffer[10];
+            case 0x14:
+            case 0x15:
+                // Variable-length requests: the byte count follows the function code.
+                headerLength = 3;
                 break;
 
             case 0x07:
             case 0x0B:
             case 0x11:
                 // Fixed two-byte requests (function code + padding) plus the CRC.
-                expected = 4;
+                headerLength = 4;
+                break;
+
+            case 0x2B:
+                // Read device identification: MEI type, read code and object id plus the CRC.
+                headerLength = 7;
                 break;
 
             case 0x16:
                 // Mask write register: address, AND mask, OR mask, CRC.
-                expected = 10;
+                headerLength = 10;
                 break;
 
             default:
                 // Fixed-length requests (FC01..FC06) and unknown functions, which are answered
                 // with an illegal-function exception as soon as the header is available.
-                expected = function is >= 0x01 and <= 0x06 ? 8 : 2;
+                headerLength = function is >= 0x01 and <= 0x06 ? 8 : 2;
                 break;
         }
 
-        if (expected > buffer.Length)
+        if (headerLength > 2
+            && !await TryReadAsync(buffer, 2, headerLength - 2, token).ConfigureAwait(false))
         {
             return 0;
         }
 
-        var count = function is 0x0F or 0x10 ? 7 : function == 0x17 ? 11 : 2;
-        if (count < expected && !await TryReadAsync(buffer, count, expected - count, token).ConfigureAwait(false))
+        var expected = function switch
+        {
+            0x0F or 0x10 => 9 + buffer[6],
+            0x17 => 13 + buffer[10],
+            0x14 or 0x15 => 5 + buffer[2],
+            _ => headerLength,
+        };
+
+        if (expected < headerLength || expected > buffer.Length)
+        {
+            return 0;
+        }
+
+        if (expected > headerLength
+            && !await TryReadAsync(buffer, headerLength, expected - headerLength, token).ConfigureAwait(false))
         {
             return 0;
         }

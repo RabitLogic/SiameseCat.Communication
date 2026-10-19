@@ -104,6 +104,204 @@ public class ModbusPduFunctionTests
     }
 
     [Fact]
+    public async Task ReadDeviceIdentification_ReturnsConfiguredObjects()
+    {
+        await using var server = await StartServerAsync(o =>
+        {
+            o.DeviceIdentification.Clear();
+            o.DeviceIdentification[0x00] = "ACME";
+            o.DeviceIdentification[0x01] = "PLC-1";
+            o.DeviceIdentification[0x02] = "2.1";
+        });
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0E, 0x01, 0x00 });
+
+        var expected = new byte[]
+        {
+            0x2B, 0x0E, 0x01, 0x01, 0x00, 0x00, 0x03,
+            0x00, 0x04, (byte)'A', (byte)'C', (byte)'M', (byte)'E',
+            0x01, 0x05, (byte)'P', (byte)'L', (byte)'C', (byte)'-', (byte)'1',
+            0x02, 0x03, (byte)'2', (byte)'.', (byte)'1',
+        };
+
+        Assert.Equal(expected, response);
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdentification_RegularReportsConformityAndIgnoresBasicObjectsAboveRange()
+    {
+        await using var server = await StartServerAsync(o =>
+        {
+            o.DeviceIdentification[0x03] = "https://example.test";
+            o.DeviceIdentification[0x04] = "Cat";
+            o.DeviceIdentification[0x80] = "vendor";
+        });
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0E, 0x02, 0x03 });
+
+        Assert.Equal(0x2B, response[0]);
+        Assert.Equal(0x02, response[2]);
+        Assert.Equal(0x03, response[3]);
+        Assert.Equal(0x00, response[4]);
+        Assert.Equal(0x00, response[5]);
+        Assert.Equal(2, response[6]);
+
+        var objects = ParseDeviceObjects(response);
+        Assert.Equal("https://example.test", objects[0x03]);
+        Assert.Equal("Cat", objects[0x04]);
+        Assert.False(objects.ContainsKey(0x80));
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdentification_ExtendedIncludesVendorObjects()
+    {
+        await using var server = await StartServerAsync(o => o.DeviceIdentification[0x80] = "vendor");
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0E, 0x03, 0x80 });
+
+        Assert.Equal(0x03, response[3]);
+        Assert.Equal("vendor", ParseDeviceObjects(response)[0x80]);
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdentification_IndividualReportsConformityBit()
+    {
+        await using var server = await StartServerAsync(o => o.DeviceIdentification[0x05] = "M10");
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0E, 0x04, 0x05 });
+
+        Assert.Equal((byte)0x82, response[3]);
+        Assert.Equal(0x00, response[4]);
+        Assert.Equal(0x01, response[6]);
+        Assert.Equal("M10", ParseDeviceObjects(response)[0x05]);
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdentification_UnknownObjectReturnsIllegalAddress()
+    {
+        await using var server = await StartServerAsync();
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0E, 0x04, 0x7F });
+
+        Assert.Equal(new byte[] { 0xAB, 0x02 }, response);
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdentification_TruncatedRequestReturnsIllegalDataValue()
+    {
+        await using var server = await StartServerAsync();
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0E });
+
+        Assert.Equal(new byte[] { 0xAB, 0x03 }, response);
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdentification_UnknownMeiTypeReturnsIllegalFunction()
+    {
+        await using var server = await StartServerAsync();
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x2B, 0x0D, 0x01, 0x00 });
+
+        Assert.Equal(new byte[] { 0xAB, 0x01 }, response);
+    }
+
+    [Fact]
+    public async Task ReadFileRecord_ReturnsDefinedRecord()
+    {
+        await using var server = await StartServerAsync();
+        server.Data.DefineFile(4, 2, 2);
+        server.Data.TryWriteFileRecord(4, 1, new ushort[] { 0x1111, 0x2222 });
+
+        var response = await SendRawPduAsync(
+            server, 1, new byte[] { 0x14, 0x07, 0x06, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02 });
+
+        Assert.Equal(new byte[] { 0x14, 0x06, 0x05, 0x06, 0x11, 0x11, 0x22, 0x22 }, response);
+    }
+
+    [Fact]
+    public async Task ReadFileRecord_UnknownFileReturnsIllegalAddress()
+    {
+        await using var server = await StartServerAsync();
+
+        var response = await SendRawPduAsync(
+            server, 1, new byte[] { 0x14, 0x07, 0x06, 0x00, 0x09, 0x00, 0x00, 0x00, 0x01 });
+
+        Assert.Equal(new byte[] { 0x94, 0x02 }, response);
+    }
+
+    [Fact]
+    public async Task ReadFileRecord_RecordOutsideTheFileReturnsIllegalAddress()
+    {
+        await using var server = await StartServerAsync();
+        server.Data.DefineFile(4, 2, 2);
+
+        var response = await SendRawPduAsync(
+            server, 1, new byte[] { 0x14, 0x07, 0x06, 0x00, 0x04, 0x00, 0x05, 0x00, 0x02 });
+
+        Assert.Equal(new byte[] { 0x94, 0x02 }, response);
+    }
+
+    [Fact]
+    public async Task ReadFileRecord_MalformedByteCountReturnsIllegalDataValue()
+    {
+        await using var server = await StartServerAsync();
+
+        var response = await SendRawPduAsync(server, 1, new byte[] { 0x14, 0x06, 0x06, 0x00, 0x04, 0x00, 0x00, 0x00 });
+
+        Assert.Equal(new byte[] { 0x94, 0x03 }, response);
+    }
+
+    [Fact]
+    public async Task WriteFileRecord_StoresRecordAndEchoesRequest()
+    {
+        await using var server = await StartServerAsync();
+        server.Data.DefineFile(4, 2, 2);
+
+        var request = new byte[]
+        {
+            0x15, 0x0B, 0x06, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x12, 0x34, 0x56, 0x78,
+        };
+        var response = await SendRawPduAsync(server, 1, request);
+
+        Assert.Equal(request, response);
+        Assert.Equal(new ushort[] { 0x1234, 0x5678 }, server.Data.ReadFileRecord(4, 1, 2));
+        Assert.Equal(1, server.Data.EventCount);
+    }
+
+    [Fact]
+    public async Task WriteFileRecord_UnknownFileReturnsIllegalAddressWithoutWriting()
+    {
+        await using var server = await StartServerAsync();
+
+        var response = await SendRawPduAsync(
+            server,
+            1,
+            new byte[] { 0x15, 0x0B, 0x06, 0x00, 0x09, 0x00, 0x00, 0x00, 0x02, 0x12, 0x34, 0x56, 0x78 });
+
+        Assert.Equal(new byte[] { 0x95, 0x02 }, response);
+        Assert.Equal(0, server.Data.EventCount);
+    }
+
+    [Fact]
+    public async Task WriteFileRecord_LongerThanTheFileRecordReturnsIllegalAddress()
+    {
+        await using var server = await StartServerAsync();
+        server.Data.DefineFile(4, 2, 2);
+
+        var response = await SendRawPduAsync(
+            server,
+            1,
+            new byte[]
+            {
+                0x15, 0x0D, 0x06, 0x00, 0x04, 0x00, 0x00, 0x00, 0x03,
+                0x11, 0x11, 0x22, 0x22, 0x33, 0x33,
+            });
+
+        Assert.Equal(new byte[] { 0x95, 0x02 }, response);
+    }
+
+    [Fact]
     public async Task InvalidOptions_AreRejected()
     {
         var options = new ModbusServerOptions { ServerIdentifier = string.Empty };
@@ -111,6 +309,29 @@ public class ModbusPduFunctionTests
 
         options = new ModbusServerOptions { ServerIdentifier = "中文标识" };
         Assert.Throws<ArgumentException>(options.Validate);
+
+        options = new ModbusServerOptions();
+        options.DeviceIdentification[0x00] = "中文";
+        Assert.Throws<ArgumentException>(options.Validate);
+
+        options = new ModbusServerOptions();
+        options.DeviceIdentification[0x00] = new string('x', 245);
+        Assert.Throws<ArgumentOutOfRangeException>(options.Validate);
+    }
+
+    private static Dictionary<byte, string> ParseDeviceObjects(byte[] response)
+    {
+        var objects = new Dictionary<byte, string>();
+        var position = 7;
+        for (var i = 0; i < response[6]; i++)
+        {
+            var objectId = response[position];
+            var length = response[position + 1];
+            objects[objectId] = System.Text.Encoding.ASCII.GetString(response, position + 2, length);
+            position += 2 + length;
+        }
+
+        return objects;
     }
 
     private static async Task<ModbusTcpServer> StartServerAsync(Action<ModbusServerOptions>? configure = null)

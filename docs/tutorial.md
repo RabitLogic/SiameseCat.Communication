@@ -111,18 +111,39 @@ Without a COM port the sample wires the client to a `ModbusRtuServer` through an
 
 | Method | FC | Direction |
 | --- | --- | --- |
-| `ReadCoilsAsync` | 01 | read bits |
-| `ReadDiscreteInputsAsync` | 02 | read bits |
-| `ReadHoldingRegistersAsync` | 03 | read registers |
-| `ReadInputRegistersAsync` | 04 | read registers |
-| `WriteSingleCoilAsync` | 05 | write bit |
-| `WriteSingleRegisterAsync` | 06 | write register |
-| `WriteMultipleCoilsAsync` | 0F | write bits |
-| `WriteMultipleRegistersAsync` | 10 | write registers |
-| `ReadWriteMultipleRegistersAsync` | 17 (23) | write + read in one frame |
+| `ReadCoilsAsync` | `0x01` | read bits |
+| `ReadDiscreteInputsAsync` | `0x02` | read bits |
+| `ReadHoldingRegistersAsync` | `0x03` | read registers |
+| `ReadInputRegistersAsync` | `0x04` | read registers |
+| `WriteSingleCoilAsync` | `0x05` | write bit |
+| `WriteSingleRegisterAsync` | `0x06` | write register |
+| `WriteMultipleCoilsAsync` | `0x0F` | write bits |
+| `WriteMultipleRegistersAsync` | `0x10` | write registers |
+| `ReadFileRecordsAsync` / `WriteFileRecordsAsync` | `0x14` / `0x15` | file records |
+| `ReadWriteMultipleRegistersAsync` | `0x17` | write + read in one frame |
+| `ReadDeviceIdentificationAsync` | `0x2B` (MEI `0x0E`) | vendor, product, revision, model |
 
-Use FC23 when a loop reads a setpoint and writes a measurement in the same cycle: one round trip instead
+Use `0x17` when a loop reads a setpoint and writes a measurement in the same cycle: one round trip instead
 of two.
+
+Two operations are not plain register reads, so they return their own types:
+
+```csharp
+// Device identification: vendor name, product code, revision, URL, product/model/application name.
+var identity = await client.ReadDeviceIdentificationAsync(1, ModbusDeviceIdCode.Regular);
+Console.WriteLine($"{identity.VendorName} {identity.ProductCode} rev {identity.MajorMinorRevision}");
+
+// File records: blocks addressed by file number and record number, several per request.
+var records = await client.ReadFileRecordsAsync(new[]
+{
+    new ModbusFileRecordRequest(4, 0, 2),
+    new ModbusFileRecordRequest(4, 1, 2),
+});
+```
+
+The slave serves both: device identification objects come from `ModbusServerOptions.DeviceIdentification`
+and files are created with `server.Data.DefineFile(4, recordLength: 2, recordCount: 16)`. The
+`modbus/function-codes` sample exercises the whole set against the built-in slave.
 
 ## 4. Failures (`modbus/errors`)
 
@@ -362,9 +383,10 @@ slave.Data.Reset();
 slave.Statistics.GetRequests((byte)ModbusFunctionCode.ReadHoldingRegisters);
 ```
 
-The slave implements FC01, 02, 03, 04, 05, 06, 07, 0B, 0F, 10, 11, 16 (mask write) and 17h (read/write
-multiple), answers broadcast writes without a reply, validates lengths and returns the correct exception
-codes.
+The slave implements `0x01`, `0x02`, `0x03`, `0x04`, `0x05`, `0x06`, `0x07`, `0x0B`, `0x0F`, `0x10`,
+`0x11`, `0x14`, `0x15`, `0x16` (mask write), `0x17` (read/write multiple) and `0x2B` (device
+identification), answers broadcast writes without a reply, validates lengths and returns the correct
+exception codes.
 
 ### Modbus RTU (`server/modbus-rtu`)
 
@@ -395,9 +417,8 @@ slave.Data.Written += (_, e) => Console.WriteLine($"{e.Area} DB{e.DbNumber} @{e.
 await slave.StartAsync();
 ```
 
-The slave speaks COTP + S7comm (Setup Communication, read/write variable), so S7.Net Plus, Snap7 or a real
-engineering tool can use it. See [comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md)
-for a measured comparison.
+The slave speaks COTP + S7comm (Setup Communication, read/write variable), so Snap7 or a real
+engineering tool can use it.
 
 ## 8. Transports (`transports/*`)
 
@@ -453,6 +474,4 @@ Event Counter, FC17 Report Server ID) — the same pattern works for vendor-spec
 
 * [architecture.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) — layering, request pipeline, capability model.
 * [protocol-matrix.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) — function codes, address syntax, slave services.
-* [modbus-comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md) — how SiameseCat compares with NModbus and FluentModbus.
-* [comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md) — how SiameseCat compares with S7.Net Plus.
 * [migration.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) — moving from NModbus or Sharp7, plus the integration checklist.

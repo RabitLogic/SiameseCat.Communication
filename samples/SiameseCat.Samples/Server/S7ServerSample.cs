@@ -8,7 +8,7 @@ namespace SiameseCat.Samples.Server;
 /// Step 3 of the slave track: an S7 (ISO-on-TCP) slave that speaks S7comm.
 /// </summary>
 /// <remarks>
-/// Point S7.Net Plus, Snap7 or a real engineering tool at this endpoint; the sample uses the library's
+/// Point Snap7, an HMI or a real engineering tool at this endpoint; the sample uses the library's
 /// own <see cref="S7Client"/> so it also runs without hardware.
 /// </remarks>
 public sealed class S7ServerSample : ISample
@@ -99,7 +99,6 @@ public sealed class S7ServerSample : ISample
         await client.DisconnectAsync().ConfigureAwait(false);
         await slave.StopAsync().ConfigureAwait(false);
         SampleConsole.Value("Running", slave.IsRunning);
-        SampleConsole.Note("S7.Net Plus needs an explicit rack/slot and port; both are accepted by this slave.");
-        SampleConsole.Note("See docs/comparison.md for a measured comparison against S7.Net Plus.");
+        SampleConsole.Note("The slave is a full S7 server: point Snap7, an HMI or an engineering tool at this port.");
     }
 }

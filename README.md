@@ -10,7 +10,7 @@ never pinned to a single runtime version.
 - **Pluggable drivers** — one contract (`IPlcDriver` / `DriverBase`) with capability flags, batch
   read/write, polling or native subscriptions, health probes and metrics.
 - **Protocols built in-house** — Modbus RTU/TCP, Siemens S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
-  TCP, UDP and serial transports. No NModbus/Sharp7 dependency.
+  TCP, UDP and serial transports (device identification and file records included). No NModbus/Sharp7 dependency.
 - **Simulation included** — the same package ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
   with thread-safe data stores, write events, snapshots and per-request statistics.
 - **One package** — `SiameseCat.Communication` contains the contracts, transports, protocols, drivers,
@@ -24,8 +24,6 @@ Deeper documentation:
 - [Architecture and layering](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md)
 - [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md)
 - [Migration and integration notes](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md)
-- [Comparison with NModbus and FluentModbus](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md)
-- [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md)
 - [Publishing the package](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
 
 ## Samples
@@ -326,6 +324,17 @@ var answer = await client.ReadWriteMultipleRegistersAsync(
     readStartAddress: 0, readQuantity: 2,
     writeStartAddress: 10, values: new ushort[] { 1, 2 });
 
+// Device identification (0x2B, MEI 0x0E): continuation pages are followed automatically.
+var identity = await client.ReadDeviceIdentificationAsync(1, ModbusDeviceIdCode.Regular);
+Console.WriteLine($"{identity.VendorName} / {identity.ProductCode} rev {identity.MajorMinorRevision}");
+
+// File records (0x14 / 0x15): several records per request, results ordered like the request.
+var records = await client.ReadFileRecordsAsync(new[]
+{
+    new ModbusFileRecordRequest(4, 0, 2),
+    new ModbusFileRecordRequest(4, 1, 2),
+});
+
 // Broadcast (unit id 0): writes are sent without waiting, reads are rejected.
 configuration.Options["unitId"] = "0";
 ```
@@ -602,7 +611,7 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 - Only the configured `UnitId` is answered; station `0` writes are applied without a response; frames
   with a bad CRC are dropped and counted in `Statistics.FramesDiscarded`.
 - Function code coverage matches the TCP slave. Request lengths are inferred per function code
-  (mask write is a fixed 8-byte frame).
+  (mask write is a fixed 8-byte frame, device identification 7 bytes, file records 5 + the byte count).
 - `new ModbusRtuServer(ITransport, options)` injects a custom link (serial tunnel or test double).
 
 ### S7 slave (ISO-on-TCP)

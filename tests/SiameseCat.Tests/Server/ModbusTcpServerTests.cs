@@ -137,9 +137,9 @@ public class ModbusTcpServerTests
     {
         await using var server = await StartServerAsync();
 
-        var response = await SendRawPduAsync(server, unitId: 1, new byte[] { 0x2B, 0x0E });
+        var response = await SendRawPduAsync(server, unitId: 1, new byte[] { 0x41 });
 
-        Assert.Equal(0xAB, response[0]);
+        Assert.Equal(0xC1, response[0]);
         Assert.Equal(0x01, response[1]);
     }
 

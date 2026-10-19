@@ -69,12 +69,12 @@ public sealed class ModbusRtuClient : ModbusClientBase
         CancellationToken cancellationToken)
     {
         var pool = ArrayPool<byte>.Shared;
-        var buffer = pool.Rent(MaxFrameLength);
+        var buffer = pool.Rent(MaxFrameLength * 2);
 
         try
         {
             // Frames live in the first half of the buffer, responses in the second half.
-            const int ResponseOffset = MaxFrameLength / 2;
+            const int ResponseOffset = MaxFrameLength;
             var frameLength = BuildFrame(buffer, unitId, pdu);
 
             var interFrameDelay = _rtuOptions.InterFrameDelay ?? CalculateInterFrameDelay();
@@ -126,7 +126,7 @@ public sealed class ModbusRtuClient : ModbusClientBase
             }
 
             int responseLength;
-            if (functionCode is 0x01 or 0x02 or 0x03 or 0x04 or 0x17)
+            if (functionCode is 0x01 or 0x02 or 0x03 or 0x04 or 0x14 or 0x17)
             {
                 await reader.ReadExactlyAsync(
                     buffer.AsMemory(ResponseOffset + 2, 1), cancellationToken).ConfigureAwait(false);
@@ -135,6 +135,41 @@ public sealed class ModbusRtuClient : ModbusClientBase
                 await reader.ReadExactlyAsync(
                     buffer.AsMemory(ResponseOffset + 3, byteCount + 2), cancellationToken).ConfigureAwait(false);
                 responseLength = 3 + byteCount + 2;
+            }
+            else if (functionCode == 0x2B)
+            {
+                // MEI type, read code, conformity, more follows, next object id and object count.
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 2, 6), cancellationToken).ConfigureAwait(false);
+
+                var objectCount = buffer[ResponseOffset + 7];
+                var objectBytes = 0;
+                for (var i = 0; i < objectCount; i++)
+                {
+                    await reader.ReadExactlyAsync(
+                        buffer.AsMemory(ResponseOffset + 8 + objectBytes, 2), cancellationToken).ConfigureAwait(false);
+
+                    var objectLength = buffer[ResponseOffset + 9 + objectBytes];
+                    if (objectLength > 0)
+                    {
+                        await reader.ReadExactlyAsync(
+                            buffer.AsMemory(ResponseOffset + 10 + objectBytes, objectLength),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    objectBytes += 2 + objectLength;
+                }
+
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 8 + objectBytes, 2), cancellationToken).ConfigureAwait(false);
+                responseLength = 10 + objectBytes;
+            }
+            else if (functionCode == 0x15)
+            {
+                // Write file record echoes the whole request.
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 2, pdu.Length + 1), cancellationToken).ConfigureAwait(false);
+                responseLength = pdu.Length + 3;
             }
             else
             {

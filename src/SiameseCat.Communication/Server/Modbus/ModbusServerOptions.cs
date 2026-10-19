@@ -29,6 +29,14 @@ public sealed class ModbusServerOptions
     /// <summary>Gets or sets whether FC17 reports the run indicator as ON; <see langword="false"/> reports OFF.</summary>
     public bool RunIndicator { get; set; } = true;
 
+    /// <summary>
+    /// Gets the objects returned by Read Device Identification (function code 43 / MEI 14), keyed by
+    /// object id: 0x00 vendor name, 0x01 product code, 0x02 revision, 0x03 vendor URL, 0x04 product name,
+    /// 0x05 model name, 0x06 user application name, plus vendor specific ids from 0x80.
+    /// </summary>
+    public IDictionary<byte, string> DeviceIdentification { get; } =
+        ModbusServerIdentifier.CreateDefaultDeviceIdentification();
+
     /// <summary>Gets or sets the logger used for connection and protocol diagnostics. Defaults to no logging.</summary>
     public IPlcLogger? Logger { get; set; }
 
@@ -50,6 +58,7 @@ public sealed class ModbusServerOptions
         ValidateSize(Coils, nameof(Coils));
         ValidateSize(DiscreteInputs, nameof(DiscreteInputs));
         ModbusServerIdentifier.Validate(ServerIdentifier);
+        ModbusServerIdentifier.ValidateDeviceIdentification(DeviceIdentification);
     }
 
     private static void ValidateSize(int size, string name) => ServerBufferSizes.Validate(size, name);

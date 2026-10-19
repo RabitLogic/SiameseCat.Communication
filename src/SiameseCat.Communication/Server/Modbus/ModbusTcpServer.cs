@@ -42,7 +42,8 @@ public sealed class ModbusTcpServer : IModbusServer
             Statistics,
             _options.ServerIdentifier,
             _options.RunIndicator,
-            _options.Logger);
+            _options.Logger,
+            _options.DeviceIdentification);
         _listener = new TcpListener(ResolveAddress(_options.Host), _options.Port);
     }
 

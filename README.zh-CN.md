@@ -4,7 +4,7 @@
 
 面向 PLC 和工业设备的轻量级 .NET 通讯库。包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
 
-> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md) · [发布指南](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
+> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) · [发布指南](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
 
 本仓库只产出**一个** NuGet 包 `SiameseCat.Communication`：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。包内按**命名空间**分层，层内再按协议/品牌分组：
 
@@ -16,10 +16,10 @@
 | `SiameseCat.Communication.S7` | `S7/` | `S7Client`、`S7Address`、S7 选项与读写项 |
 | `SiameseCat.Communication.Siemens` | `Siemens/` | Siemens 品牌驱动（地址映射） |
 | `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
-| `SiameseCat.Communication.Server.Modbus` / `.S7` | `Server/` | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23）与 S7（ISO-on-TCP）从站，含统计与日志 |
+| `SiameseCat.Communication.Server.Modbus` / `.S7` | `Server/` | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B）与 S7（ISO-on-TCP）从站，含统计与日志 |
 | `SiameseCat.Communication.Hosting` | `Hosting/` | `IServiceCollection` 注册、从站托管、健康检查、`Microsoft.Extensions.Logging` 适配器 |
 
-协议栈自行实现，不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
+协议栈自行实现（含设备标识 FC2B 与文件记录 FC14/15），不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
 
 ## 架构：可插拔驱动
 
@@ -386,7 +386,7 @@ registry.Register(new MyProtocolFactory());
 | --- | --- |
 | Modbus RTU | 串口主站，支持 CRC16、3.5 字符帧间隔、RS-485 回显处理 |
 | Modbus TCP | MBAP 帧、事务号校验，支持多个并发调用串行化 |
-| Modbus 扩展 | FC23 原子读写（`ReadWriteRegistersAsync`）、广播写（`unitId=0` 只发不等） |
+| Modbus 扩展 | FC23 原子读写（`ReadWriteRegistersAsync`）、FC14/15 文件记录、FC2B 设备标识、广播写（`unitId=0` 只发不等） |
 | Siemens S7 | ISO-on-TCP (RFC 1006) + COTP + S7 PDU，支持 DB/M/I/Q 区、位/字节/字/双字/浮点/字符串、批量读写、位数组写、PDU 分片 |
 | TCP | 原始 TCP 客户端传输，可用于自定义文本/二进制协议 |
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
@@ -396,7 +396,7 @@ registry.Register(new MyProtocolFactory());
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
-| Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
+| Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
 | S7 从站 | `SiameseCat.Communication.Server.S7`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
 | Native AOT | 程序集标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 

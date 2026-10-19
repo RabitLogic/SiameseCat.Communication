@@ -59,6 +59,11 @@
 
 - RTU 与 TCP 主站：FC01/02/03/04/05/06/0F/10/17h；RTU 自带 CRC16、3.5 字符帧间隔、RS-485 回显处理，
   TCP 校验 MBAP 事务号。
+- `ReadDeviceIdentificationAsync`（FC2B / MEI 0E）：基本、常规、扩展与单对象四种访问方式，返回原始字节
+  + `VendorName` / `ProductCode` / `MajorMinorRevision` / `VendorUrl` / `ProductName` / `ModelName` /
+  `UserApplicationName` 等便捷访问器；默认自动跟随 `MoreFollows` / `NextObjectId` 续页。
+- `ReadFileRecordsAsync` / `WriteFileRecordsAsync`（FC14/15）：一次请求可读写多个文件记录（读最多 35 个
+  子请求），结果按请求顺序返回；主站校验写入回声，`unitId = 0` 可广播写。
 - `unitId = 0` 为广播：写请求只发送不等待响应，读请求直接拒绝。
 - `ReadWriteRegistersAsync`（FC23）一次完成读+写，适合控制回路的设定值更新与反馈读取。
 - `ModbusRegisterConverter` 支持 `short/ushort/int/uint/long/ulong/float/double/byte[]/string`，
@@ -90,9 +95,11 @@
 ### 从站仿真
 
 - `ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`：支持
-  FC01/02/03/04/05/06/07/0B/0F/10/11/16/17h、并发客户端、广播写、坏帧丢弃、站号过滤与帧间隔超时；
-  提供四个写入事件（带 `Start` / `Values` / `PreviousValues`）、`Snapshot()` / `Load()` / `Reset()`，
-  以及按功能码统计的 `ModbusServerStatistics`。
+  FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17h/2B、并发客户端、广播写、坏帧丢弃、站号过滤与帧间隔超时；
+  设备标识对象通过 `ModbusServerOptions.DeviceIdentification` 配置（默认厂商名、包名与程序集版本），
+  文件记录通过 `ModbusDataStore.DefineFile` 定义并由 FC14/15 读写；RTU 从站按字节数字段推断 FC14/15 帧长，
+  FC2B 为固定 7 字节帧；提供四个写入事件（带 `Start` / `Values` / `PreviousValues`）、`Snapshot()` /
+  `Load()` / `Reset()`，以及按功能码统计的 `ModbusServerStatistics`。
 - `S7Server`（`IS7Server`）+ `S7DataStore`：COTP 握手、Setup Communication（PDU 可配置）、读/写变量
   （含多变量、位、位数组、`STRING`），支持 M/I/Q/DB 区、按需创建数据块、`Written` 事件与统计。
 - 从站共用 PDU 处理器与调用方缓冲区，支持 `IPlcLogger` 注入，记录连接、丢弃帧、未知功能码与异常响应。
@@ -115,10 +122,6 @@
 - 客户端热路径：Modbus TCP/RTU 与 S7 复用帧缓冲区，S7 组帧直写发送缓冲、响应只读入一次，重试循环内联，
   未传令牌时复用超时 `CancellationTokenSource`；`DriverBase` 用 `Stopwatch.GetTimestamp()` 计时并惰性构造
   失败消息，`PlcDiagnostics` 缓存标签值。单次请求分配下降 27.8%–36.6%。
-- 与 NModbus 3.0.83 / FluentModbus 5.3.2 在同一从站上的实测对比见
-  [docs/modbus-comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md)；
-  与 S7.Net Plus 0.20.0 的对比见
-  [docs/comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md)。
 
 ### 示例与文档
 
@@ -128,8 +131,8 @@
 - 文档：英文 [README](README.md)（同时作为包内 README）与中文 [README.zh-CN.md](README.zh-CN.md)，
   以及 `docs/` 下的[架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md)、
   [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md)、
-  [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md)、
-  [教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md)与两份对比文档。
+  [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md)与
+  [教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md)。
 
 ### 质量与工程化
 

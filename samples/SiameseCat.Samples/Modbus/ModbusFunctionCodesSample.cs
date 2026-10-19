@@ -18,7 +18,7 @@ public sealed class ModbusFunctionCodesSample : ISample
 
     /// <inheritdoc/>
     public string Description =>
-        "FC01/02 read bits, FC03/04 read registers, FC05/06 write single, FC15/16 write multiple, FC23 read+write in one frame.";
+        "FC01/02 read bits, FC03/04 read registers, FC05/06 write single, FC15/16 write multiple, FC20/21 file records, FC23 read+write, FC43 device identification.";
 
     /// <inheritdoc/>
     public bool RequiresHardware => false;
@@ -85,6 +85,25 @@ public sealed class ModbusFunctionCodesSample : ISample
             .ConfigureAwait(false);
         rows.Add(new[] { "FC23", "write HR42..43, read HR40..41", string.Join(", ", exchanged) });
 
+        SampleConsole.Step("Device identification and file records");
+        var identity = await client
+            .ReadDeviceIdentificationAsync(unitId, ModbusDeviceIdCode.Regular, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        rows.Add(new[]
+        {
+            "FC43",
+            "device identification",
+            $"{identity.VendorName} / {identity.ProductCode} rev {identity.MajorMinorRevision}",
+        });
+
+        await client.WriteFileRecordsAsync(
+            new[] { new ModbusFileRecord(4, 0, new ushort[] { 111, 222 }) },
+            cancellationToken).ConfigureAwait(false);
+        var fileRecords = await client.ReadFileRecordsAsync(
+            new[] { new ModbusFileRecordRequest(4, 0, 2) },
+            cancellationToken).ConfigureAwait(false);
+        rows.Add(new[] { "FC20/21", "file 4, record 0", string.Join(", ", fileRecords[0]) });
+
         SampleConsole.Table(new[] { "FC", "Operation", "Result" }, rows);
 
         if (simulated)
@@ -95,6 +114,9 @@ public sealed class ModbusFunctionCodesSample : ISample
             SampleConsole.Value("HR42..HR43", string.Join(", ", simulator.Data.ReadHoldingRegisters(42, 2)!));
             SampleConsole.Check(simulator.Data.ReadHoldingRegisters(5, 1)![0] == 1234, "FC06 and FC16 landed in the slave");
             SampleConsole.Check(simulator.Data.ReadCoils(1, 1)![0], "FC05 and FC15 landed in the slave");
+            SampleConsole.Check(
+                simulator.Data.ReadFileRecord(4, 0, 2)!.SequenceEqual(new ushort[] { 111, 222 }),
+                "FC20/21 round-tripped a file record");
         }
 
         await client.DisconnectAsync().ConfigureAwait(false);
@@ -105,13 +127,16 @@ public sealed class ModbusFunctionCodesSample : ISample
 
     private static async Task<ModbusTcpServer> StartSimulatorAsync(CancellationToken cancellationToken)
     {
-        var server = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        var options = new ModbusServerOptions { Port = 0 };
+        options.DeviceIdentification[0x04] = "Function code rig";
+        var server = new ModbusTcpServer(options);
         await server.StartAsync(cancellationToken).ConfigureAwait(false);
         server.Data.TryWriteHoldingRegisters(0, new ushort[] { 10, 20, 30, 40 });
         server.Data.TryWriteInputRegisters(0, new ushort[] { 1, 2, 3, 4 });
         server.Data.TryWriteCoils(0, new[] { true, false, true, false, true, false, true, false });
         server.Data.TryWriteDiscreteInputs(0, new[] { true, true, false, false, true, true, false, false });
         server.Data.TryWriteHoldingRegisters(40, new ushort[] { 100, 200 });
+        server.Data.DefineFile(4, 2, 4);
         return server;
     }
 }
