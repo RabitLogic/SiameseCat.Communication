@@ -37,8 +37,7 @@ publish() {
     dotnet publish "$project" \
         --configuration Release \
         --runtime "$rid" \
-        -p:PublishAot=true \
-        -p:PublishAotCrossDebug=false \
+            -p:PublishAotCrossDebug=false \
         --output "$output"
 }
 

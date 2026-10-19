@@ -5,6 +5,8 @@ namespace SiameseCat.Core;
 /// <summary>Connection settings shared by all drivers, independent of any protocol package.</summary>
 public sealed class DriverConfiguration
 {
+    private static readonly Random JitterRandom = new();
+
     /// <summary>Gets or sets the transport kind. Defaults to <see cref="TransportKind.Tcp"/>.</summary>
     public TransportKind Transport { get; set; } = TransportKind.Tcp;
 
@@ -30,6 +32,12 @@ public sealed class DriverConfiguration
     /// request/response frames do not interleave.
     /// </summary>
     public RequestLock? RequestLock { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether every successful read is stamped with <see cref="PlcValue.Timestamp"/>
+    /// (<see cref="DateTimeOffset.UtcNow"/>). Defaults to <see langword="false"/>.
+    /// </summary>
+    public bool StampReadTimestamps { get; set; }
 
     /// <summary>
     /// Gets or sets whether every transport frame is written to <see cref="IPlcLogger"/>
@@ -168,10 +176,18 @@ public sealed class DriverConfiguration
 
         if (RetryJitter)
         {
-            delayMs *= 0.5 + (Random.Shared.NextDouble() * 0.5);
+            delayMs *= 0.5 + (NextJitter() * 0.5);
         }
 
         return TimeSpan.FromMilliseconds(delayMs);
+    }
+
+    private static double NextJitter()
+    {
+        lock (JitterRandom)
+        {
+            return JitterRandom.NextDouble();
+        }
     }
 
     /// <summary>Validates the configuration.</summary>

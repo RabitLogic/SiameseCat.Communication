@@ -41,7 +41,7 @@ public readonly record struct InovanceMapping
     /// <param name="configuration">Driver configuration.</param>
     public static InovanceMapping FromConfiguration(DriverConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
 
         var mapping = new InovanceMapping
         {

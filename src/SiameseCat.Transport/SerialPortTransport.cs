@@ -35,12 +35,12 @@ public sealed class SerialPortTransport : ITransport
     /// <inheritdoc/>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
 
         await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            Guard.NotDisposed(_disposed, this);
 
             if (_isOpen)
             {
@@ -116,7 +116,7 @@ public sealed class SerialPortTransport : ITransport
     /// <inheritdoc/>
     public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
 
         if (buffer.IsEmpty)
         {
@@ -165,7 +165,7 @@ public sealed class SerialPortTransport : ITransport
     /// <inheritdoc/>
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
 
         var port = _port;
         if (!_isOpen || port is null)

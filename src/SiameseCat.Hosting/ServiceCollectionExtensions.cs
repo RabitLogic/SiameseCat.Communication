@@ -17,7 +17,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddSiameseCat(this IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
+        Guard.NotNull(services, nameof(services));
 
         services.TryAddSingleton(static _ => DriverRegistryExtensions.CreateDefaultRegistry());
         services.TryAddSingleton<IPlcLogger>(static provider =>
@@ -46,9 +46,9 @@ public static class ServiceCollectionExtensions
         Action<DriverConfiguration> configure,
         PlcMetrics? metrics = null)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentException.ThrowIfNullOrWhiteSpace(driverId);
-        ArgumentNullException.ThrowIfNull(configure);
+        Guard.NotNull(services, nameof(services));
+        Guard.NotNullOrWhiteSpace(driverId, nameof(driverId));
+        Guard.NotNull(configure, nameof(configure));
 
         services.AddSiameseCat();
         services.AddKeyedTransient<IPlcDriver>(driverId, (provider, key) =>

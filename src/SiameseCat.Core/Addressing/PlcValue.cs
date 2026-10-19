@@ -7,18 +7,51 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     private readonly long _integer;
     private readonly double _real;
     private readonly object? _reference;
+    private readonly PlcValueQuality _quality;
+    private readonly DateTimeOffset _timestamp;
 
-    private PlcValue(PlcDataType dataType, bool boolValue = false, long integer = 0, double real = 0, object? reference = null)
+    private PlcValue(
+        PlcDataType dataType,
+        bool boolValue = false,
+        long integer = 0,
+        double real = 0,
+        object? reference = null,
+        PlcValueQuality quality = PlcValueQuality.Good,
+        DateTimeOffset timestamp = default)
     {
         DataType = dataType;
         _bool = boolValue;
         _integer = integer;
         _real = real;
         _reference = reference;
+        _quality = quality;
+        _timestamp = timestamp;
     }
 
     /// <summary>Gets the data type of the stored value.</summary>
     public PlcDataType DataType { get; }
+
+    /// <summary>Gets the quality reported with the value. Defaults to <see cref="PlcValueQuality.Good"/>.</summary>
+    public PlcValueQuality Quality => _quality;
+
+    /// <summary>
+    /// Gets the moment the value was sampled, or <see langword="null"/> when the driver does not stamp
+    /// values. Enable <see cref="DriverConfiguration.StampReadTimestamps"/> to stamp every successful read.
+    /// </summary>
+    public DateTimeOffset? Timestamp => _timestamp == default ? null : _timestamp;
+
+    /// <summary>Gets whether <see cref="Quality"/> is <see cref="PlcValueQuality.Good"/>.</summary>
+    public bool IsGood => _quality == PlcValueQuality.Good;
+
+    /// <summary>Returns a copy with a different quality.</summary>
+    /// <param name="quality">Quality to attach.</param>
+    public PlcValue WithQuality(PlcValueQuality quality) =>
+        new(DataType, _bool, _integer, _real, _reference, quality, _timestamp);
+
+    /// <summary>Returns a copy with a sampling timestamp.</summary>
+    /// <param name="timestamp">Sampling moment; usually <see cref="DateTimeOffset.UtcNow"/>.</param>
+    public PlcValue WithTimestamp(DateTimeOffset timestamp) =>
+        new(DataType, _bool, _integer, _real, _reference, _quality, timestamp);
 
     /// <summary>Creates a <see cref="PlcDataType.Null"/> value.</summary>
     public static PlcValue Null => default;
@@ -163,6 +196,10 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     };
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Quality and timestamp are metadata: two values with the same data type and payload compare equal
+    /// even when their quality or timestamp differ, so change detection keeps working on polled reads.
+    /// </remarks>
     public bool Equals(PlcValue other)
     {
         if (DataType != other.DataType)

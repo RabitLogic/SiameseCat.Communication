@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using SiameseCat.Core;
 
 namespace SiameseCat.Protocols.S7;
 
@@ -8,6 +9,7 @@ namespace SiameseCat.Protocols.S7;
 /// </summary>
 public readonly partial struct S7Address : IEquatable<S7Address>
 {
+#if NET8_0_OR_GREATER
     [GeneratedRegex(
         @"^DB(?<db>\d+)\.(?<kind>DBX|DBB|DBW|DBD)(?<offset>\d+)(?:\.(?<bit>\d+))?$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -17,6 +19,19 @@ public readonly partial struct S7Address : IEquatable<S7Address>
         @"^(?<area>M|I|Q|E|A)(?:(?<size>B|W|D)(?<sizeOffset>\d+)|(?<bitOffset>\d+)\.(?<bit>\d+))$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AreaPattern();
+#else
+    private static readonly Regex DbRegex = new(
+        @"^DB(?<db>\d+)\.(?<kind>DBX|DBB|DBW|DBD)(?<offset>\d+)(?:\.(?<bit>\d+))?$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly Regex AreaRegex = new(
+        @"^(?<area>M|I|Q|E|A)(?:(?<size>B|W|D)(?<sizeOffset>\d+)|(?<bitOffset>\d+)\.(?<bit>\d+))$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static Regex DbPattern() => DbRegex;
+
+    private static Regex AreaPattern() => AreaRegex;
+#endif
 
     /// <summary>Creates an address from its components.</summary>
     /// <param name="area">Memory area.</param>
@@ -109,7 +124,7 @@ public readonly partial struct S7Address : IEquatable<S7Address>
     /// <summary>Parses an S7 address string.</summary>
     public static S7Address Parse(string address)
     {
-        ArgumentNullException.ThrowIfNull(address);
+        Guard.NotNull(address, nameof(address));
         var text = address.Trim();
         if (text.Length == 0)
         {
@@ -192,7 +207,7 @@ public readonly partial struct S7Address : IEquatable<S7Address>
 
         try
         {
-            result = Parse(address);
+            result = Parse(address!);
             return true;
         }
         catch (Exception ex) when (ex is FormatException or ArgumentException)
@@ -257,7 +272,19 @@ public readonly partial struct S7Address : IEquatable<S7Address>
     public override bool Equals(object? obj) => obj is S7Address other && Equals(other);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => HashCode.Combine(Area, DbNumber, ByteOffset, DataType, BitOffset);
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = 17;
+            hash = (hash * 31) + Area.GetHashCode();
+            hash = (hash * 31) + DbNumber.GetHashCode();
+            hash = (hash * 31) + ByteOffset.GetHashCode();
+            hash = (hash * 31) + DataType.GetHashCode();
+            hash = (hash * 31) + BitOffset.GetHashCode();
+            return hash;
+        }
+    }
 
     /// <summary>Compares two addresses for value equality.</summary>
     /// <param name="left">Left operand.</param>

@@ -20,7 +20,7 @@ public sealed class LoggingTransport : ITransport
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _name = string.IsNullOrWhiteSpace(name) ? "transport" : name;
+        _name = string.IsNullOrWhiteSpace(name) ? "transport" : name!;
     }
 
     /// <inheritdoc/>

@@ -18,7 +18,7 @@ public static class DriverRegistryExtensions
     /// <returns>The same registry, for chaining.</returns>
     public static DriverRegistry AddSiameseCatDrivers(this DriverRegistry registry)
     {
-        ArgumentNullException.ThrowIfNull(registry);
+        Guard.NotNull(registry, nameof(registry));
 
         registry.Register(new ModbusDriverFactory());
         registry.Register(new SiemensDriverFactory());

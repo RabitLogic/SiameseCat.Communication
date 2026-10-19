@@ -25,8 +25,8 @@ public static class RetryPolicy
         bool isWrite = false,
         Func<CancellationToken, Task>? reconnect = null)
     {
-        ArgumentNullException.ThrowIfNull(operation);
-        ArgumentNullException.ThrowIfNull(options);
+        Guard.NotNull(operation, nameof(operation));
+        Guard.NotNull(options, nameof(options));
 
         var maxAttempts = isWrite && !options.RetryWrites ? 1 : options.RetryCount + 1;
 
@@ -56,7 +56,7 @@ public static class RetryPolicy
     /// <summary>Returns whether an exception represents a failure that may succeed when retried.</summary>
     public static bool IsTransient(Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(exception);
+        Guard.NotNull(exception, nameof(exception));
 
         return exception switch
         {

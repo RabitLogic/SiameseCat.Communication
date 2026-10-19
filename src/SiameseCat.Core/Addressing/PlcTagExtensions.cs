@@ -12,8 +12,8 @@ public static class PlcTagExtensions
         PlcTag tag,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(driver);
-        ArgumentNullException.ThrowIfNull(tag);
+        Guard.NotNull(driver, nameof(driver));
+        Guard.NotNull(tag, nameof(tag));
 
         if (driver is not IReadable readable)
         {
@@ -32,8 +32,8 @@ public static class PlcTagExtensions
         IReadOnlyList<PlcTag> tags,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(driver);
-        ArgumentNullException.ThrowIfNull(tags);
+        Guard.NotNull(driver, nameof(driver));
+        Guard.NotNull(tags, nameof(tags));
 
         var addresses = new PlcAddress[tags.Count];
         for (var i = 0; i < tags.Count; i++)

@@ -24,7 +24,7 @@ public sealed class InovanceDriverFactory : IPlcDriverFactory
         IPlcLogger? logger = null,
         PlcMetrics? metrics = null)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
         configuration.Validate();
 
         var unitId = ModbusClientFactory.GetUnitId(configuration);

@@ -15,12 +15,18 @@ public readonly record struct PlcAddress
     /// <param name="dataType">Access width.</param>
     /// <param name="length">Element count, character count for strings or byte count for raw data.</param>
     /// <param name="bitOffset">Bit offset inside the byte, only valid for <see cref="PlcDataType.Bool"/>.</param>
+    /// <param name="symbol">
+    /// Optional protocol symbol, for example an OPC UA node id, a CIP tag name or an ADS symbol.
+    /// Symbolic protocols keep their namespace in <paramref name="region"/> and may leave
+    /// <paramref name="offset"/> at 0.
+    /// </param>
     public PlcAddress(
         string region,
         int offset,
         PlcDataType dataType,
         int length = 1,
-        byte? bitOffset = null)
+        byte? bitOffset = null,
+        string? symbol = null)
     {
         if (string.IsNullOrWhiteSpace(region))
         {
@@ -68,6 +74,26 @@ public readonly record struct PlcAddress
         DataType = dataType;
         Length = length;
         BitOffset = bitOffset;
+        Symbol = string.IsNullOrWhiteSpace(symbol) ? null : symbol;
+    }
+
+    /// <summary>Creates a symbolic address for protocols that address by name instead of by offset.</summary>
+    /// <param name="region">Protocol-defined namespace key, for example <c>ns=2</c>.</param>
+    /// <param name="symbol">Symbol or node id, for example <c>s=Temperature</c>.</param>
+    /// <param name="dataType">Access width.</param>
+    /// <param name="length">Element count for strings and raw data.</param>
+    public static PlcAddress FromSymbol(
+        string region,
+        string symbol,
+        PlcDataType dataType,
+        int length = 1)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            throw new ArgumentException("Symbol must be specified.", nameof(symbol));
+        }
+
+        return new PlcAddress(region, 0, dataType, length, bitOffset: null, symbol);
     }
 
     /// <summary>Gets the protocol-defined region key.</summary>
@@ -85,6 +111,9 @@ public readonly record struct PlcAddress
     /// <summary>Gets the bit offset inside the byte for Bool addresses.</summary>
     public byte? BitOffset { get; }
 
+    /// <summary>Gets the optional protocol symbol when the protocol addresses by name instead of by offset.</summary>
+    public string? Symbol { get; }
+
     /// <summary>Gets the payload size in bytes.</summary>
     public int ByteSize => DataType switch
     {
@@ -94,15 +123,21 @@ public readonly record struct PlcAddress
 
     /// <summary>Returns a copy with a different data type.</summary>
     /// <param name="dataType">New data type.</param>
-    public PlcAddress WithDataType(PlcDataType dataType) => new(Region, Offset, dataType, Length, BitOffset);
+    public PlcAddress WithDataType(PlcDataType dataType) => new(Region, Offset, dataType, Length, BitOffset, Symbol);
 
     /// <summary>Returns a copy with a different length.</summary>
     /// <param name="length">New length.</param>
-    public PlcAddress WithLength(int length) => new(Region, Offset, DataType, length, BitOffset);
+    public PlcAddress WithLength(int length) => new(Region, Offset, DataType, length, BitOffset, Symbol);
 
-    /// <summary>Returns the canonical text form, for example <c>holding:10[UInt16]</c>.</summary>
-    public override string ToString() =>
-        BitOffset is null
-            ? $"{Region}:{Offset}[{DataType}]"
-            : $"{Region}:{Offset}.{BitOffset}[{DataType}]";
+    /// <summary>Returns a copy with a symbol. Protocols that address by name can keep it next to the offset.</summary>
+    /// <param name="symbol">Symbol or node id.</param>
+    public PlcAddress WithSymbol(string symbol) => new(Region, Offset, DataType, Length, BitOffset, symbol);
+
+    /// <summary>Returns the canonical text form, for example <c>holding:10[UInt16]</c> or <c>ns=2:s=Temp[Double]</c>.</summary>
+    public override string ToString() => (Symbol, BitOffset) switch
+    {
+        (not null, _) => $"{Region}:{Symbol}[{DataType}]",
+        (null, null) => $"{Region}:{Offset}[{DataType}]",
+        _ => $"{Region}:{Offset}.{BitOffset}[{DataType}]",
+    };
 }

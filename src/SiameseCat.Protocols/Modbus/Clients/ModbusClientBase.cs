@@ -298,7 +298,7 @@ public abstract class ModbusClientBase : IAsyncDisposable
         IReadOnlyList<bool> values,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(values);
+        Guard.NotNull(values, nameof(values));
         ValidateCount(values.Count, 1968, nameof(values));
 
         int byteCount = (values.Count + 7) / 8;
@@ -343,7 +343,7 @@ public abstract class ModbusClientBase : IAsyncDisposable
         IReadOnlyList<ushort> values,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(values);
+        Guard.NotNull(values, nameof(values));
         ValidateCount(values.Count, 123, nameof(values));
 
         byte[] pdu = new byte[6 + values.Count * 2];
@@ -396,7 +396,7 @@ public abstract class ModbusClientBase : IAsyncDisposable
         IReadOnlyList<ushort> writeValues,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(writeValues);
+        Guard.NotNull(writeValues, nameof(writeValues));
         ValidateCount(readQuantity, 125, nameof(readQuantity));
         ValidateCount(writeValues.Count, 121, nameof(writeValues));
 
@@ -727,6 +727,6 @@ public abstract class ModbusClientBase : IAsyncDisposable
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
     }
 }

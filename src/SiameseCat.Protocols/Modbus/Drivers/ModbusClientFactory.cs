@@ -23,7 +23,7 @@ public static class ModbusClientFactory
     /// <exception cref="ArgumentOutOfRangeException">The unit id is above 255.</exception>
     public static byte GetUnitId(DriverConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
 
         return configuration.GetByteOption("unitId", 1);
     }
@@ -32,7 +32,7 @@ public static class ModbusClientFactory
     /// <param name="configuration">Driver configuration.</param>
     public static Encoding GetEncoding(DriverConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
         return ParseEncoding(configuration.GetOption("encoding"));
     }
 
@@ -40,7 +40,7 @@ public static class ModbusClientFactory
     /// <param name="configuration">Driver configuration.</param>
     public static bool GetSwapBytes(DriverConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
         return configuration.GetBooleanOption("swapBytes", false);
     }
 
@@ -55,7 +55,7 @@ public static class ModbusClientFactory
         int defaultPort = DefaultTcpPort,
         IPlcLogger? logger = null)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
 
         return configuration.Transport switch
         {

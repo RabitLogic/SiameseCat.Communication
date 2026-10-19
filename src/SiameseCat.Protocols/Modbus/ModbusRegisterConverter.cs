@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using SiameseCat.Core;
 
 namespace SiameseCat.Protocols.Modbus;
 
@@ -158,7 +159,9 @@ public static class ModbusRegisterConverter
             var nullIndex = Array.IndexOf(bytes, (byte)0);
             if (nullIndex >= 0)
             {
-                bytes = bytes[..nullIndex];
+                var trimmed = new byte[nullIndex];
+                Array.Copy(bytes, trimmed, nullIndex);
+                bytes = trimmed;
             }
         }
 
@@ -332,7 +335,7 @@ public static class ModbusRegisterConverter
         Encoding? encoding = null,
         bool swapBytes = false)
     {
-        ArgumentNullException.ThrowIfNull(value);
+        Guard.NotNull(value, nameof(value));
         ValidateRange(registers, index, registerCount);
 
         var capacity = registerCount * 2;

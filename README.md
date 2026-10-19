@@ -1,6 +1,6 @@
 # SiameseCat
 
-面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)**。
+面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)** 与 **.NET Standard 2.0**（可被 .NET Framework 4.8 等存量宿主引用）。
 
 按**分层**拆分程序集（4 层 + 1 个可选的宿主集成包，共 5 个包），一层一个包，层内再按协议/品牌分组：
 
@@ -45,7 +45,7 @@ SiameseCat.Core（契约层）
 
 - **传输层与协议层解耦**：`ITransport` 只提供 `open / close / send / recv / discard`；协议驱动通过构造参数接收传输，因此 Modbus RTU 与 TCP 共用同一套 PDU 逻辑，S7 的 ISO-TP 层也不依赖具体 TCP 实现。
 - **能力分离**：没有几十个方法的 `IDriver`，而是 `IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` / `ISubscribable` / `IHealthCheckable`，驱动按需实现，并在 `DriverDescriptor.Capabilities` 中声明；`DriverBase` 在调用前校验，越界调用直接抛 `NotSupportedException`。
-- **两层地址模型**：用户写协议原生地址（`40001`、`DB1.DBD0`），由 `IPlcAddressParser` 解析为 `{ Region, Offset, BitOffset?, DataType, Length }`；上层只操作 `PlcAddress`。
+- **两层地址模型**：用户写协议原生地址（`40001`、`DB1.DBD0`），由 `IPlcAddressParser` 解析为 `{ Region, Offset, BitOffset?, DataType, Length, Symbol? }`；上层只操作 `PlcAddress`。符号寻址协议（OPC UA / CIP / ADS）使用 `Symbol` 字段，不把符号拼进字符串。
 - **模板方法**：状态机、事务锁、超时、重试、重连、指标都在 `DriverBase`，驱动只实现 `DoConnectAsync` / `DoReadAsync` / `DoWriteAsync`（可选 `DoReadBatchAsync`）。`DriverBase` 按职责拆成 5 个分部文件：`DriverBase.cs`（契约与读写 API）、`.Lifecycle.cs`（连接状态机）、`.Execution.cs`（超时/重试/重连管线）、`.Health.cs`（`PingAsync` / Keep-Alive）、`.Subscription.cs`（轮询订阅）。
 - **插件式注册**：`DriverRegistry` 按 id 注册 `IPlcDriverFactory`，核心库不硬编码任何协议；AOT 场景使用显式注册，非 AOT 场景可用 `RegisterFromAssembly` 扫描。
 
@@ -266,6 +266,28 @@ await driver.ConnectAsync();
 
 数组/文本使用 `Length`：`String` 为最大字符数，`Raw` 为字节数；数值类型必须是单个元素。
 v1 不提供跨协议统一语义地址（例如把 `"temperature"` 映射到不同厂商的地址），`PlcTag` 已能满足配置化场景。
+
+**符号寻址**：OPC UA / CIP / ADS 这类按名字寻址的协议不用再把符号拼进字符串，`PlcAddress` 带一个可选 `Symbol`：
+
+```csharp
+var address = PlcAddress.FromSymbol("ns=2", "s=Temperature", PlcDataType.Double);
+// Region="ns=2", Symbol="s=Temperature", Offset=0, ToString() => "ns=2:s=Temperature[Double]"
+```
+
+### 值元数据（Quality / Timestamp）
+
+`PlcValue` 除了载荷还携带可选的**质量**与**采样时间**，两者都是元数据，不参与相等性比较（轮询变更检测不受影响）：
+
+```csharp
+var value = PlcValue.FromDouble(12.5)
+    .WithQuality(PlcValueQuality.Good)
+    .WithTimestamp(DateTimeOffset.UtcNow);
+
+bool usable = value.IsGood;      // Quality == Good
+DateTimeOffset? sampledAt = value.Timestamp;
+```
+
+打开 `DriverConfiguration.StampReadTimestamps` 后，`DriverBase` 会给每次读与批量读的结果自动打上 UTC 采样时间；协议返回质量位时，驱动可以用 `WithQuality` 覆盖。
 
 ### 新增第三方驱动
 
@@ -962,7 +984,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 ### 版本与打包
 
-- 目标框架：`net8.0`（LTS）
+- 目标框架：`net8.0`（LTS）+ `netstandard2.0`（.NET Framework 4.8 / 旧版 .NET Core）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
 - 启用 .NET 分析器（`latest-recommended`）
 - 集中包版本管理（`Directory.Packages.props`）
 - Release 构建生成 `.nupkg` 与 `.snupkg`，并启用 SourceLink
@@ -1015,6 +1037,7 @@ dotnet run -- serial <com> [baud] [text]
 - v1 不提供跨协议统一语义地址映射，`PlcTag` 覆盖配置化场景。
 - 串口没有可取消的异步 API：取消正在进行的读写会关闭串口，需要重新调用 `ConnectAsync`。
 - 串口 `ReadTimeout` 建议小于协议 `Timeout`，否则超时检测会被串口读超时延迟。
+- `netstandard2.0` 目标只做构建与打包验证（自动化测试运行在 `net8.0` 上）；该目标下 AOT 分析与源生成正则不生效，正则回退为编译缓存实现，TCP keep-alive 只能开启探测而不调优时间参数。
 
 ## 许可证
 

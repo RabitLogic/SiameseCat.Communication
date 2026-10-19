@@ -25,7 +25,7 @@ public sealed class SiemensDriverFactory : IPlcDriverFactory
         IPlcLogger? logger = null,
         PlcMetrics? metrics = null)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
         configuration.Validate();
 
         if (configuration.Transport is not (TransportKind.Tcp or TransportKind.Custom))

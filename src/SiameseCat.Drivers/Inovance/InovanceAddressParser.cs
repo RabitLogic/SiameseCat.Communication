@@ -19,8 +19,16 @@ public sealed partial class InovanceAddressParser : IPlcAddressParser
 {
     private static readonly ModbusAddressParser ModbusParser = new();
 
+#if NET8_0_OR_GREATER
     [GeneratedRegex(@"^(?<device>[DMXY])(?<number>[0-9]+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ElementPattern();
+#else
+    private static readonly Regex ElementRegex = new(
+        @"^(?<device>[DMXY])(?<number>[0-9]+)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static Regex ElementPattern() => ElementRegex;
+#endif
 
     /// <summary>Creates a parser with the default mapping.</summary>
     public InovanceAddressParser()

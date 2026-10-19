@@ -107,7 +107,7 @@ public class ModbusDriver : DriverBase
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(writeValues);
+        Guard.NotNull(writeValues, nameof(writeValues));
 
         if (writeAddress.Region != ModbusAddressParser.HoldingRegisterRegion)
         {

@@ -9,7 +9,7 @@ public abstract partial class DriverBase
         Func<PlcValue, Task> onChanged,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(onChanged);
+        Guard.NotNull(onChanged, nameof(onChanged));
         if (interval <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(interval), interval, "Interval must be greater than zero.");
@@ -56,7 +56,7 @@ public abstract partial class DriverBase
 
         try
         {
-            using var timer = new PeriodicTimer(interval);
+            using var timer = new IntervalTimer(interval);
             while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
             {
                 try

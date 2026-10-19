@@ -29,6 +29,8 @@
 - **能力声明**：`DriverDescriptor.Capabilities`（`Read` / `Write` / `BatchRead` / `BatchWrite` / `Subscribe` / `Health`，默认 `All`），`DriverBase` 在读、写、批量、订阅、探针入口校验；`DoReadAsync` / `DoWriteAsync` 改为可重写虚方法（默认抛 `NotSupportedException`），只读/只写驱动不再需要空实现；启用 Keep-Alive 但未声明 `Health` 时在构造期报错。
 - **原生订阅钩子**：新增 `protected virtual DoSubscribeAsync`，返回句柄即走协议原生订阅，返回 `null`（默认）时沿用轮询；订阅句柄释放时同时取消轮询并释放原生订阅。
 - **帧日志**：`LogFrames = true` 时协议客户端用 `LoggingTransport` 包装传输，以 `Trace` 级别输出 `TX` / `RX` 帧 hex（`CommunicationOptions.Logger` / `LogFrames`，AOT 友好、无反射）。
+- **地址与值模型扩展**：`PlcAddress.Symbol` + `PlcAddress.FromSymbol` 让 OPC UA / CIP / ADS 这类符号寻址协议不再退化到字符串拼接；`PlcValue.Quality`（`Good` / `Uncertain` / `Bad`）与 `PlcValue.Timestamp` 提供质量与采样时间，`DriverConfiguration.StampReadTimestamps` 可让每次读与批量读自动打 UTC 时间戳；质量/时间戳不参与相等性比较，轮询变更检测行为不变。
+- **多目标框架**：5 个库同时提供 `net8.0` 与 `netstandard2.0`，可被 .NET Framework 4.8 等存量宿主引用；新增共享 `Guard`（替代 net6+ 的 `ThrowIf*`）与 `IntervalTimer`（替代 `PeriodicTimer`），`netstandard2.0` 下正则回退到编译缓存实现、UDP 收发用 `ArrayPool` 桥接 Span API；`IsAotCompatible` 只对 `net8.0` 生效，AOT 发布改为只在探针项目启用 `PublishAot`。
 - **宿主集成包**（`SiameseCat.Hosting`，可选）：`MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，AOT 友好）；`AddSiameseCat()` 注册 `DriverRegistry` 与日志适配器，`AddSiameseCatDriver(id, configure)` 以 keyed transient 方式解析驱动。
 - **重试与恢复**：请求与建连都按瞬时错误重试，退避为 `RetryDelay × 2^(n-1)`（上限 `MaxRetryDelay`，默认带 50–100% 抖动）；可选 Keep-Alive 探针在连续失败后自动重连，`PingAsync` 提供只返回布尔值的健康检查。
 - **批量写**：`IBatchWritable.WriteBatchAsync(IReadOnlyList<PlcWriteRequest>)`；Modbus 合并连续保持寄存器为 FC16、连续线圈为 FC15，S7 使用多变量写请求并按协商 PDU 自动分块。
@@ -61,4 +63,4 @@
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 269 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 276 个。

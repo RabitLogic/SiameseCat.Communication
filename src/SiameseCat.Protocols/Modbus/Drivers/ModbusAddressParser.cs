@@ -28,10 +28,18 @@ public sealed partial class ModbusAddressParser : IPlcAddressParser
     /// <summary>Region key for input registers (function code 04).</summary>
     public const string InputRegisterRegion = "input";
 
+#if NET8_0_OR_GREATER
     [GeneratedRegex(
         @"^(?<kind>HR|IR|C|DI|HOLDING|INPUT|COIL|DISCRETE)\s*[:=]?\s*(?<offset>\d+)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex NamedPattern();
+#else
+    private static readonly Regex NamedRegex = new(
+        @"^(?<kind>HR|IR|C|DI|HOLDING|INPUT|COIL|DISCRETE)\s*[:=]?\s*(?<offset>\d+)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static Regex NamedPattern() => NamedRegex;
+#endif
 
     /// <inheritdoc/>
     public string ProtocolName => "Modbus";

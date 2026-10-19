@@ -94,7 +94,10 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
 
         Metrics.RecordBytesRead(address.ByteSize);
         PlcDiagnostics.RecordBytesRead(Descriptor.Id, address.ByteSize);
-        return value;
+
+        return Configuration.StampReadTimestamps
+            ? value.WithTimestamp(DateTimeOffset.UtcNow)
+            : value;
     }
 
     /// <inheritdoc/>
@@ -154,7 +157,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(addresses);
+        Guard.NotNull(addresses, nameof(addresses));
         if (addresses.Count == 0)
         {
             return Array.Empty<PlcValue>();
@@ -174,6 +177,15 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         {
             Metrics.RecordBytesRead(address.ByteSize);
             PlcDiagnostics.RecordBytesRead(Descriptor.Id, address.ByteSize);
+        }
+
+        if (Configuration.StampReadTimestamps)
+        {
+            var sampledAt = DateTimeOffset.UtcNow;
+            for (var i = 0; i < values.Length; i++)
+            {
+                values[i] = values[i].WithTimestamp(sampledAt);
+            }
         }
 
         return values;
@@ -197,7 +209,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(requests);
+        Guard.NotNull(requests, nameof(requests));
         if (requests.Count == 0)
         {
             return;
@@ -309,7 +321,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         Func<CancellationToken, Task<T>> body,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(body);
+        Guard.NotNull(body, nameof(body));
 
         return ExecuteAsync(body, isWrite, address: null, timeout, operation, cancellationToken);
     }

@@ -33,11 +33,11 @@ public sealed class SharedTransportFactory : ITransportFactory, IAsyncDisposable
     /// <param name="configuration">Configuration of the driver that is being created.</param>
     public ITransport Create(DriverConfiguration configuration)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        Guard.NotNull(configuration, nameof(configuration));
 
         lock (_sync)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            Guard.NotDisposed(_disposed, this);
             return _transport ??= _transportFactory();
         }
     }

@@ -71,7 +71,7 @@ public sealed partial class S7Client
         IReadOnlyList<bool> values,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(values);
+        Guard.NotNull(values, nameof(values));
         if (startAddress.DataType != S7DataType.Bool)
         {
             throw new ArgumentException(
@@ -239,7 +239,7 @@ public sealed partial class S7Client
         int maxLength,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(value);
+        Guard.NotNull(value, nameof(value));
         if (maxLength is < 0 or > 254)
         {
             throw new ArgumentOutOfRangeException(nameof(maxLength), maxLength, "S7 string length must be between 0 and 254.");
@@ -268,7 +268,7 @@ public sealed partial class S7Client
         IReadOnlyList<S7WriteItem> items,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(items);
+        Guard.NotNull(items, nameof(items));
         if (items.Count == 0)
         {
             return;
@@ -276,7 +276,7 @@ public sealed partial class S7Client
 
         foreach (var item in items)
         {
-            ArgumentNullException.ThrowIfNull(item, nameof(items));
+            Guard.NotNull(item, nameof(items));
             ValidateRange(item.Address, item.Data.Length);
         }
 

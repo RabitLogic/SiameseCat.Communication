@@ -126,7 +126,7 @@ public sealed partial class S7Client : IAsyncDisposable
 
     private static TcpTransport CreateTransport(S7Options options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        Guard.NotNull(options, nameof(options));
         return new TcpTransport(new TcpTransportOptions
         {
             Host = options.Host,
@@ -197,6 +197,6 @@ public sealed partial class S7Client : IAsyncDisposable
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
     }
 }

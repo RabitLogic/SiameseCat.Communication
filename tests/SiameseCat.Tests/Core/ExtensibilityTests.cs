@@ -233,6 +233,40 @@ public class SharedTransportTests
     }
 }
 
+public class ValueMetadataTests
+{
+    [Fact]
+    public async Task StampReadTimestamps_StampsSingleAndBatchReads()
+    {
+        var before = DateTimeOffset.UtcNow;
+        await using var driver = new MockDriver(new DriverConfiguration { StampReadTimestamps = true });
+        await driver.ConnectAsync();
+
+        var single = await driver.ReadAsync(driver.AddressParser.Parse("R0"));
+        var batch = await driver.ReadBatchAsync(new[]
+        {
+            driver.AddressParser.Parse("R0"),
+            driver.AddressParser.Parse("R1"),
+        });
+
+        Assert.NotNull(single.Timestamp);
+        Assert.True(single.Timestamp >= before);
+        Assert.All(batch, value => Assert.NotNull(value.Timestamp));
+    }
+
+    [Fact]
+    public async Task Reads_AreNotStampedByDefault()
+    {
+        await using var driver = new MockDriver();
+        await driver.ConnectAsync();
+
+        var value = await driver.ReadAsync(driver.AddressParser.Parse("R0"));
+
+        Assert.Null(value.Timestamp);
+        Assert.True(value.IsGood);
+    }
+}
+
 public class FrameLoggingTests
 {
     [Fact]

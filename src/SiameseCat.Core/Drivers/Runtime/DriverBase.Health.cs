@@ -17,7 +17,7 @@ public abstract partial class DriverBase
 
         try
         {
-            var address = AddressParser.Parse(probe);
+            var address = AddressParser.Parse(probe!);
             await ExecuteAsync(
                 token => DoReadAsync(address, token),
                 isWrite: false,
@@ -86,7 +86,7 @@ public abstract partial class DriverBase
 
         try
         {
-            using var timer = new PeriodicTimer(Configuration.KeepAliveInterval);
+            using var timer = new IntervalTimer(Configuration.KeepAliveInterval);
             while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
             {
                 bool alive;

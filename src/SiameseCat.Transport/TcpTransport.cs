@@ -25,12 +25,12 @@ public sealed class TcpTransport : ITransport
     /// <inheritdoc/>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
 
         await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            Guard.NotDisposed(_disposed, this);
 
             if (_isOpen)
             {
@@ -101,7 +101,7 @@ public sealed class TcpTransport : ITransport
     /// <inheritdoc/>
     public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
 
         var stream = _stream;
         if (!_isOpen || stream is null)
@@ -129,7 +129,7 @@ public sealed class TcpTransport : ITransport
     /// <inheritdoc/>
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
 
         var stream = _stream;
         if (!_isOpen || stream is null)
@@ -165,7 +165,7 @@ public sealed class TcpTransport : ITransport
 
         try
         {
-            Span<byte> scratch = stackalloc byte[256];
+            var scratch = new byte[256];
             for (var i = 0; i < 64; i++)
             {
                 var available = client.Available;
@@ -174,7 +174,7 @@ public sealed class TcpTransport : ITransport
                     return;
                 }
 
-                if (client.Client.Receive(scratch[..Math.Min(available, scratch.Length)], SocketFlags.None) <= 0)
+                if (client.Client.Receive(scratch, 0, Math.Min(available, scratch.Length), SocketFlags.None) <= 0)
                 {
                     return;
                 }
@@ -223,6 +223,8 @@ public sealed class TcpTransport : ITransport
         try
         {
             socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+#if NET8_0_OR_GREATER
             socket.SetSocketOption(
                 SocketOptionLevel.Tcp,
                 SocketOptionName.TcpKeepAliveTime,
@@ -231,6 +233,7 @@ public sealed class TcpTransport : ITransport
                 SocketOptionLevel.Tcp,
                 SocketOptionName.TcpKeepAliveInterval,
                 (int)Math.Min(int.MaxValue, _options.KeepAliveInterval.TotalSeconds));
+#endif
         }
         catch (Exception ex) when (ex is SocketException or PlatformNotSupportedException or NotSupportedException)
         {

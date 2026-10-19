@@ -77,6 +77,6 @@ public sealed class S7Options : CommunicationOptions
             throw new ArgumentOutOfRangeException(nameof(KeepAliveInterval), KeepAliveInterval, "KeepAliveInterval must be greater than zero.");
         }
 
-        ArgumentNullException.ThrowIfNull(StringEncoding);
+        Guard.NotNull(StringEncoding, nameof(StringEncoding));
     }
 }

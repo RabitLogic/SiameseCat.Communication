@@ -163,6 +163,6 @@ public abstract partial class DriverBase
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Guard.NotDisposed(_disposed, this);
     }
 }

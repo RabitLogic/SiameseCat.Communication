@@ -25,7 +25,7 @@ public sealed class ModbusRtuClient : ModbusClientBase
     public ModbusRtuClient(ITransport transport, ModbusRtuOptions options)
         : base(transport, options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        Guard.NotNull(options, nameof(options));
         options.SerialPort.Validate();
         _rtuOptions = options;
     }
@@ -123,12 +123,14 @@ public sealed class ModbusRtuClient : ModbusClientBase
         }
 
         ValidateCrc(responseFrame);
-        return responseFrame[1..^2];
+        var responsePdu = new byte[responseFrame.Length - 3];
+        Array.Copy(responseFrame, 1, responsePdu, 0, responsePdu.Length);
+        return responsePdu;
     }
 
     private static SerialPortTransport CreateTransport(ModbusRtuOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        Guard.NotNull(options, nameof(options));
         return new SerialPortTransport(options.SerialPort);
     }
 

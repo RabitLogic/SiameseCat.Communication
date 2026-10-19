@@ -24,7 +24,7 @@ public sealed class DriverRegistry
     /// <param name="factory">Factory to register.</param>
     public DriverRegistry Register(IPlcDriverFactory factory)
     {
-        ArgumentNullException.ThrowIfNull(factory);
+        Guard.NotNull(factory, nameof(factory));
         _factories[factory.Descriptor.Id] = factory;
         return this;
     }
@@ -76,7 +76,7 @@ public sealed class DriverRegistry
     [RequiresDynamicCode("Driver discovery creates instances with reflection.")]
     public int RegisterFromAssembly(Assembly assembly)
     {
-        ArgumentNullException.ThrowIfNull(assembly);
+        Guard.NotNull(assembly, nameof(assembly));
 
         var count = 0;
         foreach (var type in assembly.GetExportedTypes())

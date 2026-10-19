@@ -17,7 +17,7 @@ public sealed partial class S7Client
         int count,
         CancellationToken cancellationToken = default)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        Guard.NotNegative(count, nameof(count));
         if (count == 0)
         {
             return Array.Empty<byte>();
@@ -184,7 +184,7 @@ public sealed partial class S7Client
         IReadOnlyList<S7ReadItem> items,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(items);
+        Guard.NotNull(items, nameof(items));
         if (items.Count == 0)
         {
             return Array.Empty<byte[]>();
@@ -192,7 +192,7 @@ public sealed partial class S7Client
 
         foreach (var item in items)
         {
-            ArgumentNullException.ThrowIfNull(item, nameof(items));
+            Guard.NotNull(item, nameof(items));
         }
 
         ThrowIfDisposed();

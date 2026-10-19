@@ -139,8 +139,8 @@ public sealed class PlcMetrics
             return 0;
         }
 
-        var index = (int)Math.Ceiling(Math.Log2(milliseconds) * 4);
-        return Math.Clamp(index, 0, BucketCount - 1);
+        var index = (int)Math.Ceiling(Math.Log(milliseconds, 2) * 4);
+        return Math.Min(Math.Max(index, 0), BucketCount - 1);
     }
 
     private double Percentile(double percentile, long total)

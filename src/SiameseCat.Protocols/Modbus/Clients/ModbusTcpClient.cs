@@ -21,7 +21,7 @@ public sealed class ModbusTcpClient : ModbusClientBase
     public ModbusTcpClient(ITransport transport, ModbusTcpOptions options)
         : base(transport, options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        Guard.NotNull(options, nameof(options));
         options.Tcp.Validate();
     }
 
@@ -85,7 +85,7 @@ public sealed class ModbusTcpClient : ModbusClientBase
 
     private static TcpTransport CreateTransport(ModbusTcpOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        Guard.NotNull(options, nameof(options));
         return new TcpTransport(options.Tcp);
     }
 

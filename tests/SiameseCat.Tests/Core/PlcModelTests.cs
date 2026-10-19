@@ -38,6 +38,35 @@ public class PlcValueTests
         Assert.Equal("abc", PlcValue.FromString("abc").ToObject());
         Assert.Null(PlcValue.Null.ToObject());
     }
+
+    [Fact]
+    public void Quality_DefaultsToGoodAndIsMetadata()
+    {
+        var value = PlcValue.FromUInt16(5);
+        Assert.Equal(PlcValueQuality.Good, value.Quality);
+        Assert.True(value.IsGood);
+        Assert.Null(value.Timestamp);
+
+        var bad = value.WithQuality(PlcValueQuality.Bad);
+        Assert.False(bad.IsGood);
+        Assert.Equal((ushort)5, bad.AsUInt16());
+
+        // Quality/timestamp are metadata: equality still compares payload only.
+        Assert.Equal(value, bad);
+    }
+
+    [Fact]
+    public void WithTimestamp_PreservesPayloadAndQuality()
+    {
+        var sampledAt = new DateTimeOffset(2026, 10, 19, 8, 0, 0, TimeSpan.Zero);
+        var value = PlcValue.FromDouble(1.5)
+            .WithQuality(PlcValueQuality.Uncertain)
+            .WithTimestamp(sampledAt);
+
+        Assert.Equal(sampledAt, value.Timestamp);
+        Assert.Equal(PlcValueQuality.Uncertain, value.Quality);
+        Assert.Equal(1.5, value.AsDouble(), 6);
+    }
 }
 
 public class PlcAddressTests
@@ -74,6 +103,34 @@ public class PlcAddressTests
         Assert.Equal(12, address.Length);
         Assert.Equal("DB1", address.Region);
         Assert.Equal(4, address.Offset);
+    }
+
+    [Fact]
+    public void FromSymbol_CreatesSymbolicAddress()
+    {
+        var address = PlcAddress.FromSymbol("ns=2", "s=Temperature", PlcDataType.Double);
+
+        Assert.Equal("ns=2", address.Region);
+        Assert.Equal("s=Temperature", address.Symbol);
+        Assert.Equal(0, address.Offset);
+        Assert.Equal("ns=2:s=Temperature[Double]", address.ToString());
+    }
+
+    [Fact]
+    public void Symbol_IsPreservedByWithMethods()
+    {
+        var address = PlcAddress.FromSymbol("ns=2", "s=Speed", PlcDataType.Int16, length: 1);
+
+        Assert.Equal("s=Speed", address.WithDataType(PlcDataType.Int32).Symbol);
+        Assert.Equal("s=Speed", address.WithLength(1).Symbol);
+        Assert.Equal("s=Speed", address.WithSymbol("s=Speed").Symbol);
+    }
+
+    [Fact]
+    public void FromSymbol_RejectsEmptySymbol()
+    {
+        Assert.Throws<ArgumentException>(
+            () => PlcAddress.FromSymbol("ns=2", " ", PlcDataType.Bool));
     }
 }
 

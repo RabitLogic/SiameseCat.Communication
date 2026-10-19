@@ -9,8 +9,8 @@ public static class TransportExtensions
         int count,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(transport);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        Guard.NotNull(transport, nameof(transport));
+        Guard.NotNegative(count, nameof(count));
 
         var buffer = new byte[count];
         await transport.ReadExactlyAsync(buffer, cancellationToken).ConfigureAwait(false);
@@ -23,7 +23,7 @@ public static class TransportExtensions
         Memory<byte> buffer,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(transport);
+        Guard.NotNull(transport, nameof(transport));
 
         var written = 0;
         while (written < buffer.Length)
