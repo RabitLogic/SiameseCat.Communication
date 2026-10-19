@@ -46,6 +46,10 @@ yields one key, so the login step sits right before the push.
 
    A secret named `NUGET_USER` is also accepted; nothing sensitive is involved, a variable is enough.
 
+A policy created for a **private** repository starts as *temporarily active for 7 days*: nuget.org cannot
+learn the repository and owner IDs until the first token exchange, so the first publish has to happen
+inside that window. One successful publish makes the policy permanent; if the window lapses the policy
+becomes inactive and **Activate for 7 days** restarts it.
 No `NUGET_API_KEY` secret is needed. The workflow requests `id-token: write`, which is the only
 permission nuget.org relies on.
 
