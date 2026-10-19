@@ -78,4 +78,4 @@
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 355 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 356 个。

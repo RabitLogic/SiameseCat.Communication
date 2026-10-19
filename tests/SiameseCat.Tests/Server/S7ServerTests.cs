@@ -163,6 +163,31 @@ public class S7ServerTests
     }
 
     [Fact]
+    public async Task SiemensDriver_TalksToTheSlave()
+    {
+        await using var server = await StartServerAsync();
+        await using var client = new S7Client(new S7Options
+        {
+            Host = "127.0.0.1",
+            Port = server.Port,
+            Timeout = TimeSpan.FromSeconds(2),
+            ConnectTimeout = TimeSpan.FromSeconds(2),
+        });
+
+        await using var driver = new SiameseCat.Drivers.Siemens.SiemensDriver(
+            client,
+            new SiameseCat.Core.DriverConfiguration { Timeout = TimeSpan.FromSeconds(2) });
+
+        await driver.ConnectAsync();
+
+        var address = driver.AddressParser.Parse("DB1.DBD2", SiameseCat.Core.PlcDataType.Float);
+        await ((SiameseCat.Core.IWritable)driver).WriteAsync(address, SiameseCat.Core.PlcValue.FromFloat(2.5f));
+        var value = await ((SiameseCat.Core.IReadable)driver).ReadAsync(address);
+
+        Assert.Equal(2.5f, value.AsFloat(), 4);
+    }
+
+    [Fact]
     public async Task ServerStopsCleanly_AndResetsTheStore()
     {
         await using var server = await StartServerAsync();
