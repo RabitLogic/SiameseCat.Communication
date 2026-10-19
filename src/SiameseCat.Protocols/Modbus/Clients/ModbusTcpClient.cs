@@ -1,3 +1,5 @@
+using System.Buffers;
+
 using SiameseCat.Core;
 using SiameseCat.Transport;
 
@@ -6,6 +8,8 @@ namespace SiameseCat.Protocols.Modbus;
 /// <summary>Modbus TCP master.</summary>
 public sealed class ModbusTcpClient : ModbusClientBase
 {
+    private const int MaxResponseLength = 254;
+
     private ushort _transactionId;
 
     /// <summary>Creates a Modbus TCP client that connects to the endpoint configured in <paramref name="options"/>.</summary>
@@ -35,39 +39,61 @@ public sealed class ModbusTcpClient : ModbusClientBase
         CancellationToken cancellationToken)
     {
         ushort transactionId = unchecked(++_transactionId);
-        byte[] frame = BuildFrame(transactionId, unitId, pdu);
+        var pool = ArrayPool<byte>.Shared;
+        var frame = pool.Rent(7 + pdu.Length + MaxResponseLength);
 
-        Transport.DiscardInput();
-        await Transport.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
-
-        byte[] header = await Transport.ReadExactlyAsync(7, cancellationToken).ConfigureAwait(false);
-
-        ushort responseTransactionId = (ushort)((header[0] << 8) | header[1]);
-        if (responseTransactionId != transactionId)
+        try
         {
-            throw new ProtocolException(
-                $"The Modbus TCP response has transaction id {responseTransactionId} but {transactionId} was expected.");
-        }
+            BuildFrame(frame, transactionId, unitId, pdu);
 
-        ushort protocolId = (ushort)((header[2] << 8) | header[3]);
-        if (protocolId != 0)
+            Transport.DiscardInput();
+            await Transport
+                .WriteAsync(frame.AsMemory(0, 7 + pdu.Length), cancellationToken)
+                .ConfigureAwait(false);
+
+            // Header and response body are read into the following bytes of the same buffer.
+            var headerOffset = 7 + pdu.Length;
+            await Transport
+                .ReadExactlyAsync(frame.AsMemory(headerOffset, 7), cancellationToken)
+                .ConfigureAwait(false);
+
+            ushort responseTransactionId = (ushort)((frame[headerOffset] << 8) | frame[headerOffset + 1]);
+            if (responseTransactionId != transactionId)
+            {
+                throw new ProtocolException(
+                    $"The Modbus TCP response has transaction id {responseTransactionId} but {transactionId} was expected.");
+            }
+
+            ushort protocolId = (ushort)((frame[headerOffset + 2] << 8) | frame[headerOffset + 3]);
+            if (protocolId != 0)
+            {
+                throw new ProtocolException($"The Modbus TCP response has protocol id {protocolId} instead of 0.");
+            }
+
+            ushort length = (ushort)((frame[headerOffset + 4] << 8) | frame[headerOffset + 5]);
+            if (length is < 2 or > MaxResponseLength)
+            {
+                throw new ProtocolException($"The Modbus TCP response has invalid length {length}.");
+            }
+
+            if (frame[headerOffset + 6] != unitId)
+            {
+                throw new ProtocolException(
+                    $"The Modbus TCP response has unit id {frame[headerOffset + 6]} but {unitId} was expected.");
+            }
+
+            var pduLength = length - 1;
+            var bodyOffset = headerOffset + 7;
+            await Transport
+                .ReadExactlyAsync(frame.AsMemory(bodyOffset, pduLength), cancellationToken)
+                .ConfigureAwait(false);
+
+            return frame.AsSpan(bodyOffset, pduLength).ToArray();
+        }
+        finally
         {
-            throw new ProtocolException($"The Modbus TCP response has protocol id {protocolId} instead of 0.");
+            pool.Return(frame);
         }
-
-        ushort length = (ushort)((header[4] << 8) | header[5]);
-        if (length is < 2 or > 254)
-        {
-            throw new ProtocolException($"The Modbus TCP response has invalid length {length}.");
-        }
-
-        if (header[6] != unitId)
-        {
-            throw new ProtocolException(
-                $"The Modbus TCP response has unit id {header[6]} but {unitId} was expected.");
-        }
-
-        return await Transport.ReadExactlyAsync(length - 1, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -77,10 +103,22 @@ public sealed class ModbusTcpClient : ModbusClientBase
         CancellationToken cancellationToken)
     {
         ushort transactionId = unchecked(++_transactionId);
-        byte[] frame = BuildFrame(transactionId, unitId, pdu);
+        var pool = ArrayPool<byte>.Shared;
+        var frame = pool.Rent(7 + pdu.Length);
 
-        Transport.DiscardInput();
-        await Transport.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            BuildFrame(frame, transactionId, unitId, pdu);
+
+            Transport.DiscardInput();
+            await Transport
+                .WriteAsync(frame.AsMemory(0, 7 + pdu.Length), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            pool.Return(frame);
+        }
     }
 
     private static TcpTransport CreateTransport(ModbusTcpOptions options)
@@ -89,9 +127,8 @@ public sealed class ModbusTcpClient : ModbusClientBase
         return new TcpTransport(options.Tcp);
     }
 
-    private static byte[] BuildFrame(ushort transactionId, byte unitId, byte[] pdu)
+    private static void BuildFrame(Span<byte> frame, ushort transactionId, byte unitId, ReadOnlySpan<byte> pdu)
     {
-        byte[] frame = new byte[7 + pdu.Length];
         frame[0] = (byte)(transactionId >> 8);
         frame[1] = (byte)transactionId;
         frame[2] = 0;
@@ -100,7 +137,6 @@ public sealed class ModbusTcpClient : ModbusClientBase
         frame[4] = (byte)(length >> 8);
         frame[5] = (byte)length;
         frame[6] = unitId;
-        pdu.CopyTo(frame, 7);
-        return frame;
+        pdu.CopyTo(frame[7..]);
     }
 }

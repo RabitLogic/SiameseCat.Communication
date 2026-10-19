@@ -15,6 +15,9 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     private Task? _keepAliveTask;
     private volatile bool _disposed;
 
+    /// <summary>Reused timeout source for requests that carry no caller token; guarded by the request gate.</summary>
+    private CancellationTokenSource? _timeoutCts;
+
     /// <summary>Creates a driver.</summary>
     /// <param name="descriptor">Driver descriptor.</param>
     /// <param name="addressParser">Parser for protocol-native addresses.</param>

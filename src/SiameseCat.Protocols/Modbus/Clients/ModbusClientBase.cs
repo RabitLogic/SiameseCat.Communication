@@ -12,6 +12,9 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
     private volatile bool _disposed;
     private byte _defaultUnitId;
 
+    /// <summary>Reused timeout source for attempts that carry no caller token; guarded by <see cref="_gate"/>.</summary>
+    private CancellationTokenSource? _timeoutCts;
+
     /// <summary>Creates a client over <paramref name="transport"/> using <paramref name="options"/>.</summary>
     /// <param name="transport">Transport that carries the Modbus frames.</param>
     /// <param name="options">Protocol options, used for timeouts and retries.</param>
@@ -113,6 +116,8 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
             _gate.Release();
         }
 
+        _timeoutCts?.Dispose();
+        _timeoutCts = null;
         _gate.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -158,12 +163,27 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
         {
             ThrowIfDisposed();
 
-            return await RetryPolicy.ExecuteAsync(
-                token => ExecuteAttemptAsync(unitId, pdu, token),
-                Options,
-                cancellationToken,
-                isWrite,
-                reconnect: token => Transport.OpenAsync(token)).ConfigureAwait(false);
+            var attempts = isWrite && !Options.RetryWrites ? 1 : Options.RetryCount + 1;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return await ExecuteAttemptAsync(unitId, pdu, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (
+                    attempt < attempts
+                    && !cancellationToken.IsCancellationRequested
+                    && RetryPolicy.IsTransient(ex))
+                {
+                    // Reconnecting is idempotent, so the hook can run even when the link is still open.
+                    await Transport.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+                    if (Options.RetryDelay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(Options.RetryDelay, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
         }
         finally
         {
@@ -178,16 +198,27 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
         {
             ThrowIfDisposed();
 
-            await RetryPolicy.ExecuteAsync(
-                async token =>
+            var attempts = !Options.RetryWrites ? 1 : Options.RetryCount + 1;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
                 {
-                    await ExecuteBroadcastAttemptAsync(pdu, token).ConfigureAwait(false);
-                    return true;
-                },
-                Options,
-                cancellationToken,
-                isWrite: true,
-                reconnect: token => Transport.OpenAsync(token)).ConfigureAwait(false);
+                    await ExecuteBroadcastAttemptAsync(pdu, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+                catch (Exception ex) when (
+                    attempt < attempts
+                    && !cancellationToken.IsCancellationRequested
+                    && RetryPolicy.IsTransient(ex))
+                {
+                    await Transport.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+                    if (Options.RetryDelay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(Options.RetryDelay, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
         }
         finally
         {
@@ -202,12 +233,10 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
             throw new CommunicationException("The transport is not connected. Call ConnectAsync first.");
         }
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(Options.Timeout);
-
+        var owned = CreateTimeoutSource(cancellationToken, out var token);
         try
         {
-            await ExecuteBroadcastCoreAsync(0, pdu, timeoutCts.Token).ConfigureAwait(false);
+            await ExecuteBroadcastCoreAsync(0, pdu, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -218,6 +247,10 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
 
             throw new CommunicationTimeoutException(
                 $"Modbus broadcast timed out after {Options.Timeout} (function 0x{pdu[0]:X2}).");
+        }
+        finally
+        {
+            owned?.Dispose();
         }
     }
 
@@ -231,12 +264,10 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
             throw new CommunicationException("The transport is not connected. Call ConnectAsync first.");
         }
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(Options.Timeout);
-
+        var owned = CreateTimeoutSource(cancellationToken, out var token);
         try
         {
-            byte[] response = await ExecutePduCoreAsync(unitId, pdu, timeoutCts.Token).ConfigureAwait(false);
+            byte[] response = await ExecutePduCoreAsync(unitId, pdu, token).ConfigureAwait(false);
             if (response.Length > 0 && response[0] == (byte)(pdu[0] | 0x80))
             {
                 if (response.Length < 2)
@@ -262,6 +293,59 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
             throw new CommunicationTimeoutException(
                 $"Modbus request timed out after {Options.Timeout} (unit {unitId}, function 0x{pdu[0]:X2}).");
         }
+        finally
+        {
+            owned?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Creates the token source for one attempt. When the caller passes no token the instance-level
+    /// source is reused (requests are serialised by the gate), which keeps the common path allocation free.
+    /// Returns the source only when the caller owns it and must dispose it.
+    /// </summary>
+    private CancellationTokenSource? CreateTimeoutSource(
+        CancellationToken cancellationToken,
+        out CancellationToken token)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (Options.Timeout > TimeSpan.Zero)
+            {
+                linked.CancelAfter(Options.Timeout);
+            }
+
+            token = linked.Token;
+            return linked;
+        }
+
+#if NET6_0_OR_GREATER
+        var cached = _timeoutCts;
+        if (cached is null || cached.IsCancellationRequested || !cached.TryReset())
+        {
+            cached?.Dispose();
+            cached = new CancellationTokenSource();
+            _timeoutCts = cached;
+        }
+
+        if (Options.Timeout > TimeSpan.Zero)
+        {
+            cached.CancelAfter(Options.Timeout);
+        }
+
+        token = cached.Token;
+        return null;
+#else
+        var source = new CancellationTokenSource();
+        if (Options.Timeout > TimeSpan.Zero)
+        {
+            source.CancelAfter(Options.Timeout);
+        }
+
+        token = source.Token;
+        return source;
+#endif
     }
 
     private async Task ExecuteWriteAsync(

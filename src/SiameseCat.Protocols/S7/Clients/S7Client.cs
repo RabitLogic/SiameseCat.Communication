@@ -19,9 +19,18 @@ public sealed partial class S7Client : IAsyncDisposable
     private readonly ITransport _transport;
     private readonly S7Options _options;
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    // Requests are serialised by the gate, so the client owns its frame buffers instead of allocating
+    // one per request. The send buffer holds TPKT + COTP + S7 job header + the negotiated PDU.
+    private readonly byte[] _sendBuffer = new byte[TpktMaxLength + 4];
+    private readonly byte[] _receiveBuffer = new byte[TpktMaxLength];
+
     private ushort _pduReference;
     private int _pduSize = 240;
     private volatile bool _disposed;
+
+    /// <summary>Reused timeout source for attempts that carry no caller token; guarded by <see cref="_gate"/>.</summary>
+    private CancellationTokenSource? _timeoutCts;
 
     /// <summary>Creates a client that connects to the endpoint configured in <paramref name="options"/>.</summary>
     public S7Client(S7Options options)
@@ -120,6 +129,8 @@ public sealed partial class S7Client : IAsyncDisposable
             _gate.Release();
         }
 
+        _timeoutCts?.Dispose();
+        _timeoutCts = null;
         _gate.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -148,9 +159,9 @@ public sealed partial class S7Client : IAsyncDisposable
         try
         {
             await _transport.WriteAsync(BuildConnectionRequest(), token).ConfigureAwait(false);
-            var confirm = await ReceiveTpktAsync(token).ConfigureAwait(false);
+            var confirmLength = await ReceiveTpktAsync(token).ConfigureAwait(false);
 
-            if (confirm.Length < 11 || confirm[5] != CotpConnectionConfirm)
+            if (confirmLength < 11 || _receiveBuffer[5] != CotpConnectionConfirm)
             {
                 throw new S7Exception("The PLC rejected the ISO-on-TCP connection request.");
             }

@@ -37,6 +37,17 @@ public static class PlcDiagnostics
     private static readonly Histogram<double> LatencyHistogram =
         Meter.CreateHistogram<double>("plc.latency", "ms", "Request latency.");
 
+    /// <summary>Cached tag values so recording a request does not format the enum on every call.</summary>
+    private static readonly string[] OperationNames =
+    {
+        nameof(PlcOperation.Read),
+        nameof(PlcOperation.Write),
+        nameof(PlcOperation.ReadBatch),
+        nameof(PlcOperation.WriteBatch),
+        nameof(PlcOperation.ReadWrite),
+        nameof(PlcOperation.Ping),
+    };
+
     internal static void RecordRequest(string driver, PlcOperation operation) =>
         RequestCounter.Add(1, Tags(driver, operation));
 
@@ -55,12 +66,18 @@ public static class PlcDiagnostics
     internal static void RecordLatency(string driver, PlcOperation operation, TimeSpan latency) =>
         LatencyHistogram.Record(latency.TotalMilliseconds, Tags(driver, operation));
 
+    private static string GetOperationName(PlcOperation operation)
+    {
+        var index = (int)operation;
+        return index >= 0 && index < OperationNames.Length ? OperationNames[index] : operation.ToString();
+    }
+
     private static TagList Tags(string driver, PlcOperation operation, Exception? error = null)
     {
         var tags = new TagList
         {
             { "driver", driver },
-            { "operation", operation.ToString() },
+            { "operation", GetOperationName(operation) },
         };
 
         if (error is not null)

@@ -920,6 +920,7 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 - 单元号原样回显，一个从站可服务多个站号；单元号 `0` 视为广播，写请求生效但不返回响应（与客户端广播模式配套）。
 - 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
 - 每个会话复用请求/响应缓冲区，PDU 处理器直接写入该缓冲区，服务端处理一次请求不再分配帧内存（见[性能说明](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md#performance-notes)）。
+- 客户端同样低分配：Modbus TCP/RTU 与 S7 复用组帧缓冲区、内联重试循环，并在调用方未传取消令牌时复用请求超时 CTS，驱动单次读的分配量比优化前降低约三成（实测数字见性能说明）。
 - `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
 
 ### 可观测性（统计与日志）

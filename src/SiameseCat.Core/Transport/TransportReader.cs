@@ -25,13 +25,26 @@ public sealed class TransportReader
         }
 
         var result = new byte[count];
+        await ReadExactlyAsync(result.AsMemory(), cancellationToken).ConfigureAwait(false);
+        return result;
+    }
+
+    /// <summary>Fills <paramref name="destination"/> exactly, consuming prepended bytes first.</summary>
+    public async Task ReadExactlyAsync(Memory<byte> destination, CancellationToken cancellationToken)
+    {
+        var count = destination.Length;
+        if (count == 0)
+        {
+            return;
+        }
+
         var written = 0;
 
         var available = _pending.Length - _pendingOffset;
         if (available > 0)
         {
             var copy = Math.Min(count, available);
-            Array.Copy(_pending, _pendingOffset, result, 0, copy);
+            _pending.AsSpan(_pendingOffset, copy).CopyTo(destination.Span);
             _pendingOffset += copy;
             written = copy;
 
@@ -44,7 +57,9 @@ public sealed class TransportReader
 
         while (written < count)
         {
-            var read = await _transport.ReadAsync(result.AsMemory(written), cancellationToken).ConfigureAwait(false);
+            var read = await _transport
+                .ReadAsync(destination[written..], cancellationToken)
+                .ConfigureAwait(false);
             if (read <= 0)
             {
                 throw new ConnectionClosedException("The connection was closed while waiting for a response.");
@@ -52,8 +67,6 @@ public sealed class TransportReader
 
             written += read;
         }
-
-        return result;
     }
 
     /// <summary>Pushes bytes back so they are returned by the next read.</summary>

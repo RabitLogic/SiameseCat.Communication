@@ -129,7 +129,9 @@ All libraries target `net8.0` and `netstandard2.0`:
 
 ## Performance notes
 
-The slave serving loops are allocation-lean by design:
+Both sides of the stack are allocation-lean by design.
+
+**Slave side**
 
 - Each connection owns its request/response buffers; the PDU processors (Modbus and S7) write the response
   into a caller-provided `Span<byte>` instead of allocating a new array per request.
@@ -139,19 +141,35 @@ The slave serving loops are allocation-lean by design:
 - Write events allocate their `Values`/`PreviousValues` arrays only when a subscriber is attached.
 - `stackalloc` is used for register payloads (≤123 registers) and no `MemoryStream` remains in the S7 path.
 
+**Client side**
+
+- The Modbus TCP/RTU and S7 clients rent or own their frame buffers (`ArrayPool<byte>` or one buffer per
+  client instance) instead of allocating a frame, a header array and a body array per request.
+- S7 builds the job frame directly into its send buffer and reads each TPKT response into a single receive
+  buffer; only the parameter and data blocks that callers need are copied out.
+- Requests are serialised by an internal gate, so each client (and `DriverBase`) reuses one
+  `CancellationTokenSource` for the request timeout when the caller passes no token
+  (`CancellationTokenSource.TryReset`, .NET 6+). Caller tokens still use a linked source.
+- Retry loops are inlined, so no closures or extra state machines are allocated per attempt.
+- `DriverBase` measures latency with `Stopwatch.GetTimestamp()` instead of allocating a `Stopwatch`, builds
+  failure messages lazily, and `PlcDiagnostics` caches operation-name tag values instead of formatting the
+  enum on every request.
+
 Measured on a 14-core Windows machine, loopback TCP, 20k requests per scenario, median of 3 runs
-(baseline = the previous array-allocating implementation, after = current):
+(baseline = before this optimization pass):
 
-| Scenario | Allocations before | Allocations after | Change | Throughput after |
-| --- | --- | --- | --- | --- |
-| Modbus FC03, 100 registers | 3383 B/op | 2655 B/op | −21.5% | ~33k op/s |
-| Modbus FC16, 10 registers | 2718 B/op | 2406 B/op | −11.5% | ~31k op/s |
-| S7 read REAL | 3829 B/op | 3166 B/op | −17.3% | ~36k op/s |
-| S7 write WORD | 3229 B/op | 2830 B/op | −12.4% | ~40k op/s |
+| Scenario | Allocations before | Allocations after | Change |
+| --- | --- | --- | --- |
+| Modbus TCP read 100 registers | 2652 B/op | 1797 B/op | −32.2% |
+| Modbus TCP write 10 registers | 2404 B/op | 1525 B/op | −36.6% |
+| S7 read REAL | 3165 B/op | 2158 B/op | −31.8% |
+| S7 write WORD | 2828 B/op | 1828 B/op | −35.4% |
+| Driver read (Modbus via `DriverBase`) | 3652 B/op | 2564 B/op | −29.8% |
+| Driver write (Modbus via `DriverBase`) | 3901 B/op | 2818 B/op | −27.8% |
 
-The remaining allocations are dominated by the client side (response arrays, socket/Task machinery), so
-server-side savings show up mainly as lower GC pressure; run `benchmarks/SiameseCat.Benchmarks` for
-reproducible numbers on your hardware.
+The remaining allocations are the response payload itself plus async/socket machinery, so the savings show
+up as lower GC pressure in long-running gateways. Run `benchmarks/SiameseCat.Benchmarks` for reproducible
+numbers on your hardware.
 
 ## Naming conventions
 

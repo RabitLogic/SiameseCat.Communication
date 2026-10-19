@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.IO.Ports;
 using SiameseCat.Core;
 using SiameseCat.Transport;
@@ -7,7 +8,10 @@ namespace SiameseCat.Protocols.Modbus;
 /// <summary>Modbus RTU master over a serial port.</summary>
 public sealed class ModbusRtuClient : ModbusClientBase
 {
+    private const int MaxFrameLength = 256;
+
     private readonly ModbusRtuOptions _rtuOptions;
+    private TransportReader? _reader;
 
     /// <summary>Creates an RTU client that opens the serial port configured in <paramref name="options"/>.</summary>
     /// <param name="options">RTU and serial port options.</param>
@@ -36,16 +40,26 @@ public sealed class ModbusRtuClient : ModbusClientBase
         byte[] pdu,
         CancellationToken cancellationToken)
     {
-        byte[] frame = BuildFrame(unitId, pdu);
+        var pool = ArrayPool<byte>.Shared;
+        var buffer = pool.Rent(MaxFrameLength);
 
-        var interFrameDelay = _rtuOptions.InterFrameDelay ?? CalculateInterFrameDelay();
-        if (interFrameDelay > TimeSpan.Zero)
+        try
         {
-            await Task.Delay(interFrameDelay, cancellationToken).ConfigureAwait(false);
-        }
+            var frameLength = BuildFrame(buffer, unitId, pdu);
 
-        Transport.DiscardInput();
-        await Transport.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+            var interFrameDelay = _rtuOptions.InterFrameDelay ?? CalculateInterFrameDelay();
+            if (interFrameDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(interFrameDelay, cancellationToken).ConfigureAwait(false);
+            }
+
+            Transport.DiscardInput();
+            await Transport.WriteAsync(buffer.AsMemory(0, frameLength), cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            pool.Return(buffer);
+        }
     }
 
     /// <inheritdoc/>
@@ -54,78 +68,88 @@ public sealed class ModbusRtuClient : ModbusClientBase
         byte[] pdu,
         CancellationToken cancellationToken)
     {
-        byte[] frame = BuildFrame(unitId, pdu);
+        var pool = ArrayPool<byte>.Shared;
+        var buffer = pool.Rent(MaxFrameLength);
 
-        var interFrameDelay = _rtuOptions.InterFrameDelay ?? CalculateInterFrameDelay();
-        if (interFrameDelay > TimeSpan.Zero)
+        try
         {
-            await Task.Delay(interFrameDelay, cancellationToken).ConfigureAwait(false);
-        }
+            // Frames live in the first half of the buffer, responses in the second half.
+            const int ResponseOffset = MaxFrameLength / 2;
+            var frameLength = BuildFrame(buffer, unitId, pdu);
 
-        Transport.DiscardInput();
-        await Transport.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
-
-        var reader = new TransportReader(Transport);
-
-        if (_rtuOptions.DiscardEcho)
-        {
-            byte[] echo = await reader.ReadExactlyAsync(frame.Length, cancellationToken).ConfigureAwait(false);
-            if (!echo.AsSpan().SequenceEqual(frame))
+            var interFrameDelay = _rtuOptions.InterFrameDelay ?? CalculateInterFrameDelay();
+            if (interFrameDelay > TimeSpan.Zero)
             {
-                reader.Prepend(echo);
+                await Task.Delay(interFrameDelay, cancellationToken).ConfigureAwait(false);
             }
-        }
 
-        byte[] header = await reader.ReadExactlyAsync(2, cancellationToken).ConfigureAwait(false);
-        if (header[0] != unitId)
+            Transport.DiscardInput();
+            await Transport.WriteAsync(buffer.AsMemory(0, frameLength), cancellationToken).ConfigureAwait(false);
+
+            var reader = _reader ??= new TransportReader(Transport);
+
+            if (_rtuOptions.DiscardEcho)
+            {
+                var echo = buffer.AsMemory(ResponseOffset, frameLength);
+                await reader.ReadExactlyAsync(echo, cancellationToken).ConfigureAwait(false);
+                if (!echo.Span.SequenceEqual(buffer.AsSpan(0, frameLength)))
+                {
+                    reader.Prepend(echo.Span);
+                }
+            }
+
+            await reader.ReadExactlyAsync(
+                buffer.AsMemory(ResponseOffset, 2), cancellationToken).ConfigureAwait(false);
+
+            if (buffer[ResponseOffset] != unitId)
+            {
+                throw new ProtocolException(
+                    $"The Modbus RTU response has unit id {buffer[ResponseOffset]} but {unitId} was expected.");
+            }
+
+            byte functionCode = buffer[ResponseOffset + 1];
+
+            if (functionCode == (byte)(pdu[0] | 0x80))
+            {
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 2, 3), cancellationToken).ConfigureAwait(false);
+                ValidateCrc(buffer.AsSpan(ResponseOffset, 5));
+
+                // The base client turns this PDU into a ModbusException with request context.
+                return new[] { functionCode, buffer[ResponseOffset + 2] };
+            }
+
+            if (functionCode != pdu[0])
+            {
+                throw new ProtocolException(
+                    $"The Modbus RTU response has function code 0x{functionCode:X2} instead of 0x{pdu[0]:X2}.");
+            }
+
+            int responseLength;
+            if (functionCode is 0x01 or 0x02 or 0x03 or 0x04 or 0x17)
+            {
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 2, 1), cancellationToken).ConfigureAwait(false);
+
+                var byteCount = buffer[ResponseOffset + 2];
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 3, byteCount + 2), cancellationToken).ConfigureAwait(false);
+                responseLength = 3 + byteCount + 2;
+            }
+            else
+            {
+                await reader.ReadExactlyAsync(
+                    buffer.AsMemory(ResponseOffset + 2, 6), cancellationToken).ConfigureAwait(false);
+                responseLength = 8;
+            }
+
+            ValidateCrc(new ReadOnlySpan<byte>(buffer, ResponseOffset, responseLength));
+            return new ReadOnlySpan<byte>(buffer, ResponseOffset + 1, responseLength - 3).ToArray();
+        }
+        finally
         {
-            throw new ProtocolException(
-                $"The Modbus RTU response has unit id {header[0]} but {unitId} was expected.");
+            pool.Return(buffer);
         }
-
-        byte functionCode = header[1];
-
-        if (functionCode == (byte)(pdu[0] | 0x80))
-        {
-            byte[] tail = await reader.ReadExactlyAsync(3, cancellationToken).ConfigureAwait(false);
-            byte[] exceptionFrame = new byte[5];
-            header.CopyTo(exceptionFrame, 0);
-            tail.CopyTo(exceptionFrame, 2);
-            ValidateCrc(exceptionFrame);
-
-            // The base client turns this PDU into a ModbusException with request context.
-            return new[] { functionCode, tail[0] };
-        }
-
-        if (functionCode != pdu[0])
-        {
-            throw new ProtocolException(
-                $"The Modbus RTU response has function code 0x{functionCode:X2} instead of 0x{pdu[0]:X2}.");
-        }
-
-        byte[] responseFrame;
-        if (functionCode is 0x01 or 0x02 or 0x03 or 0x04 or 0x17)
-        {
-            byte[] byteCount = await reader.ReadExactlyAsync(1, cancellationToken).ConfigureAwait(false);
-            byte[] payload = await reader.ReadExactlyAsync(byteCount[0] + 2, cancellationToken).ConfigureAwait(false);
-
-            responseFrame = new byte[2 + 1 + payload.Length];
-            header.CopyTo(responseFrame, 0);
-            byteCount.CopyTo(responseFrame, 2);
-            payload.CopyTo(responseFrame, 3);
-        }
-        else
-        {
-            byte[] tail = await reader.ReadExactlyAsync(6, cancellationToken).ConfigureAwait(false);
-            responseFrame = new byte[8];
-            header.CopyTo(responseFrame, 0);
-            tail.CopyTo(responseFrame, 2);
-        }
-
-        ValidateCrc(responseFrame);
-        var responsePdu = new byte[responseFrame.Length - 3];
-        Array.Copy(responseFrame, 1, responsePdu, 0, responsePdu.Length);
-        return responsePdu;
     }
 
     private static SerialPortTransport CreateTransport(ModbusRtuOptions options)
@@ -134,16 +158,16 @@ public sealed class ModbusRtuClient : ModbusClientBase
         return new SerialPortTransport(options.SerialPort);
     }
 
-    private static byte[] BuildFrame(byte unitId, byte[] pdu)
+    private static int BuildFrame(Span<byte> frame, byte unitId, ReadOnlySpan<byte> pdu)
     {
-        byte[] frame = new byte[pdu.Length + 3];
+        var length = pdu.Length + 3;
         frame[0] = unitId;
-        pdu.CopyTo(frame, 1);
-        ModbusCrc16.Write(frame.AsSpan(0, frame.Length - 2), frame.AsSpan(frame.Length - 2));
-        return frame;
+        pdu.CopyTo(frame[1..]);
+        ModbusCrc16.Write(frame.Slice(0, length - 2), frame.Slice(length - 2));
+        return length;
     }
 
-    private static void ValidateCrc(byte[] frame)
+    private static void ValidateCrc(ReadOnlySpan<byte> frame)
     {
         if (!ModbusCrc16.Validate(frame))
         {

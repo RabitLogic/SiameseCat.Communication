@@ -471,6 +471,10 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
   served request allocates no frame memory on the slave side (see
   [performance notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md#performance-notes)).
 
+The clients are allocation-lean as well: Modbus TCP/RTU and S7 reuse frame buffers, inline their retry
+loops and reuse the request-timeout source when no cancellation token is passed, so a driver read allocates
+roughly a third less than before (see the performance notes for measured numbers).
+
 ### Statistics and logging
 
 ```csharp

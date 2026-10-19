@@ -19,6 +19,7 @@ public sealed partial class S7Client
     private const int VariableSpecificationLength = 12;
     private const int JobHeaderLength = 10;
     private const int AckDataHeaderLength = 12;
+    private const int TpktMaxLength = 4096;
 
     private async Task<S7Response> ExecuteJobAsync(
         byte[] parameter,
@@ -26,12 +27,63 @@ public sealed partial class S7Client
         bool isWrite,
         CancellationToken cancellationToken)
     {
-        return await RetryPolicy.ExecuteAsync(
-            token => ExecuteJobAttemptAsync(parameter, data, token),
-            _options,
-            cancellationToken,
-            isWrite,
-            reconnect: ReconnectAsync).ConfigureAwait(false);
+        var attempts = isWrite && !_options.RetryWrites ? 1 : _options.RetryCount + 1;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await ExecuteJobAttemptAsync(parameter, data, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (
+                attempt < attempts
+                && !cancellationToken.IsCancellationRequested
+                && RetryPolicy.IsTransient(ex))
+            {
+                await ReconnectAsync(cancellationToken).ConfigureAwait(false);
+
+                if (_options.RetryDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(_options.RetryDelay, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates the token source for one attempt. Requests are serialised by the gate, so the instance-level
+    /// source is reused when the caller passes no token, which keeps the common path allocation free.
+    /// </summary>
+    private CancellationTokenSource? CreateTimeoutSource(
+        CancellationToken cancellationToken,
+        out CancellationToken token)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linked.CancelAfter(_options.Timeout);
+            token = linked.Token;
+            return linked;
+        }
+
+#if NET6_0_OR_GREATER
+        var cached = _timeoutCts;
+        if (cached is null || cached.IsCancellationRequested || !cached.TryReset())
+        {
+            cached?.Dispose();
+            cached = new CancellationTokenSource();
+            _timeoutCts = cached;
+        }
+
+        cached.CancelAfter(_options.Timeout);
+        token = cached.Token;
+        return null;
+#else
+        var source = new CancellationTokenSource();
+        source.CancelAfter(_options.Timeout);
+        token = source.Token;
+        return source;
+#endif
     }
 
     private async Task<S7Response> ExecuteJobAttemptAsync(
@@ -39,17 +91,19 @@ public sealed partial class S7Client
         ReadOnlyMemory<byte> data,
         CancellationToken cancellationToken)
     {
-        var frame = BuildJobFrame(parameter, data.Span, out var pduReference);
+        var frameLength = BuildJobFrame(_sendBuffer, parameter, data.Span, out var pduReference);
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(_options.Timeout);
+        var owned = CreateTimeoutSource(cancellationToken, out var token);
 
         try
         {
             _transport.DiscardInput();
-            await _transport.WriteAsync(frame, timeoutCts.Token).ConfigureAwait(false);
-            var responseFrame = await ReceiveTpktAsync(timeoutCts.Token).ConfigureAwait(false);
-            return ParseResponse(responseFrame, pduReference);
+            await _transport
+                .WriteAsync(_sendBuffer.AsMemory(0, frameLength), token)
+                .ConfigureAwait(false);
+
+            var length = await ReceiveTpktAsync(token).ConfigureAwait(false);
+            return ParseResponse(_receiveBuffer.AsSpan(0, length), pduReference);
         }
         catch (OperationCanceledException)
         {
@@ -62,6 +116,10 @@ public sealed partial class S7Client
             }
 
             throw new CommunicationTimeoutException($"The S7 request timed out after {_options.Timeout}.");
+        }
+        finally
+        {
+            owned?.Dispose();
         }
     }
 
@@ -84,7 +142,8 @@ public sealed partial class S7Client
         SetupCommunicationFunction, 0x00, 0x00, 0x01, 0x00, 0x01, 0x03, 0xC0,
     };
 
-    private byte[] BuildJobFrame(
+    private int BuildJobFrame(
+        byte[] buffer,
         ReadOnlySpan<byte> parameter,
         ReadOnlySpan<byte> data,
         out ushort pduReference)
@@ -95,17 +154,18 @@ public sealed partial class S7Client
             pduReference = unchecked(++_pduReference);
         }
 
-        var frame = new byte[4 + 3 + JobHeaderLength + parameter.Length + data.Length];
-        frame[0] = 0x03;
-        frame[1] = 0x00;
-        frame[2] = (byte)(frame.Length >> 8);
-        frame[3] = (byte)frame.Length;
+        var length = 4 + 3 + JobHeaderLength + parameter.Length + data.Length;
 
-        frame[4] = 0x02;
-        frame[5] = 0xF0;
-        frame[6] = 0x80;
+        buffer[0] = 0x03;
+        buffer[1] = 0x00;
+        buffer[2] = (byte)(length >> 8);
+        buffer[3] = (byte)length;
 
-        var s7 = frame.AsSpan(7);
+        buffer[4] = 0x02;
+        buffer[5] = 0xF0;
+        buffer[6] = 0x80;
+
+        var s7 = buffer.AsSpan(7);
         s7[0] = S7ProtocolId;
         s7[1] = RosctrJob;
         s7[2] = 0x00;
@@ -119,31 +179,30 @@ public sealed partial class S7Client
 
         parameter.CopyTo(s7[JobHeaderLength..]);
         data.CopyTo(s7[(JobHeaderLength + parameter.Length)..]);
-        return frame;
+        return length;
     }
 
-    private async Task<byte[]> ReceiveTpktAsync(CancellationToken cancellationToken)
+    private async Task<int> ReceiveTpktAsync(CancellationToken cancellationToken)
     {
-        var header = await _transport.ReadExactlyAsync(4, cancellationToken).ConfigureAwait(false);
-        if (header[0] != 0x03)
+        await _transport.ReadExactlyAsync(_receiveBuffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+        if (_receiveBuffer[0] != 0x03)
         {
-            throw new ProtocolException($"Unexpected TPKT version 0x{header[0]:X2}.");
+            throw new ProtocolException($"Unexpected TPKT version 0x{_receiveBuffer[0]:X2}.");
         }
 
-        var length = (header[2] << 8) | header[3];
-        if (length is < 7 or > 4096)
+        var length = (_receiveBuffer[2] << 8) | _receiveBuffer[3];
+        if (length is < 7 or > TpktMaxLength)
         {
             throw new ProtocolException($"Unexpected TPKT length {length}.");
         }
 
-        var frame = new byte[length];
-        header.CopyTo(frame, 0);
-        var body = await _transport.ReadExactlyAsync(length - 4, cancellationToken).ConfigureAwait(false);
-        body.CopyTo(frame, 4);
-        return frame;
+        await _transport
+            .ReadExactlyAsync(_receiveBuffer.AsMemory(4, length - 4), cancellationToken)
+            .ConfigureAwait(false);
+        return length;
     }
 
-    private static S7Response ParseResponse(byte[] frame, ushort expectedPduReference)
+    private static S7Response ParseResponse(ReadOnlySpan<byte> frame, ushort expectedPduReference)
     {
         if (frame.Length < 7 + AckDataHeaderLength)
         {
@@ -155,7 +214,7 @@ public sealed partial class S7Client
             throw new ProtocolException("The S7 response has an unexpected COTP header.");
         }
 
-        var s7 = frame.AsSpan(7);
+        var s7 = frame[7..];
         if (s7[0] != S7ProtocolId)
         {
             throw new ProtocolException($"Unexpected S7 protocol id 0x{s7[0]:X2}.");
@@ -193,9 +252,9 @@ public sealed partial class S7Client
             }
         }
 
-        var parameter = s7.Slice(headerLength, parameterLength).ToArray();
-        var data = s7.Slice(headerLength + parameterLength, dataLength).ToArray();
-        return new S7Response(parameter, data);
+        return new S7Response(
+            s7.Slice(headerLength, parameterLength).ToArray(),
+            s7.Slice(headerLength + parameterLength, dataLength).ToArray());
     }
 
     private async Task<byte[]> ReadVarSingleAsync(

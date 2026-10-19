@@ -117,6 +117,8 @@ public abstract partial class DriverBase
 
         await AwaitKeepAliveAsync(keepAlive).ConfigureAwait(false);
         await DisposeCoreAsync().ConfigureAwait(false);
+        _timeoutCts?.Dispose();
+        _timeoutCts = null;
         if (_ownsGate)
         {
             _gate.Dispose();

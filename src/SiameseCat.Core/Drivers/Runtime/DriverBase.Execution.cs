@@ -20,32 +20,27 @@ public abstract partial class DriverBase
             EnsureConnected();
 
             var attempts = isWrite && !Configuration.RetryWrites ? 1 : Configuration.RetryCount + 1;
-            var where = address is null ? string.Empty : $" for {address.Value}";
             var effectiveTimeout = timeout ?? Configuration.Timeout;
 
             for (var attempt = 1; ; attempt++)
             {
                 Metrics.RecordRequest(operationKind);
                 PlcDiagnostics.RecordRequest(Descriptor.Id, operationKind);
-                var stopwatch = Stopwatch.StartNew();
+                var started = Stopwatch.GetTimestamp();
 
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                if (effectiveTimeout > TimeSpan.Zero)
-                {
-                    timeoutCts.CancelAfter(effectiveTimeout);
-                }
-
+                var ownedTimeoutSource = CreateTimeoutSource(effectiveTimeout, cancellationToken, out var token);
                 try
                 {
-                    var result = await operation(timeoutCts.Token).ConfigureAwait(false);
-                    Metrics.RecordLatency(stopwatch.Elapsed);
-                    PlcDiagnostics.RecordLatency(Descriptor.Id, operationKind, stopwatch.Elapsed);
+                    var result = await operation(token).ConfigureAwait(false);
+                    var elapsed = GetElapsedTime(started);
+                    Metrics.RecordLatency(elapsed);
+                    PlcDiagnostics.RecordLatency(Descriptor.Id, operationKind, elapsed);
                     return result;
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
                     var timeoutException = new CommunicationTimeoutException(
-                        $"{Descriptor.Id} request{where} timed out after {effectiveTimeout}.");
+                        $"{Descriptor.Id} request{BuildAddressSuffix(address)} timed out after {effectiveTimeout}.");
 
                     Metrics.RecordFailure(operationKind, timeoutException);
                     PlcDiagnostics.RecordFailure(Descriptor.Id, operationKind, timeoutException);
@@ -66,7 +61,9 @@ public abstract partial class DriverBase
                     Metrics.RecordRetry();
                     PlcDiagnostics.RecordFailure(Descriptor.Id, operationKind, ex);
                     PlcDiagnostics.RecordRetry(Descriptor.Id);
-                    Logger.Warning($"{Descriptor.Id} request{where} failed, retrying ({attempt}/{attempts - 1}).", ex);
+                    Logger.Warning(
+                        $"{Descriptor.Id} request{BuildAddressSuffix(address)} failed, retrying ({attempt}/{attempts - 1}).",
+                        ex);
                     await DelayBeforeRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
                     await ReconnectAsync(address, cancellationToken).ConfigureAwait(false);
                 }
@@ -81,12 +78,81 @@ public abstract partial class DriverBase
 
                     throw;
                 }
+                finally
+                {
+                    ownedTimeoutSource?.Dispose();
+                }
             }
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Creates the per-attempt token source. Requests are serialised by the gate, so the instance-level
+    /// source is reused when the caller passes no token, which keeps the common path allocation free.
+    /// </summary>
+    private CancellationTokenSource? CreateTimeoutSource(
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        out CancellationToken token)
+    {
+        if (cancellationToken.CanBeCanceled)
+        {
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (timeout > TimeSpan.Zero)
+            {
+                linked.CancelAfter(timeout);
+            }
+
+            token = linked.Token;
+            return linked;
+        }
+
+#if NET6_0_OR_GREATER
+        var cached = _timeoutCts;
+        if (cached is null || cached.IsCancellationRequested || !cached.TryReset())
+        {
+            cached?.Dispose();
+            cached = new CancellationTokenSource();
+            _timeoutCts = cached;
+        }
+
+        if (timeout > TimeSpan.Zero)
+        {
+            cached.CancelAfter(timeout);
+        }
+
+        token = cached.Token;
+        return null;
+#else
+        var source = new CancellationTokenSource();
+        if (timeout > TimeSpan.Zero)
+        {
+            source.CancelAfter(timeout);
+        }
+
+        token = source.Token;
+        _timeoutCts = source;
+        return source;
+#endif
+    }
+
+    /// <summary>Formats the address suffix only when a failure message is actually built.</summary>
+    private static string BuildAddressSuffix(PlcAddress? address) =>
+        address is null ? string.Empty : $" for {address.Value}";
+
+    /// <summary>Elapsed time since <paramref name="started"/> without allocating a <see cref="Stopwatch"/>.</summary>
+    private static TimeSpan GetElapsedTime(long started)
+    {
+#if NET7_0_OR_GREATER
+        return Stopwatch.GetElapsedTime(started);
+#else
+        var ticks = (long)((Stopwatch.GetTimestamp() - started) * (TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency));
+        return TimeSpan.FromTicks(ticks);
+#endif
     }
 
     private async Task ReconnectAsync(PlcAddress? address, CancellationToken cancellationToken)
