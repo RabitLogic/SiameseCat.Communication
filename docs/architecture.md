@@ -46,16 +46,29 @@ layout follows the same protocol-first structure:
 ```text
 src/SiameseCat.Communication/Server/
 ├── Modbus/              namespace SiameseCat.Communication.Server.Modbus
-│   ├── ModbusTcpServer / ModbusRtuServer / IModbusServer
-│   ├── ModbusServerOptions / ModbusRtuServerOptions / ModbusServerIdentifier
-│   ├── ModbusPduProcessor / ModbusServerStatistics
-│   └── ModbusDataStore / ModbusDataStoreSnapshot / *WriteEventArgs
+│   ├── IModbusServer.cs
+│   ├── Options/         ModbusServerOptions / ModbusRtuServerOptions
+│   ├── Servers/         ModbusTcpServer / ModbusRtuServer
+│   ├── Protocol/        ModbusPduProcessor (+ .Files, .DeviceIdentification)
+│   ├── Storage/         ModbusDataStore (+ .Registers, .Bits, .Files) / ModbusDataStoreSnapshot
+│   ├── Events/          ModbusCoilWriteEventArgs / ModbusRegisterWriteEventArgs
+│   ├── Diagnostics/     ModbusServerStatistics
+│   └── Internal/        ModbusServerIdentifier
 ├── S7/                  namespace SiameseCat.Communication.Server.S7
-│   ├── S7Server / IS7Server / S7ServerOptions
-│   ├── S7PduProcessor / S7ServerStatistics
-│   └── S7DataStore / S7WriteEventArgs
+│   ├── IS7Server.cs
+│   ├── Options/         S7ServerOptions
+│   ├── Servers/         S7Server
+│   ├── Protocol/        S7PduProcessor
+│   ├── Storage/         S7DataStore
+│   ├── Events/          S7WriteEventArgs
+│   └── Diagnostics/     S7ServerStatistics
 └── ServerBufferSizes.cs internal buffer-size validation shared by both protocols
 ```
+
+The folders group files by responsibility, while the namespace stays at the protocol level: everything
+under `Server/Modbus/` is in `SiameseCat.Communication.Server.Modbus`, so the physical layout can change
+without touching a `using` directive. `ModbusDataStore` is a single type split across partial files by
+storage area (registers, bits, file records) because the areas share the buffer sizes and locks.
 
 `DriverBase` is split by responsibility:
 
