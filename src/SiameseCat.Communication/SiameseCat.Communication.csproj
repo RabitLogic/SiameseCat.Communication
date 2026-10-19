@@ -17,7 +17,7 @@
     <Authors>RabitLogic</Authors>
     <Description>Industrial communication library for .NET: Modbus RTU/TCP, Siemens S7, pluggable PLC drivers, TCP/UDP/serial transports, Modbus and S7 slaves, dependency injection, health checks and metrics.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/RabitLogic/SiameseCat</RepositoryUrl>
+    <RepositoryUrl>https://github.com/RabitLogic/SiameseCat.Communication</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>plc;modbus;modbus-tcp;modbus-rtu;s7;siemens;industrial;automation;serialport;scada</PackageTags>
   </PropertyGroup>

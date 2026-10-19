@@ -13,7 +13,7 @@ Security fixes are released as patch versions on the latest minor release.
 Please **do not** open a public issue for security problems.
 
 Use GitHub's private vulnerability reporting on
-<https://github.com/RabitLogic/SiameseCat/security/advisories/new>, or email the maintainers listed in
+<https://github.com/RabitLogic/SiameseCat.Communication/security/advisories/new>, or email the maintainers listed in
 the repository profile. Include:
 
 - affected package and version,

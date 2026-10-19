@@ -396,7 +396,7 @@ await slave.StartAsync();
 ```
 
 The slave speaks COTP + S7comm (Setup Communication, read/write variable), so S7.Net Plus, Snap7 or a real
-engineering tool can use it. See [comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
+engineering tool can use it. See [comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md)
 for a measured comparison.
 
 ## 8. Transports (`transports/*`)
@@ -451,8 +451,8 @@ Event Counter, FC17 Report Server ID) — the same pattern works for vendor-spec
 
 ## Where to go next
 
-* [architecture.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) — layering, request pipeline, capability model.
-* [protocol-matrix.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) — function codes, address syntax, slave services.
-* [modbus-comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) — how SiameseCat compares with NModbus and FluentModbus.
-* [comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md) — how SiameseCat compares with S7.Net Plus.
-* [migration.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) — moving from NModbus or Sharp7, plus the integration checklist.
+* [architecture.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) — layering, request pipeline, capability model.
+* [protocol-matrix.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) — function codes, address syntax, slave services.
+* [modbus-comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md) — how SiameseCat compares with NModbus and FluentModbus.
+* [comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md) — how SiameseCat compares with S7.Net Plus.
+* [migration.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) — moving from NModbus or Sharp7, plus the integration checklist.

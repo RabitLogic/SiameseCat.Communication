@@ -4,7 +4,7 @@
 
 面向 PLC 和工业设备的轻量级 .NET 通讯库。包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
 
-> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md) · [发布指南](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)
+> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md) · [发布指南](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
 
 本仓库只产出**一个** NuGet 包 `SiameseCat.Communication`：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。包内按**命名空间**分层，层内再按协议/品牌分组：
 
@@ -787,7 +787,7 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 - 诊断类功能码：`07` 读异常状态（`Data.ExceptionStatus`，应用可随时修改）、`0B` 读通信事件计数（`Data.EventCount`，每次成功写入递增）、`11` 报表服务器标识（`ServerIdentifier` + `RunIndicator`）、`16` 掩码写保持寄存器（`(当前值 AND andMask) OR (orMask AND NOT andMask)`）。
 - 单元号原样回显，一个从站可服务多个站号；单元号 `0` 视为广播，写请求生效但不返回响应（与客户端广播模式配套）。
 - 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
-- 每个会话复用请求/响应缓冲区，PDU 处理器直接写入该缓冲区，服务端处理一次请求不再分配帧内存（见[性能说明](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md#performance-notes)）。
+- 每个会话复用请求/响应缓冲区，PDU 处理器直接写入该缓冲区，服务端处理一次请求不再分配帧内存（见[性能说明](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md#performance-notes)）。
 - 客户端同样低分配：Modbus TCP/RTU 与 S7 复用组帧缓冲区、内联重试循环，并在调用方未传取消令牌时复用请求超时 CTS，驱动单次读的分配量比优化前降低约三成（实测数字见性能说明）。
 - `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
 
@@ -1118,7 +1118,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 - 集中包版本管理（`Directory.Packages.props`）
 - Release 构建生成 `.nupkg` 与 `.snupkg`，并启用 SourceLink
 - 一键打包脚本：`./scripts/pack.ps1` 构建并校验包（三资产 + 包内 README）与符号包，输出大小与 SHA256；`-Version 1.0.0-preview.1` 覆盖版本，`-Push <源>` 直接推送（`NUGET_API_KEY` 环境变量提供密钥）
-- 发布：CI 用 **NuGet Trusted Publishing**（GitHub OIDC 换取 1 小时临时 Key，仓库里不存任何 NuGet 密钥），只需在 nuget.org 建策略并在仓库设置变量 `NUGET_USER`；推送 `v*` 标签即由 `.github/workflows/release.yml` 自动发布，详见 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)
+- 发布：CI 用 **NuGet Trusted Publishing**（GitHub OIDC 换取 1 小时临时 Key，仓库里不存任何 NuGet 密钥），只需在 nuget.org 建策略并在仓库设置变量 `NUGET_USER`；推送 `v*` 标签即由 `.github/workflows/release.yml` 自动发布，详见 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
 - CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）；测试同时收集 XPlat 覆盖率，行覆盖率低于 **75%** 时任务失败（当前约 80%）
 - 依赖升级由 `.github/dependabot.yml` 每周自动发起（NuGet 按 `Microsoft.Extensions.*`、测试工具分组；GitHub Actions 每月）；安全报告流程见 [SECURITY.md](SECURITY.md)
 
@@ -1163,7 +1163,7 @@ dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*A
 dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Release -o artifacts
 ```
 
-示例目录（`samples/SiameseCat.Samples`）用 `-- list` 看目录、`-- run <id>` 跑单步、`-- selftest` 跑全部无硬件示例；每个示例都支持 `--host` / `--port` / `--com` 直连真机，详见 [docs/tutorial.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)。
+示例目录（`samples/SiameseCat.Samples`）用 `-- list` 看目录、`-- run <id>` 跑单步、`-- selftest` 跑全部无硬件示例；每个示例都支持 `--host` / `--port` / `--com` 直连真机，详见 [docs/tutorial.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md)。
 
 ## 当前限制
 

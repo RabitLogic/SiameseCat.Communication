@@ -23,7 +23,7 @@
   在 glibc 与 Alpine 容器中执行。
 - 包内附带 `README.md`（`PackageReadmeFile`）与 XML 文档，启用 SourceLink 并同时产出 `.snupkg`。
 - `scripts/pack.ps1` 一条命令完成构建、打包、三资产/README 校验、输出大小与 SHA256，并可选 `-Version` 覆盖版本、`-Push` 直接推送。
-- 发布：新增 `.github/workflows/release.yml`（推送 `v*` 标签即构建 → 测试 → 框架矩阵 → 打包 → 推送 nuget.org → 创建 GitHub Release），采用 **NuGet Trusted Publishing**（GitHub OIDC 令牌换取 1 小时临时 API Key，仓库不保存密钥，只需配置 `NUGET_USER` 变量与 nuget.org 策略）；配套 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)（策略配置、本地预检、手工发布、私有源、故障排查与发布清单）；`scripts/pack.ps1 -Push` 支持 nuget.org、Azure Artifacts、Nexus 与文件夹源。
+- 发布：新增 `.github/workflows/release.yml`（推送 `v*` 标签即构建 → 测试 → 框架矩阵 → 打包 → 推送 nuget.org → 创建 GitHub Release），采用 **NuGet Trusted Publishing**（GitHub OIDC 令牌换取 1 小时临时 API Key，仓库不保存密钥，只需配置 `NUGET_USER` 变量与 nuget.org 策略）；配套 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)（策略配置、本地预检、手工发布、私有源、故障排查与发布清单）；`scripts/pack.ps1 -Push` 支持 nuget.org、Azure Artifacts、Nexus 与文件夹源。
 
 ### 驱动模型
 
@@ -116,9 +116,9 @@
   未传令牌时复用超时 `CancellationTokenSource`；`DriverBase` 用 `Stopwatch.GetTimestamp()` 计时并惰性构造
   失败消息，`PlcDiagnostics` 缓存标签值。单次请求分配下降 27.8%–36.6%。
 - 与 NModbus 3.0.83 / FluentModbus 5.3.2 在同一从站上的实测对比见
-  [docs/modbus-comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md)；
+  [docs/modbus-comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md)；
   与 S7.Net Plus 0.20.0 的对比见
-  [docs/comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)。
+  [docs/comparison.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md)。
 
 ### 示例与文档
 
@@ -126,10 +126,10 @@
   每个带内置仿真器可离线运行，也支持 `--host` / `--port` / `--com` 直连真机；`list` 看目录、
   `run <id>` 跑单步、`selftest` 全量自检。
 - 文档：英文 [README](README.md)（同时作为包内 README）与中文 [README.zh-CN.md](README.zh-CN.md)，
-  以及 `docs/` 下的[架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md)、
-  [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md)、
-  [迁移与接入](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)、
-  [教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)与两份对比文档。
+  以及 `docs/` 下的[架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md)、
+  [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md)、
+  [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md)、
+  [教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md)与两份对比文档。
 
 ### 质量与工程化
 

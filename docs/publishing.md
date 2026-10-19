@@ -26,17 +26,17 @@ yields one key, so the login step sits right before the push.
    | Package Owner | `RabitLogic` |
    | CI/CD Provider | `GitHub Actions` |
    | Repository Owner | `RabitLogic` |
-   | Repository | `SiameseCat` — the **GitHub repository name**, not the package id |
+   | Repository | `SiameseCat.Communication` — the **GitHub repository name** |
    | Workflow File | `release.yml` — the **file name only**, not `.github/workflows/release.yml` |
    | Environment | leave **empty** (the workflow does not use environments; fill it only if you add `environment:` to the job) |
    | Scopes | **Push new packages and package versions** (switch to *Push only new package versions* after the first release) |
    | Glob patterns | `SiameseCat.Communication` — the **package id** (`*` also works while the package does not exist yet) |
 
    The owner, repository and workflow file are matched case-insensitively against the run that requests
-   the token. `Repository` is the GitHub repository (`SiameseCat`); the **package id belongs in
-   `Glob patterns`**. Putting `SiameseCat.Communication` in `Repository` only works if the GitHub
-   repository itself is renamed to that name, because the OIDC token carries the real repository name.
-   A mismatch (including a renamed workflow file) is the most common cause of a failed push.
+   the token. `Repository` is the **GitHub repository** the workflow runs in — the OIDC token carries
+   that name, so it cannot be pointed at a repository you do not run from. The **package id** is a
+   separate field: it belongs in `Glob patterns`. A mismatch (including a renamed repository or
+   workflow file) is the most common cause of a failed push.
 
 3. In the GitHub repository, add a **variable** (Settings → Secrets and variables → Actions → Variables):
 
@@ -147,7 +147,7 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat` (**not** the package id), workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
+| `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat.Communication`, workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
 | Workflow ran but the policy did not match | Renaming the workflow file or moving the job under a different `environment:` breaks the match; update the policy accordingly. |
 | Pushed a wrong version that nobody consumes yet | On nuget.org open the package → **Unlist**; it stays restorable by exact version. Publish a corrected patch. |
 | Bad version already referenced | nuget.org versions are immutable — publish a patch release. |
@@ -155,18 +155,24 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 | Symbol push failed | Re-run the workflow: the `.nupkg` push is skipped (`--skip-duplicate`) and the `.snupkg` is retried with a fresh key. |
 | Local push rejected | The key is missing, expired or lacks the *Push new packages* scope; trusted publishing never applies outside CI. |
 
-## 8. Options for the repository name
+## 8. Repository name and package id
 
-`Package Owner` / `Repository Owner` is `RabitLogic` in both options; only `Repository` changes.
+The GitHub repository is `RabitLogic/SiameseCat.Communication` and the package id is
+`SiameseCat.Communication`, so the two fields happen to carry the same text — they are still separate
+values with different meanings, and the policy only matches on the repository the workflow runs in.
 
-| Option | nuget.org `Repository` | `Glob patterns` | What has to change |
-| --- | --- | --- | --- |
-| Keep the repo name (today) | `SiameseCat` | `SiameseCat.Communication` | nothing — pick this |
-| Rename the GitHub repo | `SiameseCat.Communication` | `SiameseCat.Communication` | rename `RabitLogic/SiameseCat` → `RabitLogic/SiameseCat.Communication` on GitHub, recreate the policy, and update `RepositoryUrl` in `Directory.Build.props` plus the absolute links in `README.md`, `README.zh-CN.md`, `CHANGELOG.md` and `docs/*.md` |
+If the repository is renamed again, the policy must be recreated with the new name and these places
+followed:
 
-Renaming the GitHub repository is safe for consumers who already hold packages: the package id is
-independent of the repository name. GitHub redirects the old URLs, but absolute links inside the packaged
-README should be updated so the nuget.org page does not depend on that redirect.
+| Place | What to update |
+| --- | --- |
+| nuget.org policy | `Repository`, then re-save the policy |
+| `Directory.Build.props`, `SiameseCat.Communication.csproj` | `RepositoryUrl` (shown on the nuget.org page) |
+| `README.md`, `README.zh-CN.md`, `CHANGELOG.md`, `SECURITY.md`, `docs/*.md` | absolute `github.com/...` links, which are what the packaged README resolves when rendered on nuget.org |
+
+Renaming the repository does not affect consumers: the package id is independent of it, and GitHub
+redirects the old URLs. Updating the absolute links anyway keeps the nuget.org page independent of that
+redirect.
 
 ## 9. Release checklist
 
@@ -175,6 +181,6 @@ README should be updated so the nuget.org page does not depend on that redirect.
 - [ ] `dotnet build` and `dotnet test` are clean (0 warnings, 352 tests).
 - [ ] `./scripts/pack.ps1` passes the layout check and prints the SHA256.
 - [ ] The package was restored from a folder feed in a scratch project.
-- [ ] The Trusted Publishing policy exists for `RabitLogic/SiameseCat` + `release.yml` and the
+- [ ] The Trusted Publishing policy exists for `RabitLogic/SiameseCat.Communication` + `release.yml` and the
       `NUGET_USER` variable is set.
 - [ ] `git tag v<version>` matches the version you intend to publish.

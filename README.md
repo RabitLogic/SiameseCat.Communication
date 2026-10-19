@@ -20,13 +20,13 @@ never pinned to a single runtime version.
 
 Deeper documentation:
 
-- [Tutorial (step-by-step, with runnable samples)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)
-- [Architecture and layering](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md)
-- [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md)
-- [Migration and integration notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
-- [Comparison with NModbus and FluentModbus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md)
-- [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
-- [Publishing the package](https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md)
+- [Tutorial (step-by-step, with runnable samples)](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md)
+- [Architecture and layering](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md)
+- [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md)
+- [Migration and integration notes](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md)
+- [Comparison with NModbus and FluentModbus](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/modbus-comparison.md)
+- [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/comparison.md)
+- [Publishing the package](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
 
 ## Samples
 
@@ -527,7 +527,7 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
   the listener and every session.
 - Sessions reuse their request/response buffers and the PDU processor writes directly into them, so a
   served request allocates no frame memory on the slave side (see
-  [performance notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md#performance-notes)).
+  [performance notes](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md#performance-notes)).
 
 The clients are allocation-lean as well: Modbus TCP/RTU and S7 reuse frame buffers, inline their retry
 loops and reuse the request-timeout source when no cancellation token is passed, so a driver read allocates
@@ -734,13 +734,13 @@ dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 $env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
 
 # CI publishes with NuGet Trusted Publishing (OIDC); only set the NUGET_USER variable
-# https://github.com/RabitLogic/SiameseCat/blob/main/docs/publishing.md
+# https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md
 ```
 
 Packaging: the library is packed for `net8.0`, `net10.0` and `netstandard2.0`, with
 `EnablePackageValidation` ensuring every asset exposes the same public API. CI verifies that the `.nupkg`
 contains `lib/net8.0`, `lib/net10.0`, `lib/netstandard2.0` and `README.md`, and that the coverage gate passes.
-Dependencies are updated weekly by Dependabot; see [SECURITY.md](https://github.com/RabitLogic/SiameseCat/blob/main/SECURITY.md)
+Dependencies are updated weekly by Dependabot; see [SECURITY.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/SECURITY.md)
 for the vulnerability reporting process.
 
 ## Known limitations
@@ -763,4 +763,4 @@ for the vulnerability reporting process.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/RabitLogic/SiameseCat/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/LICENSE).
