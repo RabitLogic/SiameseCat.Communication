@@ -3,7 +3,7 @@ namespace SiameseCat.Core;
 public abstract partial class DriverBase
 {
     /// <inheritdoc/>
-    public Task<IAsyncDisposable> SubscribeAsync(
+    public async Task<IAsyncDisposable> SubscribeAsync(
         PlcAddress address,
         TimeSpan interval,
         Func<PlcValue, Task> onChanged,
@@ -16,11 +16,33 @@ public abstract partial class DriverBase
         }
 
         ThrowIfDisposed();
+        EnsureCapability(DriverCapabilities.Subscribe);
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+        var native = await DoSubscribeAsync(address, interval, onChanged, cts.Token).ConfigureAwait(false);
+        if (native is not null)
+        {
+            return new Subscription(cts, native);
+        }
+
         _ = Task.Run(() => PollAsync(address, interval, onChanged, cts), CancellationToken.None);
-        return Task.FromResult<IAsyncDisposable>(new Subscription(cts));
+        return new Subscription(cts);
     }
+
+    /// <summary>
+    /// Starts a protocol-native subscription. The default implementation returns <see langword="null"/>,
+    /// which makes the driver fall back to polling <see cref="DoReadAsync"/> at the requested interval.
+    /// </summary>
+    /// <param name="address">Address to watch.</param>
+    /// <param name="interval">Requested notification interval; protocols with their own sampling rate may ignore it.</param>
+    /// <param name="onChanged">Callback invoked for every change.</param>
+    /// <param name="cancellationToken">Cancelled when the caller disposes the subscription or the driver is disposed.</param>
+    /// <returns>A handle that stops the subscription, or <see langword="null"/> to use polling.</returns>
+    protected virtual Task<IAsyncDisposable?> DoSubscribeAsync(
+        PlcAddress address,
+        TimeSpan interval,
+        Func<PlcValue, Task> onChanged,
+        CancellationToken cancellationToken) => Task.FromResult<IAsyncDisposable?>(null);
 
     private async Task PollAsync(
         PlcAddress address,
@@ -70,13 +92,15 @@ public abstract partial class DriverBase
     private sealed class Subscription : IAsyncDisposable
     {
         private CancellationTokenSource? _cts;
+        private IAsyncDisposable? _native;
 
-        public Subscription(CancellationTokenSource cts)
+        public Subscription(CancellationTokenSource cts, IAsyncDisposable? native = null)
         {
             _cts = cts;
+            _native = native;
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             var cts = Interlocked.Exchange(ref _cts, null);
             if (cts is not null)
@@ -91,7 +115,11 @@ public abstract partial class DriverBase
                 }
             }
 
-            return ValueTask.CompletedTask;
+            var native = Interlocked.Exchange(ref _native, null);
+            if (native is not null)
+            {
+                await native.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 }

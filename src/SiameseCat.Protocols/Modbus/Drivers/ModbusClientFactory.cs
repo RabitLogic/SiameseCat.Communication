@@ -48,16 +48,22 @@ public static class ModbusClientFactory
     /// <param name="configuration">Driver configuration.</param>
     /// <param name="unitId">Unit identifier used for requests.</param>
     /// <param name="defaultPort">Port used when the configuration does not specify one.</param>
-    public static ModbusClientBase Create(DriverConfiguration configuration, byte unitId, int defaultPort = DefaultTcpPort)
+    /// <param name="logger">Optional logger that receives frame dumps when <see cref="DriverConfiguration.LogFrames"/> is enabled.</param>
+    public static ModbusClientBase Create(
+        DriverConfiguration configuration,
+        byte unitId,
+        int defaultPort = DefaultTcpPort,
+        IPlcLogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
         return configuration.Transport switch
         {
-            TransportKind.Tcp => new ModbusTcpClient(CreateTcpOptions(configuration, unitId, defaultPort)),
-            TransportKind.Serial => new ModbusRtuClient(CreateRtuOptions(configuration, unitId)),
+            TransportKind.Tcp => CreateTcp(configuration, unitId, defaultPort, logger),
+            TransportKind.Serial => CreateRtu(configuration, unitId, logger),
+            TransportKind.Custom => CreateCustom(configuration, unitId, defaultPort, logger),
             _ => throw new NotSupportedException(
-                $"Modbus does not support transport '{configuration.Transport}'. Use Tcp or Serial."),
+                $"Modbus does not support transport '{configuration.Transport}'. Use Tcp, Serial or Custom."),
         };
     }
 
@@ -71,21 +77,84 @@ public static class ModbusClientFactory
         _ => throw new ArgumentException($"Unknown string encoding '{name}'.", nameof(name)),
     };
 
-    private static ModbusTcpOptions CreateTcpOptions(DriverConfiguration configuration, byte unitId, int defaultPort) => new()
+    private static ModbusTcpClient CreateTcp(
+        DriverConfiguration configuration,
+        byte unitId,
+        int defaultPort,
+        IPlcLogger? logger)
     {
-        UnitId = unitId,
-        Timeout = configuration.Timeout,
-        RetryCount = 0,
-        RetryDelay = TimeSpan.Zero,
-        Tcp = new TcpTransportOptions
-        {
-            Host = configuration.Host,
-            Port = configuration.Port == 0 ? defaultPort : configuration.Port,
-            ConnectTimeout = configuration.ConnectTimeout,
-        },
-    };
+        var options = CreateTcpOptions(configuration, unitId, defaultPort, logger);
+        var transport = configuration.TransportFactory?.Create(configuration);
 
-    private static ModbusRtuOptions CreateRtuOptions(DriverConfiguration configuration, byte unitId)
+        return transport is null
+            ? new ModbusTcpClient(options)
+            : new ModbusTcpClient(transport, options);
+    }
+
+    private static ModbusRtuClient CreateRtu(
+        DriverConfiguration configuration,
+        byte unitId,
+        IPlcLogger? logger)
+    {
+        var options = CreateRtuOptions(configuration, unitId, logger);
+        var transport = configuration.TransportFactory?.Create(configuration);
+
+        return transport is null
+            ? new ModbusRtuClient(options)
+            : new ModbusRtuClient(transport, options);
+    }
+
+    /// <summary>
+    /// Builds a client over an injected transport. The framing is chosen by the <c>framing</c> option:
+    /// <c>tcp</c> (default, MBAP header) or <c>rtu</c> (address + CRC).
+    /// </summary>
+    private static ModbusClientBase CreateCustom(
+        DriverConfiguration configuration,
+        byte unitId,
+        int defaultPort,
+        IPlcLogger? logger)
+    {
+        if (configuration.TransportFactory is null)
+        {
+            throw new ArgumentException(
+                "A TransportFactory is required for the Custom transport.",
+                nameof(configuration));
+        }
+
+        return configuration.GetOption("framing")?.ToUpperInvariant() switch
+        {
+            null or "" or "TCP" or "MBAP" => CreateTcp(configuration, unitId, defaultPort, logger),
+            "RTU" => CreateRtu(configuration, unitId, logger),
+            var framing => throw new ArgumentException(
+                $"Unknown Modbus framing '{framing}'. Use tcp or rtu.",
+                nameof(configuration)),
+        };
+    }
+
+    private static ModbusTcpOptions CreateTcpOptions(
+        DriverConfiguration configuration,
+        byte unitId,
+        int defaultPort,
+        IPlcLogger? logger) => new()
+        {
+            UnitId = unitId,
+            Timeout = configuration.Timeout,
+            RetryCount = 0,
+            RetryDelay = TimeSpan.Zero,
+            LogFrames = configuration.LogFrames,
+            Logger = logger,
+            Tcp = new TcpTransportOptions
+            {
+                Host = configuration.Host,
+                Port = configuration.Port == 0 ? defaultPort : configuration.Port,
+                ConnectTimeout = configuration.ConnectTimeout,
+            },
+        };
+
+    private static ModbusRtuOptions CreateRtuOptions(
+        DriverConfiguration configuration,
+        byte unitId,
+        IPlcLogger? logger)
     {
         var serial = configuration.Serial;
         var interFrameDelayMs = configuration.GetOption("interFrameDelayMs", 0, 0, 60_000);
@@ -96,6 +165,8 @@ public static class ModbusClientFactory
             Timeout = configuration.Timeout,
             RetryCount = 0,
             RetryDelay = TimeSpan.Zero,
+            LogFrames = configuration.LogFrames,
+            Logger = logger,
             DiscardEcho = configuration.GetBooleanOption("discardEcho", false),
             InterFrameDelay = interFrameDelayMs > 0 ? TimeSpan.FromMilliseconds(interFrameDelayMs) : null,
             SerialPort = new SerialPortOptions

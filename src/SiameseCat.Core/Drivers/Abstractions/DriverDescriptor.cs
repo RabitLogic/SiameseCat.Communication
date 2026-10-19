@@ -15,6 +15,12 @@ public enum TransportKind
 
     /// <summary>UDP datagrams.</summary>
     Udp = 4,
+
+    /// <summary>
+    /// Transport supplied by <see cref="DriverConfiguration.TransportFactory"/>; the driver has no
+    /// built-in transport and only speaks its protocol over the injected <see cref="ITransport"/>.
+    /// </summary>
+    Custom = 8,
 }
 
 /// <summary>Static information about a driver, used for discovery and diagnostics.</summary>
@@ -27,13 +33,15 @@ public sealed class DriverDescriptor
     /// <param name="transports">Supported transports.</param>
     /// <param name="defaultPort">Default TCP/UDP port, or 0 when not applicable.</param>
     /// <param name="addressExamples">Examples of protocol-native addresses.</param>
+    /// <param name="capabilities">Capabilities implemented by the driver. Defaults to <see cref="DriverCapabilities.All"/>.</param>
     public DriverDescriptor(
         string id,
         string name,
         string description,
         TransportKind transports,
         int defaultPort = 0,
-        IReadOnlyList<string>? addressExamples = null)
+        IReadOnlyList<string>? addressExamples = null,
+        DriverCapabilities capabilities = DriverCapabilities.All)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -46,6 +54,7 @@ public sealed class DriverDescriptor
         Transports = transports;
         DefaultPort = defaultPort;
         AddressExamples = addressExamples ?? Array.Empty<string>();
+        Capabilities = capabilities;
     }
 
     /// <summary>Gets the stable identifier used for registration.</summary>
@@ -65,6 +74,9 @@ public sealed class DriverDescriptor
 
     /// <summary>Gets examples of protocol-native addresses.</summary>
     public IReadOnlyList<string> AddressExamples { get; }
+
+    /// <summary>Gets the capabilities implemented by the driver.</summary>
+    public DriverCapabilities Capabilities { get; }
 
     /// <summary>Returns a short description of the driver.</summary>
     public override string ToString() => $"{Id} ({Name})";

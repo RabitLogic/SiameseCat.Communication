@@ -44,7 +44,7 @@ SiameseCat.Core（契约层）
 关键原则：
 
 - **传输层与协议层解耦**：`ITransport` 只提供 `open / close / send / recv / discard`；协议驱动通过构造参数接收传输，因此 Modbus RTU 与 TCP 共用同一套 PDU 逻辑，S7 的 ISO-TP 层也不依赖具体 TCP 实现。
-- **能力分离**：没有几十个方法的 `IDriver`，而是 `IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` / `ISubscribable` / `IHealthCheckable`，驱动按需实现。
+- **能力分离**：没有几十个方法的 `IDriver`，而是 `IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` / `ISubscribable` / `IHealthCheckable`，驱动按需实现，并在 `DriverDescriptor.Capabilities` 中声明；`DriverBase` 在调用前校验，越界调用直接抛 `NotSupportedException`。
 - **两层地址模型**：用户写协议原生地址（`40001`、`DB1.DBD0`），由 `IPlcAddressParser` 解析为 `{ Region, Offset, BitOffset?, DataType, Length }`；上层只操作 `PlcAddress`。
 - **模板方法**：状态机、事务锁、超时、重试、重连、指标都在 `DriverBase`，驱动只实现 `DoConnectAsync` / `DoReadAsync` / `DoWriteAsync`（可选 `DoReadBatchAsync`）。`DriverBase` 按职责拆成 5 个分部文件：`DriverBase.cs`（契约与读写 API）、`.Lifecycle.cs`（连接状态机）、`.Execution.cs`（超时/重试/重连管线）、`.Health.cs`（`PingAsync` / Keep-Alive）、`.Subscription.cs`（轮询订阅）。
 - **插件式注册**：`DriverRegistry` 按 id 注册 `IPlcDriverFactory`，核心库不硬编码任何协议；AOT 场景使用显式注册，非 AOT 场景可用 `RegisterFromAssembly` 扫描。
@@ -80,6 +80,7 @@ configuration.Options["slot"] = "1";
 | `encoding` | siemens | `ascii` / `utf8` / `latin1` | `latin1` | S7 `STRING` 编码 |
 | `swapBytes` | modbus、inovance | `true` / `false` | `false` | 寄存器内字节交换（字符串/原始字节） |
 | `interFrameDelayMs` | modbus（RTU） | 0–60000 | 自动 | 帧间静默间隔；0 表示按波特率计算 |
+| `framing` | modbus（Custom 传输） | `tcp` / `rtu` | `tcp` | 自定义传输上的 Modbus 组帧方式 |
 | `discardEcho` | modbus（RTU） | `true` / `false` | `false` | 丢弃 RS-485 转换器回显 |
 | `rack` / `slot` | siemens | 0–7 / 0–31 | 0 / 1 | S7 机架与槽位 |
 | `dBase` / `mBase` / `xBase` / `yBase` | inovance | 0–65535 | 0 / 0 / 0 / 8192 | 软元件到 Modbus 区域的基址 |
@@ -98,6 +99,9 @@ configuration.Options["slot"] = "1";
 | `ProbeAddress` | 空 | 健康探针地址；`PingAsync` 与 Keep-Alive 使用 |
 | `KeepAliveInterval` | `0`（关闭） | 后台探针间隔 |
 | `KeepAliveFailureThreshold` | 2 | 连续失败多少次触发自动重连 |
+| `TransportFactory` | 空 | 注入 `ITransport` 来源；设置后驱动不再自己创建传输（`TransportKind.Custom` 时必须设置） |
+| `RequestLock` | 空 | 共享请求锁；多站共用一条物理链路时设置同一个实例 |
+| `LogFrames` | `false` | 在 `Trace` 级别输出收发帧 hex，用于现场排障 |
 
 ### 使用驱动
 
@@ -159,6 +163,55 @@ await using var subscription = await driver.SubscribeAsync(
 
 Console.WriteLine(driver.Metrics.Snapshot());
 ```
+
+### 复用与共享传输（RS-485 多站）
+
+默认情况下驱动自己创建传输（TCP 连接或串口）。设置 `TransportFactory` 后驱动改用它提供的 `ITransport`，于是可以复用已有链路、把协议塞进自定义隧道，或者让一条 RS-485 总线上的多个站共用一个串口：
+
+```csharp
+using SiameseCat.Core;
+using SiameseCat.Transport;
+
+// 一条物理链路 + 一把共享请求锁
+await using var link = new SharedTransportFactory(() => new SerialPortTransport(new SerialPortOptions
+{
+    PortName = "COM3",
+    BaudRate = 19200,
+}));
+
+foreach (var station in new byte[] { 1, 2, 3 })
+{
+    var configuration = new DriverConfiguration
+    {
+        Transport = TransportKind.Custom,          // 由工厂提供字节流
+        TransportFactory = link,
+        RequestLock = link.RequestLock,            // 多站必须共享，避免帧交错
+        Timeout = TimeSpan.FromSeconds(1),
+    };
+    configuration.Options["framing"] = "rtu";      // Custom 传输的 Modbus 组帧：rtu / tcp
+    configuration.Options["unitId"] = station.ToString();
+
+    await using var driver = registry.Create("modbus", configuration);
+    // ConnectAsync / ReadAsync / WriteAsync 与普通驱动一致
+}
+```
+
+- `TransportKind.Custom` 表示「字节流由 `TransportFactory` 提供」，驱动不再自己开端口；Modbus 用 `framing` 选项决定 MBAP（`tcp`）还是 RTU 组帧，S7 固定使用它自己的 TPKT 组帧。
+- 只共享 `TransportFactory`、不共享 `RequestLock` 会让两个站的请求帧交错，务必两者一起设置；`SharedTransportFactory.RequestLock` 就是为此准备的。
+- 不想共享时也可以让工厂每次返回新传输，用于复用已有连接或自建隧道。
+- `LogFrames = true` 会把每一帧以 `Trace` 级别写到 `IPlcLogger`（hex），现场排障时打开即可，例如输出 `modbus/1 TX 01 03 00 00 00 02 C4 0B`、`RX 01 03 04 00 64 00 C8 ...`。
+
+### 能力声明与可选钩子
+
+驱动在 `DriverDescriptor.Capabilities` 里声明自己支持哪些能力，`DriverBase` 会在调用前校验，越界调用直接抛 `NotSupportedException`：
+
+```csharp
+new DriverDescriptor(
+    "sensor", "Sensor", "只读采集器", TransportKind.Serial,
+    capabilities: DriverCapabilities.Read | DriverCapabilities.Health);
+```
+
+只读驱动不再需要写一个「抛异常」的 `DoWriteAsync`：`DoReadAsync` / `DoWriteAsync` 是可以不重写的虚方法，默认就抛 `NotSupportedException`。订阅同样是可选的——重写 `DoSubscribeAsync` 就能接入协议原生订阅，返回 `null`（默认）时自动回退到轮询。
 
 ### 单次调用超时
 
@@ -228,23 +281,37 @@ public sealed class MyProtocolFactory : IPlcDriverFactory
         new MyProtocolDriver(configuration, logger, metrics);
 }
 
+// 只读驱动：声明能力 + 只实现 DoConnect / DoRead，写和批量钩子都不用写
 public sealed class MyProtocolDriver : DriverBase
 {
     public MyProtocolDriver(DriverConfiguration configuration, IPlcLogger? logger, PlcMetrics? metrics)
-        : base(MyProtocolFactory.DefaultDescriptor, new MyAddressParser(), configuration, logger, metrics)
+        : base(
+            new DriverDescriptor(
+                "myplc", "My PLC", "Custom protocol", TransportKind.Tcp, 5000,
+                capabilities: DriverCapabilities.Read | DriverCapabilities.Subscribe),
+            new MyAddressParser(),
+            configuration,
+            logger,
+            metrics)
     {
     }
 
     protected override Task DoConnectAsync(CancellationToken ct) => /* open transport */ Task.CompletedTask;
     protected override Task DoDisconnectAsync() => /* close transport */ Task.CompletedTask;
     protected override Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken ct) => /* read */ throw new NotImplementedException();
-    protected override Task DoWriteAsync(PlcAddress address, PlcValue value, CancellationToken ct) => /* write */ Task.CompletedTask;
+
+    // 可选：接入协议原生订阅；不重写则自动回退到轮询 DoReadAsync
+    protected override Task<IAsyncDisposable?> DoSubscribeAsync(
+        PlcAddress address,
+        TimeSpan interval,
+        Func<PlcValue, Task> onChanged,
+        CancellationToken ct) => /* subscribe */ Task.FromResult<IAsyncDisposable?>(null);
 }
 
 registry.Register(new MyProtocolFactory());
 ```
 
-新增协议只需实现契约并注册，**不需要修改核心库**。
+`DoReadAsync` / `DoWriteAsync` / `DoReadBatchAsync` / `DoWriteBatchAsync` / `DoSubscribeAsync` 都是可重写的虚方法，默认实现要么回退到更基础的操作，要么抛 `NotSupportedException`；配合 `DriverCapabilities`，只读或只写驱动不需要写任何「不支持」的空实现。新增协议仍然只需实现契约并注册，**不需要修改核心库**。
 
 ## 功能
 
@@ -259,6 +326,8 @@ registry.Register(new MyProtocolFactory());
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
 | SerialPort | 原始串口传输，可配置波特率、校验位、数据位、停止位、流控 |
 | 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求 |
+| 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
+| 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
@@ -406,7 +475,7 @@ dotnet add package SiameseCat.Hosting  # 可选：Microsoft.Extensions.Logging +
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
 
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
+`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
 
 | RID | 格式 | 交叉工具链 |
 | --- | --- | --- |

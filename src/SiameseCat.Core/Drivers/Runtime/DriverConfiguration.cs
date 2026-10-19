@@ -17,6 +17,26 @@ public sealed class DriverConfiguration
     /// <summary>Gets or sets the serial port settings, used when <see cref="Transport"/> is <see cref="TransportKind.Serial"/>.</summary>
     public SerialSettings Serial { get; set; } = new();
 
+    /// <summary>
+    /// Gets or sets a factory that supplies the transport. When set, the driver no longer creates its
+    /// own transport, which makes it possible to reuse an existing link or to share one physical port
+    /// between several drivers. Use <see cref="TransportKind.Custom"/> when the link is not TCP, UDP or serial.
+    /// </summary>
+    public ITransportFactory? TransportFactory { get; set; }
+
+    /// <summary>
+    /// Gets or sets a lock shared by every driver that uses the same physical link. Drivers serialize
+    /// their own requests by default; assign the same instance to all stations of a multi-drop bus so
+    /// request/response frames do not interleave.
+    /// </summary>
+    public RequestLock? RequestLock { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether every transport frame is written to <see cref="IPlcLogger"/>
+    /// at <see cref="PlcLogLevel.Trace"/>. Useful for field diagnostics; keep it off on hot paths.
+    /// </summary>
+    public bool LogFrames { get; set; }
+
     /// <summary>Gets or sets the per-request timeout. Defaults to 3 seconds.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(3);
 
@@ -162,6 +182,13 @@ public sealed class DriverConfiguration
             throw new ArgumentException("A transport kind must be specified.", nameof(Transport));
         }
 
+        if (Transport == TransportKind.Custom && TransportFactory is null)
+        {
+            throw new ArgumentException(
+                "TransportFactory must be set when the transport kind is Custom.",
+                nameof(TransportFactory));
+        }
+
         if (Timeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(Timeout), Timeout, "Timeout must be greater than zero.");
@@ -208,6 +235,11 @@ public sealed class DriverConfiguration
             throw new ArgumentException(
                 "A ProbeAddress is required when KeepAliveInterval is enabled.",
                 nameof(ProbeAddress));
+        }
+
+        if (TransportFactory is not null)
+        {
+            return;
         }
 
         if (Transport is TransportKind.Tcp or TransportKind.Udp)

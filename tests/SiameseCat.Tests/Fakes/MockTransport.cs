@@ -25,6 +25,8 @@ internal sealed class MockTransport : ITransport
 
     public int CloseCount { get; private set; }
 
+    public bool Disposed { get; private set; }
+
     public Func<byte[], byte[]>? ResponseFactory { get; set; }
 
     public void EnqueueResponse(params byte[] data) => _responses.Enqueue(data);
@@ -95,6 +97,7 @@ internal sealed class MockTransport : ITransport
     public ValueTask DisposeAsync()
     {
         IsOpen = false;
+        Disposed = true;
         return ValueTask.CompletedTask;
     }
 }

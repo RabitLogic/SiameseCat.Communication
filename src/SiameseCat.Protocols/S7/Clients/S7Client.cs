@@ -38,6 +38,14 @@ public sealed partial class S7Client : IAsyncDisposable
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
+
+        if (options.LogFrames)
+        {
+            _transport = new LoggingTransport(
+                _transport,
+                options.Logger ?? NullPlcLogger.Instance,
+                "S7Client");
+        }
     }
 
     /// <summary>Gets whether the underlying transport is currently connected.</summary>

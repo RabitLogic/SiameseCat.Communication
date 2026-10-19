@@ -32,7 +32,7 @@ public sealed class ModbusDriverFactory : IPlcDriverFactory
         var unitId = ModbusClientFactory.GetUnitId(configuration);
         var encoding = ModbusClientFactory.GetEncoding(configuration);
         var swapBytes = ModbusClientFactory.GetSwapBytes(configuration);
-        var client = ModbusClientFactory.Create(configuration, unitId, DefaultDescriptor.DefaultPort);
+        var client = ModbusClientFactory.Create(configuration, unitId, DefaultDescriptor.DefaultPort, logger);
 
         return new ModbusDriver(client, configuration, unitId, encoding, swapBytes, logger, metrics);
     }

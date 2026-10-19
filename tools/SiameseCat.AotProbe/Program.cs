@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
@@ -40,6 +41,7 @@ internal static class Program
         failures += await CheckAsync("TCP transport loopback", CheckTcpAsync);
         failures += await CheckAsync("Modbus TCP round trip", CheckModbusTcpAsync);
         failures += await CheckAsync("Pluggable driver contract", CheckPlcDriverAsync);
+        failures += await CheckAsync("Transport injection", CheckTransportInjectionAsync);
         failures += await CheckAsync("Logging integration", CheckLoggingAsync);
 
         Console.WriteLine();
@@ -293,6 +295,52 @@ internal static class Program
 
         Ensure(inovanceDriver.AddressParser.Parse("D100").Offset == 100, "Inovance address parsing failed.");
         Ensure(inovanceDriver.AddressParser.Parse("Y10").Offset == 8200, "Inovance Y base mapping failed.");
+    }
+
+    private static async Task CheckTransportInjectionAsync()
+    {
+        await using var slave = new ModbusTcpSlave();
+        slave.Start();
+
+        await using var factory = new SharedTransportFactory(() => new TcpTransport(new TcpTransportOptions
+        {
+            Host = "127.0.0.1",
+            Port = slave.Port,
+            ConnectTimeout = TimeSpan.FromSeconds(2),
+        }));
+
+        await using var firstDriver = CreateSharedDriver(factory, unitId: 1);
+        await using var secondDriver = CreateSharedDriver(factory, unitId: 2);
+
+        Ensure(
+            (firstDriver.Descriptor.Capabilities & DriverCapabilities.Read) != 0,
+            "Driver capabilities were not declared.");
+
+        await firstDriver.ConnectAsync().ConfigureAwait(false);
+        await secondDriver.ConnectAsync().ConfigureAwait(false);
+
+        var first = await ((IReadable)firstDriver)
+            .ReadAsync(firstDriver.AddressParser.Parse("40001")).ConfigureAwait(false);
+        var second = await ((IReadable)secondDriver)
+            .ReadAsync(secondDriver.AddressParser.Parse("40002")).ConfigureAwait(false);
+
+        Ensure(first.AsUInt16() == 100 && second.AsUInt16() == 200, "Shared transport read failed.");
+    }
+
+    private static IPlcDriver CreateSharedDriver(SharedTransportFactory factory, byte unitId)
+    {
+        var configuration = new DriverConfiguration
+        {
+            Transport = TransportKind.Custom,
+            TransportFactory = factory,
+            RequestLock = factory.RequestLock,
+            Timeout = TimeSpan.FromSeconds(2),
+            LogFrames = true,
+        };
+        configuration.Options["unitId"] = unitId.ToString(CultureInfo.InvariantCulture);
+        configuration.Options["framing"] = "tcp";
+
+        return DriverRegistryExtensions.CreateDefaultRegistry().Create("modbus", configuration);
     }
 
     private static Task CheckLoggingAsync()

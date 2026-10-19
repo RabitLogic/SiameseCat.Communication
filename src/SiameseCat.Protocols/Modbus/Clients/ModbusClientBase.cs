@@ -21,6 +21,14 @@ public abstract class ModbusClientBase : IAsyncDisposable
         Options = options ?? throw new ArgumentNullException(nameof(options));
         Options.Validate();
         DefaultUnitId = options.UnitId;
+
+        if (options.LogFrames)
+        {
+            Transport = new LoggingTransport(
+                Transport,
+                options.Logger ?? NullPlcLogger.Instance,
+                $"{GetType().Name}/{options.UnitId}");
+        }
     }
 
     /// <summary>Gets the transport used to exchange Modbus frames.</summary>

@@ -31,7 +31,7 @@ public sealed class InovanceDriverFactory : IPlcDriverFactory
         var encoding = ModbusClientFactory.GetEncoding(configuration);
         var swapBytes = ModbusClientFactory.GetSwapBytes(configuration);
         var mapping = InovanceMapping.FromConfiguration(configuration);
-        var client = ModbusClientFactory.Create(configuration, unitId, DefaultDescriptor.DefaultPort);
+        var client = ModbusClientFactory.Create(configuration, unitId, DefaultDescriptor.DefaultPort, logger);
 
         return new InovanceDriver(client, configuration, unitId, mapping, encoding, swapBytes, logger, metrics);
     }

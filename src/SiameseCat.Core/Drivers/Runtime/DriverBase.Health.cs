@@ -6,6 +6,7 @@ public abstract partial class DriverBase
     public async Task<bool> PingAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        EnsureCapability(DriverCapabilities.Health);
 
         var probe = Configuration.ProbeAddress;
         if (string.IsNullOrWhiteSpace(probe))

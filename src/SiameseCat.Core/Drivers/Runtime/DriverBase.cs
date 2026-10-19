@@ -7,7 +7,8 @@ namespace SiameseCat.Core;
 /// </summary>
 public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBatchReadable, IBatchWritable, ISubscribable, IHealthCheckable
 {
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly RequestLock _gate;
+    private readonly bool _ownsGate;
     private readonly CancellationTokenSource _disposeCts = new();
     private DriverState _state = DriverState.Disconnected;
     private CancellationTokenSource? _keepAliveCts;
@@ -33,6 +34,15 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         Configuration.Validate();
         Logger = logger ?? NullPlcLogger.Instance;
         Metrics = metrics ?? new PlcMetrics();
+        _gate = configuration.RequestLock ?? new RequestLock();
+        _ownsGate = configuration.RequestLock is null;
+
+        if (Configuration.KeepAliveInterval > TimeSpan.Zero
+            && (Descriptor.Capabilities & DriverCapabilities.Health) == 0)
+        {
+            throw new InvalidOperationException(
+                $"Driver '{Descriptor.Id}' declares no health capability, so KeepAliveInterval cannot be enabled.");
+        }
     }
 
     /// <inheritdoc/>
@@ -72,6 +82,8 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
+        EnsureCapability(DriverCapabilities.Read);
+
         var value = await ExecuteAsync(
             token => DoReadAsync(address, token),
             isWrite: false,
@@ -106,6 +118,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
+        EnsureCapability(DriverCapabilities.Write);
         ValidateAddress(address);
         await ExecuteAsync(
             async token =>
@@ -146,6 +159,8 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
         {
             return Array.Empty<PlcValue>();
         }
+
+        EnsureCapability(DriverCapabilities.BatchRead);
 
         var values = await ExecuteAsync(
             token => DoReadBatchAsync(addresses, token),
@@ -188,6 +203,8 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
             return;
         }
 
+        EnsureCapability(DriverCapabilities.BatchWrite);
+
         foreach (var request in requests)
         {
             ValidateAddress(request.Address);
@@ -222,13 +239,23 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// <summary>Reads one value.</summary>
     /// <param name="address">Address to read.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken);
+    /// <exception cref="NotSupportedException">
+    /// The driver does not read. Override the method, or declare <see cref="DriverCapabilities.Read"/>
+    /// in the descriptor and implement it.
+    /// </exception>
+    protected virtual Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken) =>
+        throw new NotSupportedException($"Driver '{Descriptor.Id}' does not support reads.");
 
     /// <summary>Writes one value.</summary>
     /// <param name="address">Address to write.</param>
     /// <param name="value">Value to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task DoWriteAsync(PlcAddress address, PlcValue value, CancellationToken cancellationToken);
+    /// <exception cref="NotSupportedException">
+    /// The driver does not write. Override the method, or declare <see cref="DriverCapabilities.Write"/>
+    /// in the descriptor and implement it.
+    /// </exception>
+    protected virtual Task DoWriteAsync(PlcAddress address, PlcValue value, CancellationToken cancellationToken) =>
+        throw new NotSupportedException($"Driver '{Descriptor.Id}' does not support writes.");
 
     /// <summary>
     /// Reads several values. The default implementation reads them one by one; protocols with native

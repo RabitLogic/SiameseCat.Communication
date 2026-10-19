@@ -117,7 +117,11 @@ public abstract partial class DriverBase
 
         await AwaitKeepAliveAsync(keepAlive).ConfigureAwait(false);
         await DisposeCoreAsync().ConfigureAwait(false);
-        _gate.Dispose();
+        if (_ownsGate)
+        {
+            _gate.Dispose();
+        }
+
         _disposeCts.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -134,6 +138,18 @@ public abstract partial class DriverBase
 
         _state = state;
         StateChanged?.Invoke(this, new DriverStateChangedEventArgs(previous, state));
+    }
+
+    /// <summary>Verifies that the driver declares a capability before the request is sent.</summary>
+    /// <param name="capability">Required capability.</param>
+    /// <exception cref="NotSupportedException">The descriptor does not declare the capability.</exception>
+    protected void EnsureCapability(DriverCapabilities capability)
+    {
+        if ((Descriptor.Capabilities & capability) != capability)
+        {
+            throw new NotSupportedException(
+                $"Driver '{Descriptor.Id}' does not declare the '{capability}' capability.");
+        }
     }
 
     private void EnsureConnected()

@@ -33,20 +33,52 @@ internal sealed partial class MockAddressParser : IPlcAddressParser
     private static partial Regex Pattern();
 }
 
+/// <summary>Counts how many operations run at the same time across drivers that share it.</summary>
+internal sealed class ConcurrencyProbe
+{
+    private int _active;
+
+    public int MaxActive { get; private set; }
+
+    public void Enter()
+    {
+        var active = Interlocked.Increment(ref _active);
+        if (active > MaxActive)
+        {
+            MaxActive = active;
+        }
+    }
+
+    public void Exit() => Interlocked.Decrement(ref _active);
+}
+
 /// <summary>In-memory driver used to validate the driver contract without a real protocol.</summary>
 internal sealed class MockDriver : DriverBase
 {
     private readonly Dictionary<PlcAddress, PlcValue> _store = new();
 
-    public MockDriver(DriverConfiguration? configuration = null, IPlcLogger? logger = null, PlcMetrics? metrics = null)
+    public MockDriver(
+        DriverConfiguration? configuration = null,
+        IPlcLogger? logger = null,
+        PlcMetrics? metrics = null,
+        DriverCapabilities capabilities = DriverCapabilities.All)
         : base(
-            new DriverDescriptor("mock", "Mock", "In-memory test driver", TransportKind.Tcp),
+            new DriverDescriptor(
+                "mock",
+                "Mock",
+                "In-memory test driver",
+                TransportKind.Tcp,
+                capabilities: capabilities),
             new MockAddressParser(),
             configuration ?? new DriverConfiguration(),
             logger,
             metrics)
     {
     }
+
+    public ConcurrencyProbe? Probe { get; set; }
+
+    public Func<PlcAddress, TimeSpan, Func<PlcValue, Task>, CancellationToken, Task<IAsyncDisposable?>>? SubscribeHandler { get; set; }
 
     public int ConnectCount { get; private set; }
 
@@ -88,15 +120,31 @@ internal sealed class MockDriver : DriverBase
     protected override async Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken)
     {
         ReadCount++;
+        Probe?.Enter();
 
-        if (ReadDelay > TimeSpan.Zero)
+        try
         {
-            await Task.Delay(ReadDelay, cancellationToken).ConfigureAwait(false);
-        }
+            if (ReadDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(ReadDelay, cancellationToken).ConfigureAwait(false);
+            }
 
-        CheckFailure();
-        return _store.TryGetValue(address, out var value) ? value : PlcValue.Null;
+            CheckFailure();
+            return _store.TryGetValue(address, out var value) ? value : PlcValue.Null;
+        }
+        finally
+        {
+            Probe?.Exit();
+        }
     }
+
+    protected override Task<IAsyncDisposable?> DoSubscribeAsync(
+        PlcAddress address,
+        TimeSpan interval,
+        Func<PlcValue, Task> onChanged,
+        CancellationToken cancellationToken) =>
+        SubscribeHandler?.Invoke(address, interval, onChanged, cancellationToken)
+        ?? Task.FromResult<IAsyncDisposable?>(null);
 
     protected override Task DoWriteAsync(
         PlcAddress address,

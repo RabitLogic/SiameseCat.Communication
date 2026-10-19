@@ -25,6 +25,10 @@
 - **S7 位数组写**：新增 `S7Client.WriteBitsAsync(startAddress, bool[])`，连续位一次多变量写请求，自动按 PDU 分块，可跨字节边界；`S7Address.AddBits` 提供位地址推进。
 - **指标增强**：`PlcMetrics` 按操作（读 / 写 / 批量读 / 批量写 / 读写 / 健康探针）分别计数，延迟提供 `P50` / `P95` / `Max`（64 桶对数直方图，误差 ≤ 19%，无分配），失败按超时 / 连接断开 / 协议错误 / 其它分类；新增 `PlcDiagnostics`，通过 BCL 的 `System.Diagnostics.Metrics` 发布 `plc.requests`、`plc.failures`、`plc.retries`、`plc.bytes.*`、`plc.latency`（计量器名 `SiameseCat`），可直接由 OpenTelemetry 订阅。
 - **单次调用超时**：`IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` 新增带 `TimeSpan timeout` 的重载，可按调用覆盖 `Timeout`，适合大块数据读取或慢点位快速失败。
+- **传输注入与共享链路**：`DriverConfiguration.TransportFactory`（`ITransportFactory`）+ `TransportKind.Custom` 让驱动改用外部传输——复用已有连接、把协议塞进自定义隧道，或让一条 RS-485 总线上的多个站共用一个串口；`SharedTransportFactory` + `RequestLock` 保证多站请求不交错，`DriverConfiguration.Validate()` 在 `Custom` 缺少工厂时直接报错，Modbus 用 `framing` 选项（`tcp` / `rtu`）决定自定义传输上的组帧方式。
+- **能力声明**：`DriverDescriptor.Capabilities`（`Read` / `Write` / `BatchRead` / `BatchWrite` / `Subscribe` / `Health`，默认 `All`），`DriverBase` 在读、写、批量、订阅、探针入口校验；`DoReadAsync` / `DoWriteAsync` 改为可重写虚方法（默认抛 `NotSupportedException`），只读/只写驱动不再需要空实现；启用 Keep-Alive 但未声明 `Health` 时在构造期报错。
+- **原生订阅钩子**：新增 `protected virtual DoSubscribeAsync`，返回句柄即走协议原生订阅，返回 `null`（默认）时沿用轮询；订阅句柄释放时同时取消轮询并释放原生订阅。
+- **帧日志**：`LogFrames = true` 时协议客户端用 `LoggingTransport` 包装传输，以 `Trace` 级别输出 `TX` / `RX` 帧 hex（`CommunicationOptions.Logger` / `LogFrames`，AOT 友好、无反射）。
 - **宿主集成包**（`SiameseCat.Hosting`，可选）：`MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，AOT 友好）；`AddSiameseCat()` 注册 `DriverRegistry` 与日志适配器，`AddSiameseCatDriver(id, configure)` 以 keyed transient 方式解析驱动。
 - **重试与恢复**：请求与建连都按瞬时错误重试，退避为 `RetryDelay × 2^(n-1)`（上限 `MaxRetryDelay`，默认带 50–100% 抖动）；可选 Keep-Alive 探针在连续失败后自动重连，`PingAsync` 提供只返回布尔值的健康检查。
 - **批量写**：`IBatchWritable.WriteBatchAsync(IReadOnlyList<PlcWriteRequest>)`；Modbus 合并连续保持寄存器为 FC16、连续线圈为 FC15，S7 使用多变量写请求并按协商 PDU 自动分块。
@@ -57,4 +61,4 @@
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 252 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 269 个。

@@ -28,7 +28,7 @@ public sealed class SiemensDriverFactory : IPlcDriverFactory
         ArgumentNullException.ThrowIfNull(configuration);
         configuration.Validate();
 
-        if (configuration.Transport != TransportKind.Tcp)
+        if (configuration.Transport is not (TransportKind.Tcp or TransportKind.Custom))
         {
             throw new NotSupportedException(
                 $"S7 driver supports only the Tcp transport, not '{configuration.Transport}'.");
@@ -46,9 +46,16 @@ public sealed class SiemensDriverFactory : IPlcDriverFactory
             RetryCount = 0,
             RetryDelay = TimeSpan.Zero,
             StringEncoding = encoding,
+            LogFrames = configuration.LogFrames,
+            Logger = logger,
         };
 
-        return new SiemensDriver(new S7Client(options), configuration, encoding, logger, metrics);
+        var transport = configuration.TransportFactory?.Create(configuration);
+        var client = transport is null
+            ? new S7Client(options)
+            : new S7Client(transport, options);
+
+        return new SiemensDriver(client, configuration, encoding, logger, metrics);
     }
 
     private static Encoding ParseEncoding(string? name) => name?.ToUpperInvariant() switch
