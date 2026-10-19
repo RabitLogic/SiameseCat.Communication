@@ -919,6 +919,7 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 - 诊断类功能码：`07` 读异常状态（`Data.ExceptionStatus`，应用可随时修改）、`0B` 读通信事件计数（`Data.EventCount`，每次成功写入递增）、`11` 报表服务器标识（`ServerIdentifier` + `RunIndicator`）、`16` 掩码写保持寄存器（`(当前值 AND andMask) OR (orMask AND NOT andMask)`）。
 - 单元号原样回显，一个从站可服务多个站号；单元号 `0` 视为广播，写请求生效但不返回响应（与客户端广播模式配套）。
 - 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
+- 每个会话复用请求/响应缓冲区，PDU 处理器直接写入该缓冲区，服务端处理一次请求不再分配帧内存（见[性能说明](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md#performance-notes)）。
 - `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
 
 ### 可观测性（统计与日志）

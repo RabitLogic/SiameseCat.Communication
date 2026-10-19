@@ -163,6 +163,10 @@ public sealed class S7Server : IS7Server
 
     private async Task ServeAsync(TcpClient client, CancellationToken token)
     {
+        var header = new byte[4];
+        var body = new byte[4096];
+        var frame = new byte[4096];
+
         try
         {
             using (client)
@@ -171,7 +175,6 @@ public sealed class S7Server : IS7Server
 
                 while (!token.IsCancellationRequested)
                 {
-                    var header = new byte[4];
                     if (!await ReadExactlyAsync(stream, header, token).ConfigureAwait(false))
                     {
                         return;
@@ -192,27 +195,28 @@ public sealed class S7Server : IS7Server
                         return;
                     }
 
-                    var body = new byte[length - 4];
-                    if (!await ReadExactlyAsync(stream, body, token).ConfigureAwait(false))
+                    if (!await ReadExactlyAsync(
+                        stream,
+                        body.AsMemory(0, length - 4),
+                        token).ConfigureAwait(false))
                     {
                         Statistics.RecordDiscardedFrame();
                         return;
                     }
 
-                    var response = HandleBody(body);
-                    if (response is null)
+                    var payloadLength = HandleBody(body.AsSpan(0, length - 4), frame);
+                    if (payloadLength == 0)
                     {
                         continue;
                     }
 
-                    var frame = new byte[4 + response.Length];
+                    var total = 4 + payloadLength;
                     frame[0] = TpktVersion;
                     frame[1] = 0x00;
-                    frame[2] = (byte)(frame.Length >> 8);
-                    frame[3] = (byte)frame.Length;
-                    response.CopyTo(frame, 4);
+                    frame[2] = (byte)(total >> 8);
+                    frame[3] = (byte)total;
 
-                    await stream.WriteAsync(frame, token).ConfigureAwait(false);
+                    await stream.WriteAsync(frame.AsMemory(0, total), token).ConfigureAwait(false);
                 }
             }
         }
@@ -232,44 +236,36 @@ public sealed class S7Server : IS7Server
         }
     }
 
-    private byte[]? HandleBody(byte[] body)
+    private int HandleBody(ReadOnlySpan<byte> body, Span<byte> frame)
     {
         if (body.Length < 2)
         {
             Statistics.RecordDiscardedFrame();
-            return null;
+            return 0;
         }
 
         if (body[1] == CotpConnectionRequest)
         {
-            return BuildConnectionConfirm();
+            ConnectionConfirm.CopyTo(frame.Slice(4));
+            return ConnectionConfirm.Length;
         }
 
         if (body[1] != CotpDataTransfer || body.Length < 3)
         {
             Statistics.RecordDiscardedFrame();
             _options.Logger?.Warning($"S7 slave dropped a COTP frame of type 0x{body[1]:X2}.");
-            return null;
+            return 0;
         }
 
-        var pdu = new byte[body.Length - 3];
-        Array.Copy(body, 3, pdu, 0, pdu.Length);
+        frame[4] = 0x02;
+        frame[5] = CotpDataTransfer;
+        frame[6] = 0x80;
 
-        var response = _processor.Process(pdu);
-        if (response is null)
-        {
-            return null;
-        }
-
-        var framed = new byte[3 + response.Length];
-        framed[0] = 0x02;
-        framed[1] = CotpDataTransfer;
-        framed[2] = 0x80;
-        response.CopyTo(framed, 3);
-        return framed;
+        var written = _processor.Process(body.Slice(3), frame.Slice(7));
+        return written == 0 ? 0 : 3 + written;
     }
 
-    private static byte[] BuildConnectionConfirm() => new byte[]
+    private static readonly byte[] ConnectionConfirm =
     {
         0x11, CotpConnectionConfirm, 0x00, 0x01, 0x00, 0x01, 0x00,
         0xC0, 0x01, 0x0A,
@@ -277,12 +273,15 @@ public sealed class S7Server : IS7Server
         0xC2, 0x02, 0x01, 0x01,
     };
 
-    private static async Task<bool> ReadExactlyAsync(NetworkStream stream, byte[] buffer, CancellationToken token)
+    private static async Task<bool> ReadExactlyAsync(NetworkStream stream, byte[] buffer, CancellationToken token) =>
+        await ReadExactlyAsync(stream, buffer.AsMemory(), token).ConfigureAwait(false);
+
+    private static async Task<bool> ReadExactlyAsync(NetworkStream stream, Memory<byte> buffer, CancellationToken token)
     {
         var offset = 0;
         while (offset < buffer.Length)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset), token).ConfigureAwait(false);
+            var read = await stream.ReadAsync(buffer.Slice(offset), token).ConfigureAwait(false);
             if (read <= 0)
             {
                 return false;

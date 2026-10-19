@@ -115,6 +115,27 @@ public sealed class S7DataStore
         }
     }
 
+    /// <summary>Reads bytes into a caller-provided buffer.</summary>
+    /// <param name="area">Memory area.</param>
+    /// <param name="dbNumber">Data block number (ignored for M/I/Q areas).</param>
+    /// <param name="start">First byte offset.</param>
+    /// <param name="destination">Destination buffer; its length is the byte count.</param>
+    /// <returns><see langword="false"/> when the area or range does not exist.</returns>
+    internal bool TryCopyBytes(S7Area area, int dbNumber, int start, Span<byte> destination)
+    {
+        lock (_sync)
+        {
+            var buffer = Resolve(area, dbNumber);
+            if (buffer is null || !Fits(start, destination.Length, buffer.Length))
+            {
+                return false;
+            }
+
+            buffer.AsSpan(start, destination.Length).CopyTo(destination);
+            return true;
+        }
+    }
+
     /// <summary>Writes bytes into an area.</summary>
     /// <param name="area">Memory area.</param>
     /// <param name="dbNumber">Data block number (ignored for M/I/Q areas).</param>
@@ -124,6 +145,7 @@ public sealed class S7DataStore
     public bool TryWriteBytes(S7Area area, int dbNumber, int start, ReadOnlySpan<byte> values)
     {
         S7WriteEventArgs? args = null;
+        var handler = Written;
         lock (_sync)
         {
             var buffer = Resolve(area, dbNumber);
@@ -134,17 +156,24 @@ public sealed class S7DataStore
 
             if (values.Length > 0)
             {
-                var written = values.ToArray();
-                var previous = new byte[written.Length];
-                Array.Copy(buffer, start, previous, 0, written.Length);
-                written.CopyTo(buffer, start);
-                args = new S7WriteEventArgs(area, dbNumber, start, written, previous);
+                if (handler is null)
+                {
+                    values.CopyTo(buffer.AsSpan(start, values.Length));
+                }
+                else
+                {
+                    var written = values.ToArray();
+                    var previous = new byte[written.Length];
+                    Array.Copy(buffer, start, previous, 0, written.Length);
+                    written.CopyTo(buffer, start);
+                    args = new S7WriteEventArgs(area, dbNumber, start, written, previous);
+                }
             }
         }
 
         if (args is not null)
         {
-            Written?.Invoke(this, args);
+            handler!.Invoke(this, args);
         }
 
         return true;
@@ -181,6 +210,7 @@ public sealed class S7DataStore
     public bool TryWriteBit(S7Area area, int dbNumber, int bitAddress, bool value)
     {
         S7WriteEventArgs? args = null;
+        var handler = Written;
         lock (_sync)
         {
             var buffer = Resolve(area, dbNumber);
@@ -193,15 +223,22 @@ public sealed class S7DataStore
             var mask = (byte)(1 << (bitAddress % 8));
             var previous = buffer[index];
             buffer[index] = value ? (byte)(previous | mask) : (byte)(previous & ~mask);
-            args = new S7WriteEventArgs(
-                area,
-                dbNumber,
-                index,
-                new[] { buffer[index] },
-                new[] { previous });
+            if (handler is not null)
+            {
+                args = new S7WriteEventArgs(
+                    area,
+                    dbNumber,
+                    index,
+                    new[] { buffer[index] },
+                    new[] { previous });
+            }
         }
 
-        Written?.Invoke(this, args);
+        if (args is not null)
+        {
+            handler!.Invoke(this, args);
+        }
+
         return true;
     }
 

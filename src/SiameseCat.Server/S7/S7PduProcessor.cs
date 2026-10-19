@@ -3,7 +3,10 @@ using SiameseCat.Protocols.S7;
 
 namespace SiameseCat.Server.S7;
 
-/// <summary>S7 PDU handling used by <see cref="S7Server"/>.</summary>
+/// <summary>
+/// S7 PDU handling used by <see cref="S7Server"/>.
+/// The response PDU is written into a caller-provided buffer so the serving loop reuses its memory.
+/// </summary>
 internal sealed class S7PduProcessor
 {
     private const byte ProtocolId = 0x32;
@@ -41,14 +44,16 @@ internal sealed class S7PduProcessor
     }
 
     /// <summary>Handles one S7 PDU (the body after TPKT and COTP).</summary>
-    /// <returns>The response PDU, or <see langword="null"/> when the frame is malformed or unsupported.</returns>
-    public byte[]? Process(byte[] pdu)
+    /// <param name="pdu">Request PDU, starting with the S7 protocol id.</param>
+    /// <param name="destination">Buffer for the response PDU (at least 300 bytes).</param>
+    /// <returns>Number of bytes written to <paramref name="destination"/>, or 0 when nothing must be sent.</returns>
+    public int Process(ReadOnlySpan<byte> pdu, Span<byte> destination)
     {
         if (pdu.Length < JobHeaderLength || pdu[0] != ProtocolId || pdu[1] != RosctrJob)
         {
             _statistics.RecordDiscardedFrame();
             _logger?.Warning("S7 slave dropped a frame with an unsupported COTP/S7 header.");
-            return null;
+            return 0;
         }
 
         var pduReference = ReadUInt16(pdu, 4);
@@ -59,157 +64,169 @@ internal sealed class S7PduProcessor
         {
             _statistics.RecordDiscardedFrame();
             _logger?.Warning("S7 slave dropped a frame that is shorter than its declared lengths.");
-            return null;
+            return 0;
         }
 
-        var parameter = new byte[parameterLength];
-        Array.Copy(pdu, JobHeaderLength, parameter, 0, parameterLength);
-        var data = new byte[dataLength];
-        Array.Copy(pdu, JobHeaderLength + parameterLength, data, 0, dataLength);
+        var parameter = pdu.Slice(JobHeaderLength, parameterLength);
+        var data = pdu.Slice(JobHeaderLength + parameterLength, dataLength);
 
         if (parameter.Length == 0)
         {
-            return BuildAck(pduReference, Array.Empty<byte>(), Array.Empty<byte>(), 0x81, 0x04);
+            return BuildError(destination, pduReference, 0x81, 0x04);
         }
 
         _statistics.RecordRequest();
 
-        switch (parameter[0])
+        return parameter[0] switch
         {
-            case FunctionSetupCommunication:
-                return SetupCommunication(pduReference);
-
-            case FunctionReadVar:
-                return ReadVariables(pduReference, parameter);
-
-            case FunctionWriteVar:
-                return WriteVariables(pduReference, parameter, data);
-
-            default:
-                _logger?.Warning($"S7 slave received unsupported function 0x{parameter[0]:X2}.");
-                return BuildAck(pduReference, Array.Empty<byte>(), Array.Empty<byte>(), 0x81, 0x04);
-        }
+            FunctionSetupCommunication => SetupCommunication(destination, pduReference),
+            FunctionReadVar => ReadVariables(destination, pduReference, parameter),
+            FunctionWriteVar => WriteVariables(destination, pduReference, parameter, data),
+            _ => LogUnsupported(destination, pduReference, parameter[0]),
+        };
     }
 
-    private byte[] SetupCommunication(ushort pduReference)
+    private int LogUnsupported(Span<byte> destination, ushort pduReference, byte function)
+    {
+        _logger?.Warning($"S7 slave received unsupported function 0x{function:X2}.");
+        return BuildError(destination, pduReference, 0x81, 0x04);
+    }
+
+    private int SetupCommunication(Span<byte> destination, ushort pduReference)
     {
         _statistics.RecordSetup();
+        WriteAckHeader(destination, pduReference, 8, 0);
 
-        var parameter = new byte[]
-        {
-            FunctionSetupCommunication,
-            0x00,
-            0x00,
-            0x01,
-            0x00,
-            0x01,
-            (byte)(_pduSize >> 8),
-            (byte)_pduSize,
-        };
-
-        return BuildAck(pduReference, parameter, Array.Empty<byte>());
+        var parameter = destination.Slice(AckDataHeaderLength, 8);
+        parameter[0] = FunctionSetupCommunication;
+        parameter[1] = 0x00;
+        parameter[2] = 0x00;
+        parameter[3] = 0x01;
+        parameter[4] = 0x00;
+        parameter[5] = 0x01;
+        parameter[6] = (byte)(_pduSize >> 8);
+        parameter[7] = (byte)_pduSize;
+        return AckDataHeaderLength + 8;
     }
 
-    private byte[] ReadVariables(ushort pduReference, byte[] parameter)
+    private int ReadVariables(Span<byte> destination, ushort pduReference, ReadOnlySpan<byte> parameter)
     {
         var count = parameter[1];
         if (count == 0 || parameter.Length < 2 + (count * VariableSpecificationLength))
         {
-            return BuildAck(pduReference, Array.Empty<byte>(), Array.Empty<byte>(), 0x81, 0x04);
+            return BuildError(destination, pduReference, 0x81, 0x04);
         }
 
-        var responseParameter = new byte[] { FunctionReadVar, count };
-        using var data = new MemoryStream();
+        var offset = AckDataHeaderLength + 2;
+        var dataStart = offset;
+        var errors = 0;
 
         for (var i = 0; i < count; i++)
         {
-            if (!AppendReadItem(data, parameter.AsSpan(2 + (i * VariableSpecificationLength), VariableSpecificationLength)))
+            var item = AppendReadItem(
+                destination.Slice(offset),
+                parameter.Slice(2 + (i * VariableSpecificationLength), VariableSpecificationLength));
+            offset += item.Length;
+            if (!item.Success)
+            {
+                errors++;
+            }
+        }
+
+        if (errors > 0)
+        {
+            for (var i = 0; i < errors; i++)
             {
                 _statistics.RecordItemError();
             }
         }
 
+        WriteAckHeader(destination, pduReference, 2, offset - dataStart);
+        var responseParameter = destination.Slice(AckDataHeaderLength, 2);
+        responseParameter[0] = FunctionReadVar;
+        responseParameter[1] = count;
+
         _statistics.RecordRead(count);
-        return BuildAck(pduReference, responseParameter, data.ToArray());
+        return offset;
     }
 
-    private bool AppendReadItem(MemoryStream data, ReadOnlySpan<byte> specification)
+    private (int Length, bool Success) AppendReadItem(Span<byte> destination, ReadOnlySpan<byte> specification)
     {
         if (!TryReadSpecification(specification, out var transport, out var elements, out var dbNumber, out var area, out var address))
         {
-            WriteItemError(data, ReturnDataError);
-            return false;
+            WriteItemError(destination, ReturnDataError);
+            return (4, false);
         }
 
         if (transport == TransportBit)
         {
             if (elements != 1)
             {
-                WriteItemError(data, ReturnDataError);
-                return false;
+                WriteItemError(destination, ReturnDataError);
+                return (4, false);
             }
 
             if (!_data.TryReadBit(area, dbNumber, address, out var value))
             {
-                WriteItemError(data, ResolveMissingCode(area, dbNumber));
-                return false;
+                WriteItemError(destination, ResolveMissingCode(area, dbNumber));
+                return (4, false);
             }
 
-            data.WriteByte(ReturnSuccess);
-            data.WriteByte(DataTransportBit);
-            data.WriteByte(0x00);
-            data.WriteByte(0x01);
-            data.WriteByte(value ? (byte)0x01 : (byte)0x00);
+            destination[0] = ReturnSuccess;
+            destination[1] = DataTransportBit;
+            destination[2] = 0x00;
+            destination[3] = 0x01;
+            destination[4] = value ? (byte)0x01 : (byte)0x00;
             // The client aligns items on even offsets, so even a one-byte bit item carries padding.
-            data.WriteByte(0x00);
-            return true;
+            destination[5] = 0x00;
+            return (6, true);
         }
 
         var byteLength = GetByteLength(transport, elements);
         if (byteLength <= 0)
         {
-            WriteItemError(data, ReturnDataTypeNotSupported);
-            return false;
+            WriteItemError(destination, ReturnDataTypeNotSupported);
+            return (4, false);
         }
 
-        // The specification always carries a bit address; byte access divides it by eight.
-        var bytes = _data.ReadBytes(area, dbNumber, address / 8, byteLength);
-        if (bytes is null)
+        var padded = byteLength + (byteLength & 1);
+        if (!_data.TryCopyBytes(area, dbNumber, address / 8, destination.Slice(4, byteLength)))
         {
-            WriteItemError(data, ResolveMissingCode(area, dbNumber));
-            return false;
+            WriteItemError(destination, ResolveMissingCode(area, dbNumber));
+            return (4, false);
         }
 
         var bitLength = byteLength * 8;
-        data.WriteByte(ReturnSuccess);
-        data.WriteByte(DataTransportByte);
-        data.WriteByte((byte)(bitLength >> 8));
-        data.WriteByte((byte)bitLength);
-        data.Write(bytes, 0, bytes.Length);
-
-        if ((bytes.Length & 1) != 0)
+        destination[0] = ReturnSuccess;
+        destination[1] = DataTransportByte;
+        destination[2] = (byte)(bitLength >> 8);
+        destination[3] = (byte)bitLength;
+        if ((byteLength & 1) != 0)
         {
-            data.WriteByte(0x00);
+            destination[4 + byteLength] = 0x00;
         }
 
-        return true;
+        return (4 + padded, true);
     }
 
-    private byte[] WriteVariables(ushort pduReference, byte[] parameter, byte[] data)
+    private int WriteVariables(
+        Span<byte> destination,
+        ushort pduReference,
+        ReadOnlySpan<byte> parameter,
+        ReadOnlySpan<byte> data)
     {
         var count = parameter[1];
         if (count == 0 || parameter.Length < 2 + (count * VariableSpecificationLength))
         {
-            return BuildAck(pduReference, Array.Empty<byte>(), Array.Empty<byte>(), 0x81, 0x04);
+            return BuildError(destination, pduReference, 0x81, 0x04);
         }
 
-        var responseParameter = new byte[] { FunctionWriteVar, count };
-        var codes = new byte[count];
+        var codes = destination.Slice(AckDataHeaderLength + 2, count);
         var offset = 0;
 
         for (var i = 0; i < count; i++)
         {
-            var specification = parameter.AsSpan(2 + (i * VariableSpecificationLength), VariableSpecificationLength);
+            var specification = parameter.Slice(2 + (i * VariableSpecificationLength), VariableSpecificationLength);
             if (!TryReadSpecification(specification, out var transport, out var elements, out var dbNumber, out var area, out var address))
             {
                 codes[i] = ReturnDataError;
@@ -232,7 +249,7 @@ internal sealed class S7PduProcessor
                 continue;
             }
 
-            var payload = data.AsSpan(offset + 4, byteLength);
+            var payload = data.Slice(offset + 4, byteLength);
             offset += 4 + byteLength + (byteLength & 1);
 
             codes[i] = transport == TransportBit
@@ -249,7 +266,11 @@ internal sealed class S7PduProcessor
             }
         }
 
-        return BuildAck(pduReference, responseParameter, codes);
+        WriteAckHeader(destination, pduReference, 2, count);
+        var responseParameter = destination.Slice(AckDataHeaderLength, 2);
+        responseParameter[0] = FunctionWriteVar;
+        responseParameter[1] = count;
+        return AckDataHeaderLength + 2 + count;
     }
 
     private byte WriteBit(S7Area area, int dbNumber, int address, ReadOnlySpan<byte> payload, int byteLength)
@@ -347,34 +368,42 @@ internal sealed class S7PduProcessor
             _ => 0,
         };
 
-    private static void WriteItemError(MemoryStream data, byte code)
+    private static void WriteItemError(Span<byte> destination, byte code)
     {
-        data.WriteByte(code);
-        data.WriteByte(0x00);
-        data.WriteByte(0x00);
-        data.WriteByte(0x00);
+        destination[0] = code;
+        destination[1] = 0x00;
+        destination[2] = 0x00;
+        destination[3] = 0x00;
     }
 
-    private static byte[] BuildAck(ushort pduReference, byte[] parameter, byte[] data, byte errorClass = 0, byte errorCode = 0)
+    private static int BuildError(Span<byte> destination, ushort pduReference, byte errorClass, byte errorCode)
     {
-        var response = new byte[AckDataHeaderLength + parameter.Length + data.Length];
-        response[0] = ProtocolId;
-        response[1] = RosctrAckData;
-        response[2] = 0x00;
-        response[3] = 0x00;
-        response[4] = (byte)(pduReference >> 8);
-        response[5] = (byte)pduReference;
-        response[6] = (byte)(parameter.Length >> 8);
-        response[7] = (byte)parameter.Length;
-        response[8] = (byte)(data.Length >> 8);
-        response[9] = (byte)data.Length;
-        response[10] = errorClass;
-        response[11] = errorCode;
-
-        parameter.CopyTo(response, AckDataHeaderLength);
-        data.CopyTo(response, AckDataHeaderLength + parameter.Length);
-        return response;
+        WriteAckHeader(destination, pduReference, 0, 0, errorClass, errorCode);
+        return AckDataHeaderLength;
     }
 
-    private static ushort ReadUInt16(byte[] buffer, int offset) => (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+    private static void WriteAckHeader(
+        Span<byte> destination,
+        ushort pduReference,
+        int parameterLength,
+        int dataLength,
+        byte errorClass = 0,
+        byte errorCode = 0)
+    {
+        destination[0] = ProtocolId;
+        destination[1] = RosctrAckData;
+        destination[2] = 0x00;
+        destination[3] = 0x00;
+        destination[4] = (byte)(pduReference >> 8);
+        destination[5] = (byte)pduReference;
+        destination[6] = (byte)(parameterLength >> 8);
+        destination[7] = (byte)parameterLength;
+        destination[8] = (byte)(dataLength >> 8);
+        destination[9] = (byte)dataLength;
+        destination[10] = errorClass;
+        destination[11] = errorCode;
+    }
+
+    private static ushort ReadUInt16(ReadOnlySpan<byte> buffer, int offset) =>
+        (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
 }

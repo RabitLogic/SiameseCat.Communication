@@ -172,6 +172,8 @@ public sealed class ModbusTcpServer : IModbusServer
     private async Task ServeAsync(TcpClient client, CancellationToken token)
     {
         var header = new byte[7];
+        var request = new byte[254];
+        var response = new byte[7 + 254];
 
         try
         {
@@ -195,8 +197,7 @@ public sealed class ModbusTcpServer : IModbusServer
                         return;
                     }
 
-                    var pdu = new byte[pduLength];
-                    if (!await ReadExactlyAsync(stream, pdu, pdu.Length, token).ConfigureAwait(false))
+                    if (!await ReadExactlyAsync(stream, request, pduLength, token).ConfigureAwait(false))
                     {
                         Statistics.RecordDiscardedFrame();
                         return;
@@ -204,21 +205,22 @@ public sealed class ModbusTcpServer : IModbusServer
 
                     Statistics.RecordFrame();
 
-                    var response = _processor.Process(header[6], pdu);
-                    if (response is null)
+                    var written = _processor.Process(
+                        header[6],
+                        request.AsSpan(0, pduLength),
+                        response.AsSpan(7));
+                    if (written == 0)
                     {
                         continue;
                     }
 
-                    var frame = new byte[7 + response.Length];
-                    frame[0] = header[0];
-                    frame[1] = header[1];
-                    frame[4] = (byte)((response.Length + 1) >> 8);
-                    frame[5] = (byte)(response.Length + 1);
-                    frame[6] = header[6];
-                    response.CopyTo(frame, 7);
+                    response[0] = header[0];
+                    response[1] = header[1];
+                    response[4] = (byte)((written + 1) >> 8);
+                    response[5] = (byte)(written + 1);
+                    response[6] = header[6];
 
-                    await WriteAsync(stream, frame, token).ConfigureAwait(false);
+                    await WriteAsync(stream, response, 7 + written, token).ConfigureAwait(false);
                 }
             }
         }
@@ -254,12 +256,12 @@ public sealed class ModbusTcpServer : IModbusServer
         return true;
     }
 
-    private static Task WriteAsync(NetworkStream stream, byte[] buffer, CancellationToken token)
+    private static Task WriteAsync(NetworkStream stream, byte[] buffer, int length, CancellationToken token)
     {
 #if NET8_0_OR_GREATER
-        return stream.WriteAsync(buffer.AsMemory(), token).AsTask();
+        return stream.WriteAsync(buffer.AsMemory(0, length), token).AsTask();
 #else
-        return stream.WriteAsync(buffer, 0, buffer.Length, token);
+        return stream.WriteAsync(buffer, 0, length, token);
 #endif
     }
 

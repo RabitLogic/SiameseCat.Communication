@@ -2,7 +2,10 @@ using SiameseCat.Core;
 
 namespace SiameseCat.Server.Modbus;
 
-/// <summary>Shared Modbus PDU handling used by the TCP and RTU slaves.</summary>
+/// <summary>
+/// Shared Modbus PDU handling used by the TCP and RTU slaves.
+/// Responses are written into a caller-provided buffer so a serving loop reuses its memory.
+/// </summary>
 internal sealed class ModbusPduProcessor
 {
     private readonly ModbusDataStore _data;
@@ -24,8 +27,6 @@ internal sealed class ModbusPduProcessor
         _runIndicator = runIndicator;
         _logger = logger;
     }
-
-    private ModbusDataStore Data => _data;
 
     private const byte FunctionReadCoils = 0x01;
     private const byte FunctionReadDiscreteInputs = 0x02;
@@ -50,257 +51,217 @@ internal sealed class ModbusPduProcessor
     private const int MaxWriteBits = 1968;
     private const int MaxWriteRegisters = 123;
 
-    /// <summary>Handles one request PDU.</summary>
-    /// <returns>The response PDU, or <see langword="null"/> when the request must not be answered.</returns>
-    public byte[]? Process(byte unitId, byte[] pdu)
+    /// <summary>Handles one request PDU and writes the response PDU into <paramref name="destination"/>.</summary>
+    /// <param name="unitId">Unit identifier; 0 is a broadcast.</param>
+    /// <param name="pdu">Request PDU.</param>
+    /// <param name="destination">Buffer that receives the response PDU (at least 254 bytes).</param>
+    /// <returns>Number of bytes written to <paramref name="destination"/>, or 0 when nothing must be sent.</returns>
+    public int Process(byte unitId, ReadOnlySpan<byte> pdu, Span<byte> destination)
     {
         if (pdu.Length == 0)
         {
-            return null;
+            return 0;
         }
 
         var function = pdu[0];
         _statistics.RecordRequest(function);
 
-        var response = ProcessCore(unitId, pdu);
-        if (response is { Length: >= 1 } && (response[0] & 0x80) != 0)
+        var written = ProcessCore(unitId, pdu, destination);
+        if (written >= 1 && (destination[0] & 0x80) != 0)
         {
             _statistics.RecordException(function);
             _logger?.Log(
                 PlcLogLevel.Debug,
-                $"Modbus slave answered function {function} with exception 0x{response[1]:X2}.");
+                $"Modbus slave answered function {function} with exception 0x{destination[1]:X2}.");
         }
 
-        return response;
+        return written;
     }
 
-    private byte[]? ProcessCore(byte unitId, byte[] pdu)
+    private int ProcessCore(byte unitId, ReadOnlySpan<byte> pdu, Span<byte> destination)
     {
         var broadcast = unitId == 0;
 
         switch (pdu[0])
         {
             case FunctionReadCoils:
-                return broadcast ? null : ReadBits(pdu, FunctionReadCoils, coils: true);
+                return broadcast ? 0 : ReadBits(pdu, destination, FunctionReadCoils, coils: true);
 
             case FunctionReadDiscreteInputs:
-                return broadcast ? null : ReadBits(pdu, FunctionReadDiscreteInputs, coils: false);
+                return broadcast ? 0 : ReadBits(pdu, destination, FunctionReadDiscreteInputs, coils: false);
 
             case FunctionReadHoldingRegisters:
-                return broadcast ? null : ReadRegisters(pdu, holding: true);
+                return broadcast ? 0 : ReadRegisters(pdu, destination, holding: true);
 
             case FunctionReadInputRegisters:
-                return broadcast ? null : ReadRegisters(pdu, holding: false);
+                return broadcast ? 0 : ReadRegisters(pdu, destination, holding: false);
 
             case FunctionWriteSingleCoil:
-                return WriteSingleCoil(pdu, broadcast);
+                return WriteSingleCoil(pdu, destination, broadcast);
 
             case FunctionWriteSingleRegister:
-                return WriteSingleRegister(pdu, broadcast);
+                return WriteSingleRegister(pdu, destination, broadcast);
 
             case FunctionReadExceptionStatus:
-                return broadcast ? null : ReadExceptionStatus();
+                if (broadcast)
+                {
+                    return 0;
+                }
+
+                destination[0] = FunctionReadExceptionStatus;
+                destination[1] = _data.ExceptionStatus;
+                return 2;
 
             case FunctionGetCommEventCounter:
-                return broadcast ? null : GetCommEventCounter();
+                if (broadcast)
+                {
+                    return 0;
+                }
+
+                var count = _data.EventCount;
+                destination[0] = FunctionGetCommEventCounter;
+                destination[1] = 0x00;
+                destination[2] = 0x00;
+                destination[3] = (byte)((count >> 8) & 0xFF);
+                destination[4] = (byte)(count & 0xFF);
+                return 5;
 
             case FunctionWriteMultipleCoils:
-                return WriteMultipleCoils(pdu, broadcast);
+                return WriteMultipleCoils(pdu, destination, broadcast);
 
             case FunctionWriteMultipleRegisters:
-                return WriteMultipleRegisters(pdu, broadcast);
+                return WriteMultipleRegisters(pdu, destination, broadcast);
 
             case FunctionReportServerId:
-                return broadcast ? null : ReportServerId();
+                if (broadcast)
+                {
+                    return 0;
+                }
+
+                destination[0] = FunctionReportServerId;
+                destination[1] = (byte)(_identifierBytes.Length + 1);
+                _identifierBytes.CopyTo(destination.Slice(2));
+                destination[2 + _identifierBytes.Length] = _runIndicator ? (byte)0xFF : (byte)0x00;
+                return 3 + _identifierBytes.Length;
 
             case FunctionMaskWriteRegister:
-                return MaskWriteRegister(pdu, broadcast);
+                return MaskWriteRegister(pdu, destination, broadcast);
 
             case FunctionReadWriteRegisters:
-                return broadcast ? null : ReadWriteRegisters(pdu);
+                return broadcast ? 0 : ReadWriteRegisters(pdu, destination);
 
             default:
                 _logger?.Warning($"Modbus slave received unsupported function code 0x{pdu[0]:X2}.");
-                return broadcast ? null : Exception(pdu[0], ExceptionIllegalFunction);
+                return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalFunction);
         }
     }
 
-    private byte[] ReadExceptionStatus() => new[] { FunctionReadExceptionStatus, Data.ExceptionStatus };
-
-    private byte[] GetCommEventCounter()
-    {
-        var count = Data.EventCount;
-        return new byte[]
-        {
-            FunctionGetCommEventCounter,
-            0x00,
-            0x00,
-            (byte)((count >> 8) & 0xFF),
-            (byte)(count & 0xFF),
-        };
-    }
-
-    private byte[] ReportServerId()
-    {
-        var response = new byte[2 + _identifierBytes.Length + 1];
-        response[0] = FunctionReportServerId;
-        response[1] = (byte)(_identifierBytes.Length + 1);
-        _identifierBytes.CopyTo(response, 2);
-        response[response.Length - 1] = _runIndicator ? (byte)0xFF : (byte)0x00;
-        return response;
-    }
-
-    private byte[]? MaskWriteRegister(byte[] pdu, bool broadcast)
-    {
-        if (pdu.Length < 7)
-        {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
-        }
-
-        var address = ReadUInt16(pdu, 1);
-        var andMask = ReadUInt16(pdu, 3);
-        var orMask = ReadUInt16(pdu, 5);
-        var written = Data.TryMaskWriteHoldingRegister(address, andMask, orMask, out _);
-
-        if (broadcast)
-        {
-            return null;
-        }
-
-        if (!written)
-        {
-            return Exception(pdu[0], ExceptionIllegalDataAddress);
-        }
-
-        Data.RecordEvent();
-        return pdu.Copy(0, 7);
-    }
-
-    private byte[]? ReadBits(byte[] pdu, byte function, bool coils)
+    private int ReadBits(ReadOnlySpan<byte> pdu, Span<byte> destination, byte function, bool coils)
     {
         if (pdu.Length < 5)
         {
-            return Exception(function, ExceptionIllegalDataValue);
+            return WriteException(destination, function, ExceptionIllegalDataValue);
         }
 
         var start = ReadUInt16(pdu, 1);
         var count = ReadUInt16(pdu, 3);
         if (count is < 1 or > MaxReadBits)
         {
-            return Exception(function, ExceptionIllegalDataValue);
-        }
-
-        var values = coils ? Data.ReadCoils(start, count) : Data.ReadDiscreteInputs(start, count);
-        if (values is null)
-        {
-            return Exception(function, ExceptionIllegalDataAddress);
+            return WriteException(destination, function, ExceptionIllegalDataValue);
         }
 
         var byteCount = (count + 7) / 8;
-        var response = new byte[2 + byteCount];
-        response[0] = function;
-        response[1] = (byte)byteCount;
+        destination[0] = function;
+        destination[1] = (byte)byteCount;
 
-        for (var i = 0; i < count; i++)
-        {
-            if (values[i])
-            {
-                response[2 + (i / 8)] |= (byte)(1 << (i % 8));
-            }
-        }
+        var copied = coils
+            ? _data.TryCopyCoils(start, count, destination.Slice(2, byteCount))
+            : _data.TryCopyDiscreteInputs(start, count, destination.Slice(2, byteCount));
 
-        return response;
+        return copied ? 2 + byteCount : WriteException(destination, function, ExceptionIllegalDataAddress);
     }
 
-    private byte[]? ReadRegisters(byte[] pdu, bool holding)
+    private int ReadRegisters(ReadOnlySpan<byte> pdu, Span<byte> destination, bool holding)
     {
         if (pdu.Length < 5)
         {
-            return Exception(pdu[0], ExceptionIllegalDataValue);
+            return WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
+        var function = pdu[0];
         var start = ReadUInt16(pdu, 1);
         var count = ReadUInt16(pdu, 3);
         if (count is < 1 or > MaxReadRegisters)
         {
-            return Exception(pdu[0], ExceptionIllegalDataValue);
+            return WriteException(destination, function, ExceptionIllegalDataValue);
         }
 
-        var values = holding ? Data.ReadHoldingRegisters(start, count) : Data.ReadInputRegisters(start, count);
-        if (values is null)
-        {
-            return Exception(pdu[0], ExceptionIllegalDataAddress);
-        }
+        destination[0] = function;
+        destination[1] = (byte)(count * 2);
 
-        var response = new byte[2 + (count * 2)];
-        response[0] = pdu[0];
-        response[1] = (byte)(count * 2);
+        var copied = holding
+            ? _data.TryCopyHoldingRegisters(start, count, destination.Slice(2, count * 2))
+            : _data.TryCopyInputRegisters(start, count, destination.Slice(2, count * 2));
 
-        for (var i = 0; i < count; i++)
-        {
-            response[2 + (i * 2)] = (byte)(values[i] >> 8);
-            response[3 + (i * 2)] = (byte)values[i];
-        }
-
-        return response;
+        return copied ? 2 + (count * 2) : WriteException(destination, function, ExceptionIllegalDataAddress);
     }
 
-    private byte[]? WriteSingleCoil(byte[] pdu, bool broadcast)
+    private int WriteSingleCoil(ReadOnlySpan<byte> pdu, Span<byte> destination, bool broadcast)
     {
         if (pdu.Length < 5)
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
         var address = ReadUInt16(pdu, 1);
         var value = ReadUInt16(pdu, 3);
         if (value is not (0x0000 or 0xFF00))
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
-        var written = Data.TryWriteSingleCoil(address, value == 0xFF00);
+        var written = _data.TryWriteSingleCoil(address, value == 0xFF00);
         if (written)
         {
-            Data.RecordEvent();
+            _data.RecordEvent();
         }
 
         if (broadcast)
         {
-            return null;
+            return 0;
         }
 
-        return written ? pdu.Copy(0, 5) : Exception(pdu[0], ExceptionIllegalDataAddress);
+        return written ? Echo(pdu, destination, 5) : WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
     }
 
-    private byte[]? WriteSingleRegister(byte[] pdu, bool broadcast)
+    private int WriteSingleRegister(ReadOnlySpan<byte> pdu, Span<byte> destination, bool broadcast)
     {
         if (pdu.Length < 5)
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
         var address = ReadUInt16(pdu, 1);
         var value = ReadUInt16(pdu, 3);
-        var written = Data.TryWriteSingleRegister(address, value);
+        var written = _data.TryWriteSingleRegister(address, value);
         if (written)
         {
-            Data.RecordEvent();
+            _data.RecordEvent();
         }
 
         if (broadcast)
         {
-            return null;
+            return 0;
         }
 
-        return written ? pdu.Copy(0, 5) : Exception(pdu[0], ExceptionIllegalDataAddress);
+        return written ? Echo(pdu, destination, 5) : WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
     }
 
-    private byte[]? WriteMultipleCoils(byte[] pdu, bool broadcast)
+    private int WriteMultipleCoils(ReadOnlySpan<byte> pdu, Span<byte> destination, bool broadcast)
     {
         if (pdu.Length < 6)
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
         var start = ReadUInt16(pdu, 1);
@@ -309,34 +270,30 @@ internal sealed class ModbusPduProcessor
 
         if (count is < 1 or > MaxWriteBits || byteCount != (count + 7) / 8 || pdu.Length < 6 + byteCount)
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
-        var values = new bool[count];
-        for (var i = 0; i < count; i++)
-        {
-            values[i] = (pdu[6 + (i / 8)] & (1 << (i % 8))) != 0;
-        }
-
-        var written = Data.TryWriteCoils(start, values);
+        var written = _data.TryWriteCoils(start, pdu.Slice(6, byteCount), count);
         if (written)
         {
-            Data.RecordEvent();
+            _data.RecordEvent();
         }
 
         if (broadcast)
         {
-            return null;
+            return 0;
         }
 
-        return written ? EchoWriteResponse(pdu, start, count) : Exception(pdu[0], ExceptionIllegalDataAddress);
+        return written
+            ? WriteStartCount(destination, pdu[0], start, count)
+            : WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
     }
 
-    private byte[]? WriteMultipleRegisters(byte[] pdu, bool broadcast)
+    private int WriteMultipleRegisters(ReadOnlySpan<byte> pdu, Span<byte> destination, bool broadcast)
     {
         if (pdu.Length < 6)
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
         var start = ReadUInt16(pdu, 1);
@@ -345,29 +302,30 @@ internal sealed class ModbusPduProcessor
 
         if (count is < 1 or > MaxWriteRegisters || byteCount != count * 2 || pdu.Length < 6 + byteCount)
         {
-            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
-        var values = ReadRegistersFrom(pdu, 6 + byteCount, count);
-        var written = Data.TryWriteHoldingRegisters(start, values);
+        var written = WriteRegistersFrom(pdu.Slice(6, byteCount), start, count);
         if (written)
         {
-            Data.RecordEvent();
+            _data.RecordEvent();
         }
 
         if (broadcast)
         {
-            return null;
+            return 0;
         }
 
-        return written ? EchoWriteResponse(pdu, start, count) : Exception(pdu[0], ExceptionIllegalDataAddress);
+        return written
+            ? WriteStartCount(destination, pdu[0], start, count)
+            : WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
     }
 
-    private byte[]? ReadWriteRegisters(byte[] pdu)
+    private int ReadWriteRegisters(ReadOnlySpan<byte> pdu, Span<byte> destination)
     {
         if (pdu.Length < 10)
         {
-            return Exception(pdu[0], ExceptionIllegalDataValue);
+            return WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
         var readStart = ReadUInt16(pdu, 1);
@@ -381,72 +339,83 @@ internal sealed class ModbusPduProcessor
             || byteCount != writeCount * 2
             || pdu.Length < 10 + byteCount)
         {
-            return Exception(pdu[0], ExceptionIllegalDataValue);
+            return WriteException(destination, pdu[0], ExceptionIllegalDataValue);
         }
 
-        var writeValues = ReadRegistersFrom(pdu, 10 + byteCount, writeCount);
-        if (!Data.TryWriteHoldingRegisters(writeStart, writeValues))
+        if (!WriteRegistersFrom(pdu.Slice(10, byteCount), writeStart, writeCount))
         {
-            return Exception(pdu[0], ExceptionIllegalDataAddress);
+            return WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
         }
 
-        Data.RecordEvent();
+        _data.RecordEvent();
 
-        var readValues = Data.ReadHoldingRegisters(readStart, readCount);
-        if (readValues is null)
-        {
-            return Exception(pdu[0], ExceptionIllegalDataAddress);
-        }
-
-        var response = new byte[2 + (readCount * 2)];
-        response[0] = FunctionReadWriteRegisters;
-        response[1] = (byte)(readCount * 2);
-
-        for (var i = 0; i < readCount; i++)
-        {
-            response[2 + (i * 2)] = (byte)(readValues[i] >> 8);
-            response[3 + (i * 2)] = (byte)readValues[i];
-        }
-
-        return response;
+        destination[0] = FunctionReadWriteRegisters;
+        destination[1] = (byte)(readCount * 2);
+        return _data.TryCopyHoldingRegisters(readStart, readCount, destination.Slice(2, readCount * 2))
+            ? 2 + (readCount * 2)
+            : WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
     }
 
-    private static byte[] EchoWriteResponse(byte[] pdu, ushort start, ushort count)
+    private int MaskWriteRegister(ReadOnlySpan<byte> pdu, Span<byte> destination, bool broadcast)
     {
-        var response = new byte[5];
-        response[0] = pdu[0];
-        response[1] = (byte)(start >> 8);
-        response[2] = (byte)start;
-        response[3] = (byte)(count >> 8);
-        response[4] = (byte)count;
-        return response;
+        if (pdu.Length < 7)
+        {
+            return broadcast ? 0 : WriteException(destination, pdu[0], ExceptionIllegalDataValue);
+        }
+
+        var address = ReadUInt16(pdu, 1);
+        var andMask = ReadUInt16(pdu, 3);
+        var orMask = ReadUInt16(pdu, 5);
+        var written = _data.TryMaskWriteHoldingRegister(address, andMask, orMask, out _);
+
+        if (broadcast)
+        {
+            return 0;
+        }
+
+        if (!written)
+        {
+            return WriteException(destination, pdu[0], ExceptionIllegalDataAddress);
+        }
+
+        _data.RecordEvent();
+        return Echo(pdu, destination, 7);
     }
 
-    private static ushort[] ReadRegistersFrom(byte[] pdu, int end, int count)
+    private bool WriteRegistersFrom(ReadOnlySpan<byte> payload, int start, int count)
     {
-        var values = new ushort[count];
-        var offset = end - (count * 2);
+        Span<ushort> values = stackalloc ushort[MaxWriteRegisters];
         for (var i = 0; i < count; i++)
         {
-            values[i] = (ushort)((pdu[offset + (i * 2)] << 8) | pdu[offset + (i * 2) + 1]);
+            values[i] = (ushort)((payload[i * 2] << 8) | payload[(i * 2) + 1]);
         }
 
-        return values;
+        return _data.TryWriteHoldingRegisters(start, values.Slice(0, count));
     }
 
-    private static byte[] Exception(byte function, byte code) =>
-        new[] { (byte)(function | 0x80), code };
-
-    private static ushort ReadUInt16(byte[] buffer, int offset) => (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-}
-
-internal static class ByteArrayExtensions
-{
-    public static byte[] Copy(this byte[] source, int start, int? length = null)
+    private static int Echo(ReadOnlySpan<byte> pdu, Span<byte> destination, int length)
     {
-        var count = length ?? source.Length - start;
-        var copy = new byte[count];
-        Array.Copy(source, start, copy, 0, count);
-        return copy;
+        pdu.Slice(0, length).CopyTo(destination);
+        return length;
     }
+
+    private static int WriteStartCount(Span<byte> destination, byte function, ushort start, ushort count)
+    {
+        destination[0] = function;
+        destination[1] = (byte)(start >> 8);
+        destination[2] = (byte)start;
+        destination[3] = (byte)(count >> 8);
+        destination[4] = (byte)count;
+        return 5;
+    }
+
+    private static int WriteException(Span<byte> destination, byte function, byte code)
+    {
+        destination[0] = (byte)(function | 0x80);
+        destination[1] = code;
+        return 2;
+    }
+
+    private static ushort ReadUInt16(ReadOnlySpan<byte> buffer, int offset) =>
+        (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
 }

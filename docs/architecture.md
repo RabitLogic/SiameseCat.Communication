@@ -127,6 +127,32 @@ All libraries target `net8.0` and `netstandard2.0`:
 - `EnablePackageValidation` compares the public API of both TFMs at pack time, so an API cannot be
   accidentally hidden behind `#if NET8_0_OR_GREATER`.
 
+## Performance notes
+
+The slave serving loops are allocation-lean by design:
+
+- Each connection owns its request/response buffers; the PDU processors (Modbus and S7) write the response
+  into a caller-provided `Span<byte>` instead of allocating a new array per request.
+- Data stores copy registers/bits directly into the response buffer (`TryCopyHoldingRegisters`,
+  `TryCopyBits`, `TryCopyBytes`) and parse incoming payloads from spans, so no intermediate `ushort[]` or
+  `bool[]` is allocated.
+- Write events allocate their `Values`/`PreviousValues` arrays only when a subscriber is attached.
+- `stackalloc` is used for register payloads (≤123 registers) and no `MemoryStream` remains in the S7 path.
+
+Measured on a 14-core Windows machine, loopback TCP, 20k requests per scenario, median of 3 runs
+(baseline = the previous array-allocating implementation, after = current):
+
+| Scenario | Allocations before | Allocations after | Change | Throughput after |
+| --- | --- | --- | --- | --- |
+| Modbus FC03, 100 registers | 3383 B/op | 2655 B/op | −21.5% | ~33k op/s |
+| Modbus FC16, 10 registers | 2718 B/op | 2406 B/op | −11.5% | ~31k op/s |
+| S7 read REAL | 3829 B/op | 3166 B/op | −17.3% | ~36k op/s |
+| S7 write WORD | 3229 B/op | 2830 B/op | −12.4% | ~40k op/s |
+
+The remaining allocations are dominated by the client side (response arrays, socket/Task machinery), so
+server-side savings show up mainly as lower GC pressure; run `benchmarks/SiameseCat.Benchmarks` for
+reproducible numbers on your hardware.
+
 ## Naming conventions
 
 | Rule | Example |

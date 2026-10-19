@@ -232,6 +232,7 @@ public sealed class ModbusDataStore
     {
         result = 0;
         ModbusRegisterWriteEventArgs? args = null;
+        var handler = HoldingRegistersWritten;
         lock (_holdingSync)
         {
             if (index < 0 || index >= _holdingRegisters.Length)
@@ -242,16 +243,24 @@ public sealed class ModbusDataStore
             var previous = _holdingRegisters[index];
             result = (ushort)((previous & andMask) | (orMask & ~andMask));
             _holdingRegisters[index] = result;
-            args = new ModbusRegisterWriteEventArgs(index, new[] { result }, new[] { previous });
+            if (handler is not null)
+            {
+                args = new ModbusRegisterWriteEventArgs(index, new[] { result }, new[] { previous });
+            }
         }
 
-        HoldingRegistersWritten?.Invoke(this, args);
+        if (args is not null)
+        {
+            handler!.Invoke(this, args);
+        }
+
         return true;
     }
 
     internal bool TryWriteSingleCoil(int index, bool value)
     {
         ModbusCoilWriteEventArgs? args = null;
+        var handler = CoilsWritten;
         lock (_coilSync)
         {
             if (index < 0 || index >= _coilCount)
@@ -261,16 +270,24 @@ public sealed class ModbusDataStore
 
             var previous = GetBit(_coils, index);
             SetBit(_coils, index, value);
-            args = new ModbusCoilWriteEventArgs(index, new[] { value }, new[] { previous });
+            if (handler is not null)
+            {
+                args = new ModbusCoilWriteEventArgs(index, new[] { value }, new[] { previous });
+            }
         }
 
-        CoilsWritten?.Invoke(this, args);
+        if (args is not null)
+        {
+            handler!.Invoke(this, args);
+        }
+
         return true;
     }
 
     internal bool TryWriteSingleRegister(int index, ushort value)
     {
         ModbusRegisterWriteEventArgs? args = null;
+        var handler = HoldingRegistersWritten;
         lock (_holdingSync)
         {
             if (index < 0 || index >= _holdingRegisters.Length)
@@ -280,10 +297,17 @@ public sealed class ModbusDataStore
 
             var previous = _holdingRegisters[index];
             _holdingRegisters[index] = value;
-            args = new ModbusRegisterWriteEventArgs(index, new[] { value }, new[] { previous });
+            if (handler is not null)
+            {
+                args = new ModbusRegisterWriteEventArgs(index, new[] { value }, new[] { previous });
+            }
         }
 
-        HoldingRegistersWritten?.Invoke(this, args);
+        if (args is not null)
+        {
+            handler!.Invoke(this, args);
+        }
+
         return true;
     }
 
@@ -296,35 +320,92 @@ public sealed class ModbusDataStore
     {
         Guard.NotNull(values, nameof(values));
 
+        if (values is ushort[] array)
+        {
+            return WriteRegisters(start, array.AsSpan(), buffer, sync, handler);
+        }
+
+        var scratch = new ushort[values.Count];
+        for (var i = 0; i < scratch.Length; i++)
+        {
+            scratch[i] = values[i];
+        }
+
+        return WriteRegisters(start, scratch.AsSpan(), buffer, sync, handler);
+    }
+
+    internal bool TryWriteHoldingRegisters(int start, ReadOnlySpan<ushort> values) =>
+        WriteRegisters(start, values, _holdingRegisters, _holdingSync, HoldingRegistersWritten);
+
+    private bool WriteRegisters(
+        int start,
+        ReadOnlySpan<ushort> values,
+        ushort[] buffer,
+        object sync,
+        EventHandler<ModbusRegisterWriteEventArgs>? handler)
+    {
         ModbusRegisterWriteEventArgs? args = null;
         lock (sync)
         {
-            if (!Fits(start, values.Count, buffer.Length))
+            if (!Fits(start, values.Length, buffer.Length))
             {
                 return false;
             }
 
-            if (values.Count > 0)
+            if (values.Length > 0)
             {
-                var written = new ushort[values.Count];
-                var previous = new ushort[values.Count];
-                Array.Copy(buffer, start, previous, 0, written.Length);
-                for (var i = 0; i < written.Length; i++)
+                if (handler is null)
                 {
-                    written[i] = values[i];
-                    buffer[start + i] = written[i];
+                    values.CopyTo(buffer.AsSpan(start, values.Length));
                 }
-
-                args = new ModbusRegisterWriteEventArgs(start, written, previous);
+                else
+                {
+                    var written = values.ToArray();
+                    var previous = new ushort[written.Length];
+                    Array.Copy(buffer, start, previous, 0, written.Length);
+                    written.CopyTo(buffer, start);
+                    args = new ModbusRegisterWriteEventArgs(start, written, previous);
+                }
             }
         }
 
         if (args is not null)
         {
-            handler?.Invoke(this, args);
+            handler!.Invoke(this, args);
         }
 
         return true;
+    }
+
+    internal bool TryCopyHoldingRegisters(int start, int count, Span<byte> destination) =>
+        TryCopyRegisters(_holdingRegisters, start, count, destination, _holdingSync);
+
+    internal bool TryCopyInputRegisters(int start, int count, Span<byte> destination) =>
+        TryCopyRegisters(_inputRegisters, start, count, destination, _inputSync);
+
+    private static bool TryCopyRegisters(
+        ushort[] buffer,
+        int start,
+        int count,
+        Span<byte> destination,
+        object sync)
+    {
+        lock (sync)
+        {
+            if (!Fits(start, count, buffer.Length) || destination.Length < count * 2)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                var value = buffer[start + i];
+                destination[i * 2] = (byte)(value >> 8);
+                destination[(i * 2) + 1] = (byte)value;
+            }
+
+            return true;
+        }
     }
 
     private static ushort[]? ReadRegisters(int start, int count, ushort[] buffer, object sync)
@@ -352,35 +433,154 @@ public sealed class ModbusDataStore
     {
         Guard.NotNull(values, nameof(values));
 
+        if (values is bool[] array)
+        {
+            return WriteCoils(start, array.AsSpan(), bits, count, sync, handler);
+        }
+
+        var scratch = new bool[values.Count];
+        for (var i = 0; i < scratch.Length; i++)
+        {
+            scratch[i] = values[i];
+        }
+
+        return WriteCoils(start, scratch.AsSpan(), bits, count, sync, handler);
+    }
+
+    internal bool TryWriteCoils(int start, ReadOnlySpan<byte> packed, int count) =>
+        WriteCoils(start, packed, count, _coils, _coilCount, _coilSync, CoilsWritten);
+
+    private bool WriteCoils(
+        int start,
+        ReadOnlySpan<byte> packed,
+        int count,
+        uint[] bits,
+        int length,
+        object sync,
+        EventHandler<ModbusCoilWriteEventArgs>? handler)
+    {
         ModbusCoilWriteEventArgs? args = null;
         lock (sync)
         {
-            if (!Fits(start, values.Count, count))
+            if (!Fits(start, count, length))
             {
                 return false;
             }
 
-            if (values.Count > 0)
+            if (count > 0)
             {
-                var written = new bool[values.Count];
-                var previous = new bool[values.Count];
-                for (var i = 0; i < written.Length; i++)
+                if (handler is null)
                 {
-                    written[i] = values[i];
-                    previous[i] = GetBit(bits, start + i);
-                    SetBit(bits, start + i, written[i]);
+                    for (var i = 0; i < count; i++)
+                    {
+                        SetBit(bits, start + i, (packed[i / 8] & (1 << (i % 8))) != 0);
+                    }
                 }
+                else
+                {
+                    var written = new bool[count];
+                    var previous = new bool[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        written[i] = (packed[i / 8] & (1 << (i % 8))) != 0;
+                        previous[i] = GetBit(bits, start + i);
+                        SetBit(bits, start + i, written[i]);
+                    }
 
-                args = new ModbusCoilWriteEventArgs(start, written, previous);
+                    args = new ModbusCoilWriteEventArgs(start, written, previous);
+                }
             }
         }
 
         if (args is not null)
         {
-            handler?.Invoke(this, args);
+            handler!.Invoke(this, args);
         }
 
         return true;
+    }
+
+    private bool WriteCoils(
+        int start,
+        ReadOnlySpan<bool> values,
+        uint[] bits,
+        int count,
+        object sync,
+        EventHandler<ModbusCoilWriteEventArgs>? handler)
+    {
+        ModbusCoilWriteEventArgs? args = null;
+        lock (sync)
+        {
+            if (!Fits(start, values.Length, count))
+            {
+                return false;
+            }
+
+            if (values.Length > 0)
+            {
+                if (handler is null)
+                {
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        SetBit(bits, start + i, values[i]);
+                    }
+                }
+                else
+                {
+                    var written = values.ToArray();
+                    var previous = new bool[written.Length];
+                    for (var i = 0; i < written.Length; i++)
+                    {
+                        previous[i] = GetBit(bits, start + i);
+                        SetBit(bits, start + i, written[i]);
+                    }
+
+                    args = new ModbusCoilWriteEventArgs(start, written, previous);
+                }
+            }
+        }
+
+        if (args is not null)
+        {
+            handler!.Invoke(this, args);
+        }
+
+        return true;
+    }
+
+    internal bool TryCopyCoils(int start, int count, Span<byte> destination) =>
+        TryCopyBits(_coils, start, count, _coilCount, destination, _coilSync);
+
+    internal bool TryCopyDiscreteInputs(int start, int count, Span<byte> destination) =>
+        TryCopyBits(_discreteInputs, start, count, _discreteInputCount, destination, _discreteSync);
+
+    private static bool TryCopyBits(
+        uint[] bits,
+        int start,
+        int count,
+        int length,
+        Span<byte> destination,
+        object sync)
+    {
+        lock (sync)
+        {
+            var byteCount = (count + 7) / 8;
+            if (!Fits(start, count, length) || destination.Length < byteCount)
+            {
+                return false;
+            }
+
+            destination.Slice(0, byteCount).Clear();
+            for (var i = 0; i < count; i++)
+            {
+                if (GetBit(bits, start + i))
+                {
+                    destination[i / 8] |= (byte)(1 << (i % 8));
+                }
+            }
+
+            return true;
+        }
     }
 
     private static bool[]? ReadBits(int start, int count, uint[] bits, int length, object sync)

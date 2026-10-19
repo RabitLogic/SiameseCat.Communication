@@ -137,6 +137,7 @@ public sealed class ModbusRtuServer : IModbusServer
     private async Task RunAsync(CancellationToken token)
     {
         var buffer = new byte[512];
+        var responseBuffer = new byte[1 + 253 + 2];
 
         while (!token.IsCancellationRequested)
         {
@@ -176,23 +177,23 @@ public sealed class ModbusRtuServer : IModbusServer
                 continue;
             }
 
-            var pdu = frame.Slice(1, length - 3).ToArray();
-            var response = _processor.Process(address, pdu);
-            if (response is null)
+            var pdu = frame.Slice(1, length - 3);
+            var written = _processor.Process(address, pdu, responseBuffer.AsSpan(1));
+            if (written == 0)
             {
                 continue;
             }
 
-            var responseFrame = new byte[1 + response.Length + 2];
-            responseFrame[0] = address;
-            response.CopyTo(responseFrame, 1);
+            responseBuffer[0] = address;
             ModbusCrc16.Write(
-                responseFrame.AsSpan(0, responseFrame.Length - 2),
-                responseFrame.AsSpan(responseFrame.Length - 2));
+                responseBuffer.AsSpan(0, 1 + written),
+                responseBuffer.AsSpan(1 + written));
 
             try
             {
-                await _transport.WriteAsync(responseFrame, token).ConfigureAwait(false);
+                await _transport
+                    .WriteAsync(responseBuffer.AsMemory(0, 1 + written + 2), token)
+                    .ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is ConnectionClosedException or CommunicationTimeoutException)
             {

@@ -6,6 +6,8 @@ using BenchmarkDotNet.Running;
 using SiameseCat.Core;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
+using SiameseCat.Server.Modbus;
+using SiameseCat.Server.S7;
 
 namespace SiameseCat.Benchmarks;
 
@@ -81,4 +83,66 @@ public class ValueCodecBenchmarks
 
     [Benchmark]
     public string EncodeString() => _ascii.GetString(_arrayBytes);
+}
+
+/// <summary>End-to-end request latency for the in-process slaves (loopback TCP).</summary>
+[MemoryDiagnoser]
+public class SlaveThroughputBenchmarks : IDisposable
+{
+    private ModbusTcpServer _modbusServer = null!;
+    private ModbusTcpClient _modbusClient = null!;
+    private S7Server _s7Server = null!;
+    private S7Client _s7Client = null!;
+    private ushort[] _writeValues = null!;
+    private S7Address _s7WriteAddress;
+
+    [GlobalSetup]
+    public async Task SetupAsync()
+    {
+        _modbusServer = new ModbusTcpServer(new ModbusServerOptions { Port = 0, HoldingRegisters = 256 });
+        await _modbusServer.StartAsync().ConfigureAwait(false);
+        _modbusClient = new ModbusTcpClient(new ModbusTcpOptions
+        {
+            UnitId = 1,
+            Timeout = TimeSpan.FromSeconds(5),
+            Tcp = { Host = "127.0.0.1", Port = _modbusServer.Port },
+        });
+        await _modbusClient.ConnectAsync().ConfigureAwait(false);
+
+        _writeValues = Enumerable.Range(1, 10).Select(value => (ushort)value).ToArray();
+
+        _s7Server = new S7Server(new S7ServerOptions { Port = 0, DefaultDataBlockSize = 64 });
+        await _s7Server.StartAsync().ConfigureAwait(false);
+        _s7Client = new S7Client(new S7Options
+        {
+            Host = "127.0.0.1",
+            Port = _s7Server.Port,
+            Timeout = TimeSpan.FromSeconds(5),
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+        });
+        await _s7Client.ConnectAsync().ConfigureAwait(false);
+        _s7WriteAddress = S7Address.Parse("DB1.DBW4");
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _modbusClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _modbusServer.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _s7Client.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _s7Server.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        GC.SuppressFinalize(this);
+    }
+
+    [Benchmark]
+    public Task<ushort[]> ModbusRead100() => _modbusClient.ReadHoldingRegistersAsync(1, 0, 100);
+
+    [Benchmark]
+    public Task ModbusWrite10() => _modbusClient.WriteMultipleRegistersAsync(1, 0, _writeValues);
+
+    [Benchmark]
+    public Task<float> S7ReadReal() => _s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
+
+    [Benchmark]
+    public Task S7WriteWord() => _s7Client.WriteUInt16Async(_s7WriteAddress, 0x1234);
 }

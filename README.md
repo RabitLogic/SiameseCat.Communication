@@ -467,6 +467,9 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
   writes are applied and no response is sent.
 - Concurrent clients are supported (one session task per connection); `StopAsync` / `DisposeAsync` close
   the listener and every session.
+- Sessions reuse their request/response buffers and the PDU processor writes directly into them, so a
+  served request allocates no frame memory on the slave side (see
+  [performance notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md#performance-notes)).
 
 ### Statistics and logging
 
