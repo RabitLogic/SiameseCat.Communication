@@ -40,11 +40,5 @@ public sealed class ModbusServerOptions
         ValidateSize(DiscreteInputs, nameof(DiscreteInputs));
     }
 
-    private static void ValidateSize(int size, string name)
-    {
-        if (size is < 1 or > 65536)
-        {
-            throw new ArgumentOutOfRangeException(name, size, "Buffer sizes must be between 1 and 65536.");
-        }
-    }
+    private static void ValidateSize(int size, string name) => ModbusBufferSizes.Validate(size, name);
 }

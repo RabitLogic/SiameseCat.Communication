@@ -381,13 +381,5 @@ public sealed class ModbusDataStore
 
     private static int BitBufferLength(int count) => (count + 31) / 32;
 
-    private static int ValidateSize(int size, string name)
-    {
-        if (size is < 1 or > 65536)
-        {
-            throw new ArgumentOutOfRangeException(name, size, "Buffer sizes must be between 1 and 65536.");
-        }
-
-        return size;
-    }
+    private static int ValidateSize(int size, string name) => ModbusBufferSizes.Validate(size, name);
 }
