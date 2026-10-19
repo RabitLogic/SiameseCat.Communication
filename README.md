@@ -986,8 +986,9 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 ### 版本与打包
 
-- 目标框架：`net8.0`（LTS）+ `netstandard2.0`（.NET Framework 4.8 / 旧版 .NET Core）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
+- 目标框架：`net8.0`（.NET 8 及以上宿主）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
 - 启用 .NET 分析器（`latest-recommended`）
+- 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
 - 集中包版本管理（`Directory.Packages.props`）
 - Release 构建生成 `.nupkg` 与 `.snupkg`，并启用 SourceLink
 - CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）
