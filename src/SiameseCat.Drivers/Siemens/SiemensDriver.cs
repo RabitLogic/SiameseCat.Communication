@@ -11,6 +11,9 @@ public sealed class SiemensDriver : DriverBase
 {
     private const int WriteRequestOverhead = 12;
 
+    private static readonly byte[] OneByte = { 1 };
+    private static readonly byte[] ZeroByte = { 0 };
+
     private readonly S7Client _client;
     private readonly Encoding _encoding;
 
@@ -55,7 +58,7 @@ public sealed class SiemensDriver : DriverBase
 
             default:
                 var bytes = await _client.ReadBytesAsync(s7, address.ByteSize, cancellationToken).ConfigureAwait(false);
-                return PlcValueCodec.FromBytes(address.DataType, bytes);
+                return PlcValueCodec.FromBytes(address.DataType, bytes, address.Length);
         }
     }
 
@@ -97,33 +100,31 @@ public sealed class SiemensDriver : DriverBase
         IReadOnlyList<PlcWriteRequest> requests,
         CancellationToken cancellationToken)
     {
-        // S7 STRING needs the two-byte length header, so fall back to single writes.
-        foreach (var request in requests)
-        {
-            if (request.Address.DataType == PlcDataType.String)
-            {
-                await base.DoWriteBatchAsync(requests, cancellationToken).ConfigureAwait(false);
-                return;
-            }
-        }
-
         var items = new List<S7WriteItem>(requests.Count);
         foreach (var request in requests)
         {
             var s7 = SiemensAddressParser.ToS7Address(request.Address);
             if (request.Address.DataType == PlcDataType.Bool)
             {
-                items.Add(new S7WriteItem(s7, new[] { request.Value.AsBool() ? (byte)1 : (byte)0 }));
+                items.Add(new S7WriteItem(s7, request.Value.AsBool() ? OneByte : ZeroByte));
                 continue;
             }
 
-            var bytes = PlcValueCodec.ToBytes(request.Value);
-            if (bytes.Length != request.Address.ByteSize)
+            byte[] bytes;
+            if (request.Address.DataType == PlcDataType.String)
             {
-                throw new ArgumentException(
-                    $"The value for '{request.Address.Region}:{request.Address.Offset}' needs {bytes.Length} bytes "
-                    + $"but the address expects {request.Address.ByteSize}.",
-                    nameof(requests));
+                bytes = BuildStringBuffer(request.Value.AsString(), request.Address.Length);
+            }
+            else
+            {
+                bytes = PlcValueCodec.ToBytes(request.Value);
+                if (bytes.Length != request.Address.ByteSize)
+                {
+                    throw new ArgumentException(
+                        $"The value for '{request.Address.Region}:{request.Address.Offset}' needs {bytes.Length} bytes "
+                        + $"but the address expects {request.Address.ByteSize}.",
+                        nameof(requests));
+                }
             }
 
             items.Add(new S7WriteItem(s7, bytes));
@@ -160,19 +161,15 @@ public sealed class SiemensDriver : DriverBase
         IReadOnlyList<PlcAddress> addresses,
         CancellationToken cancellationToken)
     {
-        // S7 STRING has a two-byte header and needs the dedicated API, so fall back to single reads.
-        foreach (var address in addresses)
-        {
-            if (address.DataType == PlcDataType.String)
-            {
-                return await base.DoReadBatchAsync(addresses, cancellationToken).ConfigureAwait(false);
-            }
-        }
-
         var items = new S7ReadItem[addresses.Count];
         for (var i = 0; i < addresses.Count; i++)
         {
-            var length = addresses[i].DataType == PlcDataType.Bool ? 1 : addresses[i].ByteSize;
+            var length = addresses[i].DataType switch
+            {
+                PlcDataType.Bool => 1,
+                PlcDataType.String => addresses[i].Length + 2,
+                _ => addresses[i].ByteSize,
+            };
             items[i] = new S7ReadItem(SiemensAddressParser.ToS7Address(addresses[i]), length);
         }
 
@@ -180,12 +177,48 @@ public sealed class SiemensDriver : DriverBase
         var values = new PlcValue[addresses.Count];
         for (var i = 0; i < addresses.Count; i++)
         {
-            values[i] = addresses[i].DataType == PlcDataType.Bool
-                ? PlcValue.FromBool(raw[i][0] != 0)
-                : PlcValueCodec.FromBytes(addresses[i].DataType, raw[i]);
+            values[i] = addresses[i].DataType switch
+            {
+                PlcDataType.Bool => PlcValue.FromBool(raw[i][0] != 0),
+                PlcDataType.String => PlcValue.FromString(DecodeString(raw[i], addresses[i].Length)),
+                _ => PlcValueCodec.FromBytes(addresses[i].DataType, raw[i], addresses[i].Length),
+            };
         }
 
         return values;
+    }
+
+    private byte[] BuildStringBuffer(string value, int maxLength)
+    {
+        if (maxLength is < 0 or > 254)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxLength), maxLength, "S7 string length must be between 0 and 254.");
+        }
+
+        var encoded = _encoding.GetBytes(value);
+        if (encoded.Length > maxLength)
+        {
+            throw new ArgumentException(
+                $"The encoded string is {encoded.Length} bytes but the maximum length is {maxLength}.",
+                nameof(value));
+        }
+
+        var buffer = new byte[maxLength + 2];
+        buffer[0] = (byte)maxLength;
+        buffer[1] = (byte)encoded.Length;
+        encoded.CopyTo(buffer, 2);
+        return buffer;
+    }
+
+    private string DecodeString(byte[] bytes, int maxLength)
+    {
+        var currentLength = bytes[1];
+        if (currentLength > maxLength || currentLength > bytes.Length - 2)
+        {
+            throw new ProtocolException($"The PLC returned an invalid S7 string length ({currentLength}).");
+        }
+
+        return _encoding.GetString(bytes, 2, currentLength);
     }
 
     /// <inheritdoc/>

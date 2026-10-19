@@ -67,15 +67,72 @@ public class PlcValueTests
         Assert.Equal(PlcValueQuality.Uncertain, value.Quality);
         Assert.Equal(1.5, value.AsDouble(), 6);
     }
+
+    [Fact]
+    public void Arrays_RoundTripElements()
+    {
+        var value = PlcValue.FromUInt16Array(new ushort[] { 10, 20, 30 });
+
+        Assert.True(value.IsArray);
+        Assert.Equal(3, value.Length);
+        Assert.Equal(PlcDataType.UInt16, value.DataType);
+        Assert.Equal(new ushort[] { 10, 20, 30 }, value.AsUInt16Array());
+        Assert.Equal("UInt16[3]", value.ToString());
+    }
+
+    [Fact]
+    public void Arrays_CompareByElement()
+    {
+        Assert.Equal(
+            PlcValue.FromUInt16Array(new ushort[] { 1, 2 }),
+            PlcValue.FromUInt16Array(new ushort[] { 1, 2 }));
+        Assert.NotEqual(
+            PlcValue.FromUInt16Array(new ushort[] { 1, 2 }),
+            PlcValue.FromUInt16Array(new ushort[] { 1, 3 }));
+        Assert.NotEqual(
+            PlcValue.FromUInt16Array(new ushort[] { 1 }),
+            PlcValue.FromUInt16(1));
+    }
+
+    [Fact]
+    public void Arrays_RejectScalarAccess()
+    {
+        var value = PlcValue.FromDoubleArray(new double[] { 1.5 });
+
+        Assert.Throws<InvalidCastException>(() => value.AsDouble());
+        Assert.Throws<InvalidCastException>(() => value.AsInt64());
+        Assert.Throws<InvalidCastException>(() => value.AsUInt16Array());
+    }
+
+    [Fact]
+    public void ArrayToObject_ReturnsClone()
+    {
+        var source = new[] { 1, 2 };
+        var value = PlcValue.FromInt32Array(source);
+
+        var array = Assert.IsType<int[]>(value.ToObject());
+        array[0] = 99;
+
+        Assert.Equal(source, value.AsInt32Array());
+    }
 }
 
 public class PlcAddressTests
 {
     [Fact]
-    public void Constructor_RejectsInvalidLength()
+    public void Constructor_AllowsNumericArrays()
+    {
+        var address = new PlcAddress("holding", 0, PlcDataType.UInt16, length: 10);
+
+        Assert.Equal(10, address.Length);
+        Assert.Equal(20, address.ByteSize);
+    }
+
+    [Fact]
+    public void Constructor_RejectsBoolArrays()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => new PlcAddress("holding", 0, PlcDataType.UInt16, length: 2));
+            () => new PlcAddress("coil", 0, PlcDataType.Bool, length: 2));
     }
 
     [Fact]
@@ -157,6 +214,26 @@ public class PlcValueCodecTests
     public void StringEncoding_IsRejectedByCodec()
     {
         Assert.Throws<NotSupportedException>(() => PlcValueCodec.ToBytes(PlcValue.FromString("x")));
+    }
+
+    [Fact]
+    public void RoundTripsArrays()
+    {
+        var words = PlcValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 });
+        var wordBytes = PlcValueCodec.ToBytes(words);
+
+        Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, wordBytes);
+        Assert.Equal(words, PlcValueCodec.FromBytes(PlcDataType.UInt16, wordBytes, count: 2));
+
+        var reals = PlcValue.FromFloatArray(new[] { 1.5f, -2.5f });
+        Assert.Equal(reals, PlcValueCodec.FromBytes(PlcDataType.Float, PlcValueCodec.ToBytes(reals), count: 2));
+    }
+
+    [Fact]
+    public void ArrayDecoding_RejectsTooFewBytes()
+    {
+        Assert.Throws<ArgumentException>(
+            () => PlcValueCodec.FromBytes(PlcDataType.UInt16, new byte[] { 0x00, 0x01 }, count: 2));
     }
 }
 

@@ -11,7 +11,7 @@
 | `SiameseCat.Protocols` | 协议层 | Modbus（RTU/TCP）与 Siemens S7 的帧、客户端，以及通用 Modbus 驱动 | Core、Transport |
 | `SiameseCat.Drivers` | 品牌层 | Siemens / Inovance 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
 | `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器与 `IServiceCollection` 注册 | Core、Drivers、`Microsoft.Extensions.*` |
-| `SiameseCat.Server` | 从站（可选） | Modbus TCP 从站（FC01/02/03/04/05/06/15/16/23），用于联调、仿真与集成测试 | Core |
+| `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/15/16/23），用于联调、仿真与集成测试 | Core、Protocols、Transport |
 
 协议栈自行实现，不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
 
@@ -156,7 +156,7 @@ await batchWrite.WriteBatchAsync(new[]
 var tag = new PlcTag("temperature", "40001", PlcDataType.Int16, scale: 0.1, offset: -40, unit: "°C");
 var engineering = tag.ToEngineering((await driver.ReadTagAsync(tag)).AsDouble());
 
-// 轮询订阅
+// 轮询订阅（默认带抖动与失败退避）
 await using var subscription = await driver.SubscribeAsync(
     driver.AddressParser.Parse("40001"),
     TimeSpan.FromMilliseconds(500),
@@ -265,7 +265,20 @@ await driver.ConnectAsync();
 | Siemens | `DB1.DBX0.0` / `DB1.DBW2` / `M0.0` / `IW4` | `{ Region="DB1", Offset=0, BitOffset=0, DataType=Bool }` |
 | Inovance | `D100` / `M10` / `X17`（八进制） / `Y10` | `{ Region="holding", Offset=100, DataType=UInt16 }` |
 
-数组/文本使用 `Length`：`String` 为最大字符数，`Raw` 为字节数；数值类型必须是单个元素。
+数组/文本使用 `Length`：`String` 为最大字符数，`Raw` 为字节数，**数值类型为元素个数**（`UInt16` + `Length=10` 就是 10 个寄存器/字，`ByteSize` 自动等于 20）。`Bool` 始终表示单个位，多个位请用多个地址。
+
+```csharp
+// 读 10 个连续寄存器为一个数组
+var block = await driver.ReadAsync(driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(10));
+ushort[] values = block.AsUInt16Array();
+
+// 写一个数组，Modbus 会自动改用 FC16 / S7 走多字节写
+await driver.WriteAsync(
+    driver.AddressParser.Parse("HR0", PlcDataType.Float).WithLength(4),
+    PlcValue.FromFloatArray(new[] { 1.5f, 2.5f, 3.5f, 4.5f }));
+```
+
+支持的数组元素类型：`Int16` / `UInt16` / `Int32` / `UInt32` / `Int64` / `UInt64` / `Float` / `Double`；`PlcValue.IsArray` / `Length` / `AsUInt16Array()` 等访问器与**按元素比较**的相等性都已提供，标量访问器对数组会抛 `InvalidCastException`。
 v1 不提供跨协议统一语义地址（例如把 `"temperature"` 映射到不同厂商的地址），`PlcTag` 已能满足配置化场景。
 
 **符号寻址**：OPC UA / CIP / ADS 这类按名字寻址的协议不用再把符号拼进字符串，`PlcAddress` 带一个可选 `Symbol`：
@@ -348,10 +361,11 @@ registry.Register(new MyProtocolFactory());
 | TCP | 原始 TCP 客户端传输，可用于自定义文本/二进制协议 |
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
 | SerialPort | 原始串口传输，可配置波特率、校验位、数据位、停止位、流控 |
-| 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求 |
+| 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求（含 `STRING`，不再逐条回退） |
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
-| Modbus TCP 从站 | `SiameseCat.Server`：`ModbusTcpServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端与广播写，用于联调与集成测试 |
+| 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
+| Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、广播写与坏 CRC 丢弃 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
@@ -389,7 +403,7 @@ broadcast.Options["unitId"] = "0";
 | 协议层 | `SiameseCat.Protocols` | Modbus（RTU/TCP）与 S7 的帧、客户端，以及通用 Modbus 驱动 |
 | 品牌层 | `SiameseCat.Drivers` | Siemens / Inovance 的品牌驱动与原生地址映射 |
 | 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器与 DI 注册，不参与分层依赖链 |
-| 从站（可选） | `SiameseCat.Server` | Modbus TCP 从站，用于联调、仿真与集成测试，只依赖 Core |
+| 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站，用于联调、仿真与集成测试；复用协议层 PDU 与传输层串口 |
 
 ```text
 src/
@@ -427,7 +441,7 @@ src/
     ├── MicrosoftLoggerAdapter.cs        # IPlcLogger -> ILogger
     └── ServiceCollectionExtensions.cs   # AddSiameseCat / AddSiameseCatDriver（Microsoft.Extensions.DependencyInjection 命名空间）
 
-src/SiameseCat.Server/                   # Modbus TCP 从站（可选）：联调 / 仿真 / 集成测试
+src/SiameseCat.Server/                   # Modbus 从站（可选）：TCP + RTU，联调 / 仿真 / 集成测试
 ├── ModbusTcpServer.cs                   # MBAP 会话处理、并发客户端、广播写
 ├── ModbusTcpServer.Pdu.cs               # FC01/02/03/04/05/06/15/16/23 与异常码
 ├── ModbusDataStore.cs                   # 线程安全的寄存器 / 线圈存储
@@ -479,7 +493,7 @@ SiameseCat.Core            （契约 + 模型，无 I/O）
         └── SiameseCat.Drivers（Siemens、Inovance 品牌驱动）
             └── SiameseCat.Hosting（可选：DI + Microsoft.Extensions.Logging）
 
-SiameseCat.Core ← SiameseCat.Server（可选：Modbus TCP 从站，与客户端包互不依赖）
+SiameseCat.Protocols ← SiameseCat.Server（可选：Modbus TCP/RTU 从站，复用协议层 PDU 与 CRC）
 ```
 
 引用对应层的项目/包：
@@ -503,7 +517,7 @@ dotnet add package SiameseCat.Protocols    # 只用协议层：Modbus、S7
 dotnet add package SiameseCat.Transport    # 只用传输层：TCP / UDP / 串口
 dotnet add package SiameseCat.Core         # 只实现自定义驱动
 dotnet add package SiameseCat.Hosting  # 可选：Microsoft.Extensions.Logging + 依赖注入
-dotnet add package SiameseCat.Server   # 可选：Modbus TCP 从站（联调 / 仿真）
+dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 从站（联调 / 仿真）
 ```
 
 ## Native AOT
@@ -838,9 +852,9 @@ var buffer = new byte[1024];
 int read = await transport.ReadAsync(buffer);
 ```
 
-## Modbus TCP 从站（联调 / 仿真）
+## Modbus 从站（联调 / 仿真）
 
-`SiameseCat.Server` 提供一个进程内 Modbus TCP 从站，在没有真实 PLC 时用于联调、集成测试和演示。它只依赖 Core，与客户端包互不依赖：
+`SiameseCat.Server` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实 PLC 时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
 
 ```csharp
 using SiameseCat.Server;
@@ -871,6 +885,28 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 - 单元号原样回显，一个从站可服务多个站号；单元号 `0` 视为广播，写请求生效但不返回响应（与客户端广播模式配套）。
 - 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
 - `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
+
+### Modbus RTU 从站
+
+同一套 PDU 逻辑也提供 RTU 版本，用于 RS-485 联调或串口仿真：
+
+```csharp
+using SiameseCat.Server;
+
+await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
+{
+    UnitId = 1,
+    Serial = { PortName = "COM3", BaudRate = 19200, ReadTimeout = TimeSpan.FromMilliseconds(100) },
+    HoldingRegisters = 512,
+});
+
+await slave.StartAsync();
+slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
+```
+
+- `Serial.ReadTimeout` 同时用作**帧间隔**：超时即认为当前帧结束（默认 100 ms，视波特率调整）。
+- 只应答 `UnitId` 指定的站号；站号 `0` 的写请求生效但不响应；CRC 错误的帧直接丢弃。
+- 也可以通过 `new ModbusRtuServer(ITransport, options)` 注入自定义链路（串口隧道或测试替身），便于在无硬件环境验证。
 
 ## 数据类型转换（Modbus）
 
@@ -978,6 +1014,27 @@ bool alive = await ((IHealthCheckable)driver).PingAsync();   // 失败返回 fal
 - Keep-Alive 在 `ConnectAsync` 成功后启动，`DisconnectAsync` / `DisposeAsync` 停止；每次探测都经过事务锁，不会与业务请求交错。
 - 探针读同样计入指标（`Metrics.Requests`），便于观察心跳开销。
 
+### 轮询订阅（抖动与退避）
+
+`SubscribeAsync` 在驱动没有原生订阅时按固定间隔轮询，间隔默认带 **±20% 抖动**，连续读失败时按指数退避，避免多个驱动同时打 PLC：
+
+```csharp
+var configuration = new DriverConfiguration
+{
+    SubscriptionJitter = true,                             // 默认：间隔随机化，防止同步抖动
+    SubscriptionMaxBackoff = TimeSpan.FromSeconds(30),     // 默认：失败退避上限，0 表示关闭退避
+};
+
+await using var subscription = await driver.SubscribeAsync(
+    driver.AddressParser.Parse("40001"),
+    TimeSpan.FromSeconds(1),
+    value => { Console.WriteLine(value); return Task.CompletedTask; });
+```
+
+- 抖动只作用于轮询间隔，不改变业务语义；变化检测仍按 `PlcValue` 载荷比较。
+- 失败退避为 `interval × 2^失败次数`（上限 `SubscriptionMaxBackoff`），首次读取成功后立即复位。
+- 协议原生订阅（重写 `DoSubscribeAsync`）不受这两个设置影响。
+
 ### 指标与 OpenTelemetry 导出
 
 `driver.Metrics.Snapshot()` 返回按操作分类的计数与延迟分布：
@@ -1080,11 +1137,11 @@ dotnet run -- serial <com> [baud] [text]
 ```
 ## 当前限制
 
-- Modbus 从站已提供 TCP 版本（`SiameseCat.Server`），尚未提供 RTU 从站；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
+- Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Server`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
 - 驱动层内置三个驱动：通用 Modbus（RTU/TCP）、西门子 S7、汇川（D/M/X/Y 映射到 Modbus）；其他品牌可按同一契约扩展。
 - 汇川驱动基于 Modbus，按软元件映射实现；厂商私有 ASCII/串口协议未内置。
 - 西门子 S7 目前只支持 TCP 传输；Modbus 支持 TCP/RTU。
-- 批量写中若包含 S7 `String`，该批会回退为逐条写入（`STRING` 需要两字节长度头）。
+- 数值数组支持 `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`；`Bool` 只表示单个位（多位请用多个地址），`String`/`Raw` 继续用 `Length` 表示字符数/字节数。
 - v1 不提供跨协议统一语义地址映射，`PlcTag` 覆盖配置化场景。
 - 串口没有可取消的异步 API：取消正在进行的读写会关闭串口，需要重新调用 `ConnectAsync`。
 - 串口 `ReadTimeout` 建议小于协议 `Timeout`，否则超时检测会被串口读超时延迟。

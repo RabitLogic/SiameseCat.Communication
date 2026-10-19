@@ -233,6 +233,55 @@ public class SharedTransportTests
     }
 }
 
+public class SubscriptionPollingTests
+{
+    [Fact]
+    public async Task PollingSubscription_BacksOffAfterFailures()
+    {
+        await using var driver = new MockDriver(new DriverConfiguration
+        {
+            SubscriptionJitter = false,
+            SubscriptionMaxBackoff = TimeSpan.FromMilliseconds(100),
+        });
+        driver.TransientFailuresRemaining = int.MaxValue;
+        await driver.ConnectAsync();
+
+        var subscription = await driver.SubscribeAsync(
+            driver.AddressParser.Parse("R0"),
+            TimeSpan.FromMilliseconds(10),
+            _ => Task.CompletedTask);
+        await Task.Delay(160);
+        await subscription.DisposeAsync();
+
+        // Without backoff this window would contain ~16 attempts; doubling delays yield far fewer.
+        Assert.InRange(driver.ReadCount, 1, 8);
+    }
+
+    [Fact]
+    public async Task PollingSubscription_WithJitter_KeepsPolling()
+    {
+        await using var driver = new MockDriver();
+        await driver.ConnectAsync();
+
+        var subscription = await driver.SubscribeAsync(
+            driver.AddressParser.Parse("R0"),
+            TimeSpan.FromMilliseconds(10),
+            _ => Task.CompletedTask);
+        await Task.Delay(150);
+        await subscription.DisposeAsync();
+
+        Assert.True(driver.ReadCount >= 3);
+    }
+
+    [Fact]
+    public void NegativeSubscriptionBackoff_IsRejected()
+    {
+        var configuration = new DriverConfiguration { SubscriptionMaxBackoff = TimeSpan.FromSeconds(-1) };
+
+        Assert.Throws<ArgumentOutOfRangeException>(configuration.Validate);
+    }
+}
+
 public class ValueMetadataTests
 {
     [Fact]

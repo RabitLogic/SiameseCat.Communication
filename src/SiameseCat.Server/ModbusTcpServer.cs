@@ -13,9 +13,10 @@ namespace SiameseCat.Server;
 /// <para>The unit identifier of a request is echoed back, so one server can answer several station ids.</para>
 /// <para>Unit id 0 is treated as a broadcast: writes are applied and no response is sent.</para>
 /// </remarks>
-public sealed partial class ModbusTcpServer : IAsyncDisposable
+public sealed class ModbusTcpServer : IAsyncDisposable
 {
     private readonly ModbusServerOptions _options;
+    private readonly ModbusPduProcessor _processor;
     private readonly TcpListener _listener;
     private readonly List<TcpClient> _clients = new();
     private readonly object _clientSync = new();
@@ -35,6 +36,7 @@ public sealed partial class ModbusTcpServer : IAsyncDisposable
             _options.InputRegisters,
             _options.Coils,
             _options.DiscreteInputs);
+        _processor = new ModbusPduProcessor(Data);
         _listener = new TcpListener(ResolveAddress(_options.Host), _options.Port);
     }
 
@@ -187,7 +189,7 @@ public sealed partial class ModbusTcpServer : IAsyncDisposable
                         return;
                     }
 
-                    var response = ProcessPdu(header[6], pdu);
+                    var response = _processor.Process(header[6], pdu);
                     if (response is null)
                     {
                         continue;

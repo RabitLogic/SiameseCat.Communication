@@ -105,6 +105,12 @@ internal static class Program
         var symbol = PlcAddress.FromSymbol("ns=2", "s=Speed", PlcDataType.Int16);
         Ensure(symbol.Symbol == "s=Speed" && symbol.ToString() == "ns=2:s=Speed[Int16]", "Symbolic address failed.");
 
+        var array = PlcValue.FromUInt16Array(new ushort[] { 10, 20, 30 });
+        Ensure(array.IsArray && array.Length == 3 && array.AsUInt16Array()[2] == 30, "Numeric arrays failed.");
+        Ensure(
+            new PlcAddress("holding", 0, PlcDataType.UInt16, length: 3).ByteSize == 6,
+            "Array address size failed.");
+
         var tag = new PlcTag("temperature", "40001", PlcDataType.Int16, scale: 0.1, offset: -40);
         Ensure(Math.Abs(tag.ToEngineering(100) - (-30)) < 1e-9, "Tag scaling failed.");
 
@@ -118,7 +124,8 @@ internal static class Program
         var tag = new PlcTag("speed", "40001", PlcDataType.UInt16);
         EnsureThrows<ArgumentNullException>(() => PlcTagExtensions.ReadTagAsync(null!, tag));
         EnsureThrows<ArgumentException>(() => new PlcAddress(string.Empty, 0, PlcDataType.UInt16));
-        EnsureThrows<ArgumentOutOfRangeException>(() => new PlcAddress("holding", 0, PlcDataType.UInt16, 2));
+        EnsureThrows<ArgumentOutOfRangeException>(() => new PlcAddress("coil", 0, PlcDataType.Bool, 2));
+        EnsureThrows<ArgumentOutOfRangeException>(() => new PlcAddress("holding", 0, PlcDataType.UInt16, 0));
 
         var configuration = new DriverConfiguration { Transport = TransportKind.Custom };
         EnsureThrows<ArgumentException>(() =>

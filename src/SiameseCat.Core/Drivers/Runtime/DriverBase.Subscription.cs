@@ -2,6 +2,8 @@ namespace SiameseCat.Core;
 
 public abstract partial class DriverBase
 {
+    private static readonly Random SubscriptionRandom = new();
+
     /// <inheritdoc/>
     public async Task<IAsyncDisposable> SubscribeAsync(
         PlcAddress address,
@@ -53,15 +55,19 @@ public abstract partial class DriverBase
         var token = cts.Token;
         var last = PlcValue.Null;
         var first = true;
+        var failures = 0;
 
         try
         {
-            using var timer = new IntervalTimer(interval);
-            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+            while (!token.IsCancellationRequested)
             {
+                await Task.Delay(GetPollDelay(interval, failures), token).ConfigureAwait(false);
+
                 try
                 {
                     var value = await ReadAsync(address, token).ConfigureAwait(false);
+                    failures = 0;
+
                     if (first || value != last)
                     {
                         first = false;
@@ -75,7 +81,10 @@ public abstract partial class DriverBase
                 }
                 catch (Exception ex)
                 {
-                    Logger.Warning($"{Descriptor.Id} subscription for {address} failed.", ex);
+                    failures++;
+                    Logger.Warning(
+                        $"{Descriptor.Id} subscription for {address} failed ({failures} in a row).",
+                        ex);
                 }
             }
         }
@@ -87,6 +96,26 @@ public abstract partial class DriverBase
         {
             cts.Dispose();
         }
+    }
+
+    private TimeSpan GetPollDelay(TimeSpan interval, int failures)
+    {
+        if (failures > 0 && Configuration.SubscriptionMaxBackoff > TimeSpan.Zero)
+        {
+            var backoff = interval.TotalMilliseconds * Math.Pow(2, failures);
+            interval = TimeSpan.FromMilliseconds(
+                Math.Min(Math.Max(interval.TotalMilliseconds, backoff), Configuration.SubscriptionMaxBackoff.TotalMilliseconds));
+        }
+
+        if (Configuration.SubscriptionJitter)
+        {
+            lock (SubscriptionRandom)
+            {
+                interval = TimeSpan.FromMilliseconds(interval.TotalMilliseconds * (0.8 + (SubscriptionRandom.NextDouble() * 0.4)));
+            }
+        }
+
+        return interval;
     }
 
     private sealed class Subscription : IAsyncDisposable

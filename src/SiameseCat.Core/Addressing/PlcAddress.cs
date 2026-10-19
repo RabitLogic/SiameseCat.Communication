@@ -48,12 +48,12 @@ public readonly record struct PlcAddress
             throw new ArgumentOutOfRangeException(nameof(length), length, "Length must be at least 1.");
         }
 
-        if (dataType.IsSingleElement() && length != 1)
+        if (dataType == PlcDataType.Bool && length != 1)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(length),
                 length,
-                $"{dataType} describes a single element; use String or Raw for arrays.");
+                "Bool addresses a single bit; read several bits as separate addresses.");
         }
 
         if (bitOffset is not null)

@@ -23,11 +23,16 @@ public static class PlcValueCodec
         return elementSize == 0 ? length : elementSize * length;
     }
 
-    /// <summary>Encodes a value as big-endian bytes.</summary>
+    /// <summary>Encodes a value as big-endian bytes. Array values are encoded element by element.</summary>
     /// <param name="value">Value to encode. Strings are not supported.</param>
     /// <exception cref="NotSupportedException">The value is a string.</exception>
     public static byte[] ToBytes(PlcValue value)
     {
+        if (value.IsArray)
+        {
+            return ToArrayBytes(value);
+        }
+
         switch (value.DataType)
         {
             case PlcDataType.Null:
@@ -89,11 +94,22 @@ public static class PlcValueCodec
         }
     }
 
-    /// <summary>Decodes a big-endian value.</summary>
+    /// <summary>Decodes a big-endian value, optionally as an array of elements.</summary>
     /// <param name="dataType">Target data type.</param>
-    /// <param name="bytes">Source bytes; at least the size required by <paramref name="dataType"/>.</param>
-    public static PlcValue FromBytes(PlcDataType dataType, ReadOnlySpan<byte> bytes)
+    /// <param name="bytes">Source bytes; at least the size required by the elements.</param>
+    /// <param name="count">Element count; 1 decodes a scalar. Ignored for <see cref="PlcDataType.Raw"/> and strings.</param>
+    public static PlcValue FromBytes(PlcDataType dataType, ReadOnlySpan<byte> bytes, int count = 1)
     {
+        if (count < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Count must be at least 1.");
+        }
+
+        if (count > 1)
+        {
+            return FromArrayBytes(dataType, bytes, count);
+        }
+
         var required = GetByteSize(dataType);
         if (dataType is not (PlcDataType.Raw or PlcDataType.Null) && dataType is not PlcDataType.String && bytes.Length < required)
         {
@@ -121,5 +137,226 @@ public static class PlcValueCodec
                 "Strings are decoded by the protocol driver because their layout differs per protocol."),
             _ => throw new NotSupportedException($"Unsupported data type {dataType}."),
         };
+    }
+
+    private static byte[] ToArrayBytes(PlcValue value)
+    {
+        switch (value.DataType)
+        {
+            case PlcDataType.Int16:
+                {
+                    var values = value.AsInt16Array();
+                    var bytes = new byte[values.Length * 2];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteInt16BigEndian(bytes.AsSpan(i * 2), values[i]);
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.UInt16:
+                {
+                    var values = value.AsUInt16Array();
+                    var bytes = new byte[values.Length * 2];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteUInt16BigEndian(bytes.AsSpan(i * 2), values[i]);
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.Int32:
+                {
+                    var values = value.AsInt32Array();
+                    var bytes = new byte[values.Length * 4];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(i * 4), values[i]);
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.UInt32:
+                {
+                    var values = value.AsUInt32Array();
+                    var bytes = new byte[values.Length * 4];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(i * 4), values[i]);
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.Int64:
+                {
+                    var values = value.AsInt64Array();
+                    var bytes = new byte[values.Length * 8];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteInt64BigEndian(bytes.AsSpan(i * 8), values[i]);
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.UInt64:
+                {
+                    var values = value.AsUInt64Array();
+                    var bytes = new byte[values.Length * 8];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteUInt64BigEndian(bytes.AsSpan(i * 8), values[i]);
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.Float:
+                {
+                    var values = value.AsFloatArray();
+                    var bytes = new byte[values.Length * 4];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteInt32BigEndian(
+                            bytes.AsSpan(i * 4),
+                            BitConverter.SingleToInt32Bits(values[i]));
+                    }
+
+                    return bytes;
+                }
+
+            case PlcDataType.Double:
+                {
+                    var values = value.AsDoubleArray();
+                    var bytes = new byte[values.Length * 8];
+                    for (var i = 0; i < values.Length; i++)
+                    {
+                        BinaryPrimitives.WriteInt64BigEndian(
+                            bytes.AsSpan(i * 8),
+                            BitConverter.DoubleToInt64Bits(values[i]));
+                    }
+
+                    return bytes;
+                }
+
+            default:
+                throw new NotSupportedException($"Arrays of {value.DataType} are not supported by the codec.");
+        }
+    }
+
+    private static PlcValue FromArrayBytes(PlcDataType dataType, ReadOnlySpan<byte> bytes, int count)
+    {
+        if (dataType is PlcDataType.Raw or PlcDataType.String or PlcDataType.Null)
+        {
+            return FromBytes(dataType, bytes);
+        }
+
+        var stride = GetByteSize(dataType);
+        if (bytes.Length < stride * count)
+        {
+            throw new ArgumentException(
+                $"{count} {dataType} elements need {stride * count} bytes but only {bytes.Length} were provided.",
+                nameof(bytes));
+        }
+
+        switch (dataType)
+        {
+            case PlcDataType.Int16:
+                {
+                    var values = new short[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BinaryPrimitives.ReadInt16BigEndian(bytes.Slice(i * stride));
+                    }
+
+                    return PlcValue.FromInt16Array(values);
+                }
+
+            case PlcDataType.UInt16:
+                {
+                    var values = new ushort[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BinaryPrimitives.ReadUInt16BigEndian(bytes.Slice(i * stride));
+                    }
+
+                    return PlcValue.FromUInt16Array(values);
+                }
+
+            case PlcDataType.Int32:
+                {
+                    var values = new int[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BinaryPrimitives.ReadInt32BigEndian(bytes.Slice(i * stride));
+                    }
+
+                    return PlcValue.FromInt32Array(values);
+                }
+
+            case PlcDataType.UInt32:
+                {
+                    var values = new uint[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BinaryPrimitives.ReadUInt32BigEndian(bytes.Slice(i * stride));
+                    }
+
+                    return PlcValue.FromUInt32Array(values);
+                }
+
+            case PlcDataType.Int64:
+                {
+                    var values = new long[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BinaryPrimitives.ReadInt64BigEndian(bytes.Slice(i * stride));
+                    }
+
+                    return PlcValue.FromInt64Array(values);
+                }
+
+            case PlcDataType.UInt64:
+                {
+                    var values = new ulong[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BinaryPrimitives.ReadUInt64BigEndian(bytes.Slice(i * stride));
+                    }
+
+                    return PlcValue.FromUInt64Array(values);
+                }
+
+            case PlcDataType.Float:
+                {
+                    var values = new float[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BitConverter.Int32BitsToSingle(
+                            BinaryPrimitives.ReadInt32BigEndian(bytes.Slice(i * stride)));
+                    }
+
+                    return PlcValue.FromFloatArray(values);
+                }
+
+            case PlcDataType.Double:
+                {
+                    var values = new double[count];
+                    for (var i = 0; i < count; i++)
+                    {
+                        values[i] = BitConverter.Int64BitsToDouble(
+                            BinaryPrimitives.ReadInt64BigEndian(bytes.Slice(i * stride)));
+                    }
+
+                    return PlcValue.FromDoubleArray(values);
+                }
+
+            default:
+                throw new NotSupportedException($"Arrays of {dataType} are not supported by the codec.");
+        }
     }
 }

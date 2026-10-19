@@ -133,6 +133,40 @@ public class SiemensDriverTests
     }
 
     [Fact]
+    public async Task ReadUInt16Array_ReturnsElements()
+    {
+        var transport = CreateConnectedTransport();
+        transport.EnqueueResponse(ProtocolFrames.S7Response(
+            2,
+            new byte[] { 0x04, 0x01 },
+            ProtocolFrames.DataItem(new byte[] { 0x00, 0x0A, 0x00, 0x14 })));
+        await using var driver = await CreateConnectedDriverAsync(transport);
+
+        var value = await driver.ReadAsync(
+            driver.AddressParser.Parse("DB1.DBW0").WithLength(2));
+
+        Assert.True(value.IsArray);
+        Assert.Equal(new ushort[] { 10, 20 }, value.AsUInt16Array());
+    }
+
+    [Fact]
+    public async Task WriteUInt16Array_SendsAllElements()
+    {
+        var transport = CreateConnectedTransport();
+        transport.EnqueueResponse(ProtocolFrames.S7Response(
+            2,
+            new byte[] { 0x05, 0x01 },
+            new byte[] { 0xFF }));
+        await using var driver = await CreateConnectedDriverAsync(transport);
+
+        await driver.WriteAsync(
+            driver.AddressParser.Parse("DB1.DBW0").WithLength(2),
+            PlcValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 }));
+
+        Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, transport.Writes[2][35..39]);
+    }
+
+    [Fact]
     public async Task WriteUInt16_SendsBigEndianBytes()
     {
         var transport = CreateConnectedTransport();
@@ -191,7 +225,7 @@ public class SiemensDriverTests
     }
 
     [Fact]
-    public async Task WriteBatch_FallsBackToSingleWritesForStrings()
+    public async Task WriteBatch_WithOnlyString_UsesOneRequest()
     {
         var transport = CreateConnectedTransport();
         transport.EnqueueResponse(ProtocolFrames.S7Response(2, new byte[] { 0x05, 0x01 }, new byte[] { 0xFF }));
@@ -204,6 +238,51 @@ public class SiemensDriverTests
                 PlcValue.FromString("AB")),
         });
 
+        Assert.Equal(3, transport.Writes.Count);
+        Assert.Equal(new byte[] { 4, 2, (byte)'A', (byte)'B' }, transport.Writes[2][35..39]);
+    }
+
+    [Fact]
+    public async Task WriteBatch_SendsStringsInTheMultiWriteRequest()
+    {
+        var transport = CreateConnectedTransport();
+        transport.EnqueueResponse(ProtocolFrames.S7Response(
+            2,
+            new byte[] { 0x05, 0x02 },
+            new byte[] { 0xFF, 0xFF }));
+        await using var driver = await CreateConnectedDriverAsync(transport);
+
+        await driver.WriteBatchAsync(new[]
+        {
+            new PlcWriteRequest(driver.AddressParser.Parse("DB1.DBW0"), PlcValue.FromUInt16(1)),
+            new PlcWriteRequest(
+                driver.AddressParser.Parse("DB3.DBB0", PlcDataType.String).WithLength(4),
+                PlcValue.FromString("AB")),
+        });
+
+        Assert.Equal(3, transport.Writes.Count);
+        var frame = transport.Writes[2];
+        Assert.Contains("AB", System.Text.Encoding.Latin1.GetString(frame), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadBatch_DecodesStringsInTheMultiReadResponse()
+    {
+        var transport = CreateConnectedTransport();
+        var data = ProtocolFrames.DataItem(new byte[] { 0x00, 0x2A })
+            .Concat(ProtocolFrames.DataItem(new byte[] { 4, 2, (byte)'A', (byte)'B', 0, 0 }))
+            .ToArray();
+        transport.EnqueueResponse(ProtocolFrames.S7Response(2, new byte[] { 0x04, 0x02 }, data));
+        await using var driver = await CreateConnectedDriverAsync(transport);
+
+        var values = await driver.ReadBatchAsync(new[]
+        {
+            driver.AddressParser.Parse("DB1.DBW0"),
+            driver.AddressParser.Parse("DB3.DBB0", PlcDataType.String).WithLength(4),
+        });
+
+        Assert.Equal(PlcValue.FromUInt16(42), values[0]);
+        Assert.Equal("AB", values[1].AsString());
         Assert.Equal(3, transport.Writes.Count);
     }
 

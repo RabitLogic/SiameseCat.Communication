@@ -78,6 +78,18 @@ public sealed class DriverConfiguration
     /// <summary>Gets or sets how many consecutive keep-alive failures trigger a reconnect. Defaults to 2.</summary>
     public int KeepAliveFailureThreshold { get; set; } = 2;
 
+    /// <summary>
+    /// Gets or sets whether polling subscriptions randomize each interval by ±20 %. Defaults to
+    /// <see langword="true"/> so several drivers do not poll a PLC in lockstep.
+    /// </summary>
+    public bool SubscriptionJitter { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the maximum delay applied after consecutive subscription read failures.
+    /// The delay doubles per failure up to this bound. Defaults to 30 seconds; zero disables backoff.
+    /// </summary>
+    public TimeSpan SubscriptionMaxBackoff { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Gets protocol-specific options, for example <c>unitId</c>, <c>rack</c> or <c>slot</c>.</summary>
     public IDictionary<string, string> Options { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -251,6 +263,14 @@ public sealed class DriverConfiguration
             throw new ArgumentException(
                 "A ProbeAddress is required when KeepAliveInterval is enabled.",
                 nameof(ProbeAddress));
+        }
+
+        if (SubscriptionMaxBackoff < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(SubscriptionMaxBackoff),
+                SubscriptionMaxBackoff,
+                "SubscriptionMaxBackoff cannot be negative.");
         }
 
         if (TransportFactory is not null)

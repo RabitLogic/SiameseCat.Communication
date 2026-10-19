@@ -388,6 +388,52 @@ public class ModbusDriverTests
                 readQuantity: 1));
     }
 
+    [Fact]
+    public async Task ReadNumericArray_ReturnsElements()
+    {
+        var transport = new MockTransport();
+        transport.EnqueueResponse(ProtocolFrames.Mbap(
+            1, 1, 0x03, 0x06, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x1E));
+        await using var driver = CreateDriver(transport);
+        await driver.ConnectAsync();
+
+        var value = await driver.ReadAsync(
+            driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(3));
+
+        Assert.True(value.IsArray);
+        Assert.Equal(new ushort[] { 10, 20, 30 }, value.AsUInt16Array());
+    }
+
+    [Fact]
+    public async Task WriteNumericArray_UsesMultipleRegisterRequest()
+    {
+        var transport = new MockTransport();
+        transport.EnqueueResponse(ProtocolFrames.Mbap(1, 1, 0x10, 0x00, 0x00, 0x00, 0x02));
+        await using var driver = CreateDriver(transport);
+        await driver.ConnectAsync();
+
+        await driver.WriteAsync(
+            driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(2),
+            PlcValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 }));
+
+        var frame = transport.Writes[0];
+        Assert.Equal(0x10, frame[7]);
+        Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, frame[13..17]);
+    }
+
+    [Fact]
+    public async Task WriteArray_WithWrongElementCount_IsRejected()
+    {
+        var transport = new MockTransport();
+        await using var driver = CreateDriver(transport);
+        await driver.ConnectAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => driver.WriteAsync(
+                driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(2),
+                PlcValue.FromUInt16Array(new ushort[] { 1, 2, 3 })));
+    }
+
     private static ModbusDriver CreateDriver(MockTransport transport, byte unitId = 1)
     {
         var client = new ModbusTcpClient(transport, new ModbusTcpOptions

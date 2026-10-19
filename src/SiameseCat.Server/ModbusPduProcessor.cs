@@ -1,7 +1,17 @@
 namespace SiameseCat.Server;
 
-public sealed partial class ModbusTcpServer
+/// <summary>Shared Modbus PDU handling used by the TCP and RTU slaves.</summary>
+internal sealed class ModbusPduProcessor
 {
+    private readonly ModbusDataStore _data;
+
+    public ModbusPduProcessor(ModbusDataStore data)
+    {
+        _data = data ?? throw new ArgumentNullException(nameof(data));
+    }
+
+    private ModbusDataStore Data => _data;
+
     private const byte FunctionReadCoils = 0x01;
     private const byte FunctionReadDiscreteInputs = 0x02;
     private const byte FunctionReadHoldingRegisters = 0x03;
@@ -23,7 +33,7 @@ public sealed partial class ModbusTcpServer
 
     /// <summary>Handles one request PDU.</summary>
     /// <returns>The response PDU, or <see langword="null"/> when the request must not be answered.</returns>
-    private byte[]? ProcessPdu(byte unitId, byte[] pdu)
+    public byte[]? Process(byte unitId, byte[] pdu)
     {
         var broadcast = unitId == 0;
 

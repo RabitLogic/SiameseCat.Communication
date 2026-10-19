@@ -105,23 +105,129 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     /// <param name="value">Value.</param>
     public static PlcValue FromBytes(ReadOnlySpan<byte> value) => new(PlcDataType.Raw, reference: value.ToArray());
 
-    /// <summary>Gets the value as a boolean. Numeric values are converted from non-zero.</summary>
-    public bool AsBool() => DataType switch
+    /// <summary>Creates an array of 16-bit signed integers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromInt16Array(ReadOnlySpan<short> values) =>
+        new(PlcDataType.Int16, reference: values.ToArray());
+
+    /// <summary>Creates an array of 16-bit unsigned integers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromUInt16Array(ReadOnlySpan<ushort> values) =>
+        new(PlcDataType.UInt16, reference: values.ToArray());
+
+    /// <summary>Creates an array of 32-bit signed integers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromInt32Array(ReadOnlySpan<int> values) =>
+        new(PlcDataType.Int32, reference: values.ToArray());
+
+    /// <summary>Creates an array of 32-bit unsigned integers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromUInt32Array(ReadOnlySpan<uint> values) =>
+        new(PlcDataType.UInt32, reference: values.ToArray());
+
+    /// <summary>Creates an array of 64-bit signed integers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromInt64Array(ReadOnlySpan<long> values) =>
+        new(PlcDataType.Int64, reference: values.ToArray());
+
+    /// <summary>Creates an array of 64-bit unsigned integers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromUInt64Array(ReadOnlySpan<ulong> values) =>
+        new(PlcDataType.UInt64, reference: values.ToArray());
+
+    /// <summary>Creates an array of single-precision numbers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromFloatArray(ReadOnlySpan<float> values) =>
+        new(PlcDataType.Float, reference: values.ToArray());
+
+    /// <summary>Creates an array of double-precision numbers.</summary>
+    /// <param name="values">Element values.</param>
+    public static PlcValue FromDoubleArray(ReadOnlySpan<double> values) =>
+        new(PlcDataType.Double, reference: values.ToArray());
+
+    /// <summary>Gets whether the value holds an array of elements.</summary>
+    public bool IsArray => DataType is not (PlcDataType.Null or PlcDataType.String or PlcDataType.Raw)
+        && _reference is Array;
+
+    /// <summary>Gets the element count: array length, string length, byte count, or 1 for scalars.</summary>
+    public int Length => DataType switch
     {
-        PlcDataType.Bool => _bool,
-        PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
-            => throw new InvalidCastException($"Cannot read a {DataType} value as Bool."),
-        _ => _integer != 0,
+        PlcDataType.Null => 0,
+        PlcDataType.String => ((string)_reference!).Length,
+        PlcDataType.Raw => ((byte[])_reference!).Length,
+        _ => _reference is Array array ? array.Length : 1,
     };
 
-    /// <summary>Gets the value as an 8-bit unsigned integer.</summary>
-    public byte AsByte() => DataType switch
+    /// <summary>Gets an array value as 16-bit signed integers.</summary>
+    public short[] AsInt16Array() => CloneArray<short>(PlcDataType.Int16);
+
+    /// <summary>Gets an array value as 16-bit unsigned integers.</summary>
+    public ushort[] AsUInt16Array() => CloneArray<ushort>(PlcDataType.UInt16);
+
+    /// <summary>Gets an array value as 32-bit signed integers.</summary>
+    public int[] AsInt32Array() => CloneArray<int>(PlcDataType.Int32);
+
+    /// <summary>Gets an array value as 32-bit unsigned integers.</summary>
+    public uint[] AsUInt32Array() => CloneArray<uint>(PlcDataType.UInt32);
+
+    /// <summary>Gets an array value as 64-bit signed integers.</summary>
+    public long[] AsInt64Array() => CloneArray<long>(PlcDataType.Int64);
+
+    /// <summary>Gets an array value as 64-bit unsigned integers.</summary>
+    public ulong[] AsUInt64Array() => CloneArray<ulong>(PlcDataType.UInt64);
+
+    /// <summary>Gets an array value as single-precision numbers.</summary>
+    public float[] AsFloatArray() => CloneArray<float>(PlcDataType.Float);
+
+    /// <summary>Gets an array value as double-precision numbers.</summary>
+    public double[] AsDoubleArray() => CloneArray<double>(PlcDataType.Double);
+
+    private T[] CloneArray<T>(PlcDataType expected)
     {
-        PlcDataType.Raw when _reference is byte[] { Length: 1 } bytes => bytes[0],
-        PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
-            => throw new InvalidCastException($"Cannot read a {DataType} value as Byte."),
-        _ => checked((byte)AsInt64()),
-    };
+        if (DataType != expected || _reference is not T[] values)
+        {
+            throw new InvalidCastException($"Cannot read a {DataType} value as {expected}[{Length}].");
+        }
+
+        return (T[])values.Clone();
+    }
+
+    private void ThrowIfArray()
+    {
+        if (IsArray)
+        {
+            throw new InvalidCastException(
+                $"The value is an array of {Length} {DataType} elements; use As{DataType}Array().");
+        }
+    }
+
+    /// <summary>Gets the value as a boolean. Numeric values are converted from non-zero.</summary>
+    public bool AsBool()
+    {
+        ThrowIfArray();
+
+        return DataType switch
+        {
+            PlcDataType.Bool => _bool,
+            PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
+                => throw new InvalidCastException($"Cannot read a {DataType} value as Bool."),
+            _ => _integer != 0,
+        };
+    }
+
+    /// <summary>Gets the value as an 8-bit unsigned integer.</summary>
+    public byte AsByte()
+    {
+        ThrowIfArray();
+
+        return DataType switch
+        {
+            PlcDataType.Raw when _reference is byte[] { Length: 1 } bytes => bytes[0],
+            PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
+                => throw new InvalidCastException($"Cannot read a {DataType} value as Byte."),
+            _ => checked((byte)AsInt64()),
+        };
+    }
 
     /// <summary>Gets the value as a 16-bit signed integer.</summary>
     public short AsInt16() => checked((short)AsInt64());
@@ -136,14 +242,19 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     public uint AsUInt32() => checked((uint)AsInt64());
 
     /// <summary>Gets the value as a 64-bit signed integer.</summary>
-    public long AsInt64() => DataType switch
+    public long AsInt64()
     {
-        PlcDataType.Bool => _bool ? 1 : 0,
-        PlcDataType.Float or PlcDataType.Double => checked((long)_real),
-        PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
-            => throw new InvalidCastException($"Cannot read a {DataType} value as Int64."),
-        _ => _integer,
-    };
+        ThrowIfArray();
+
+        return DataType switch
+        {
+            PlcDataType.Bool => _bool ? 1 : 0,
+            PlcDataType.Float or PlcDataType.Double => checked((long)_real),
+            PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
+                => throw new InvalidCastException($"Cannot read a {DataType} value as Int64."),
+            _ => _integer,
+        };
+    }
 
     /// <summary>Gets the value as a 64-bit unsigned integer.</summary>
     public ulong AsUInt64() => unchecked((ulong)AsInt64());
@@ -152,14 +263,19 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     public float AsFloat() => (float)AsDouble();
 
     /// <summary>Gets the value as a double-precision number.</summary>
-    public double AsDouble() => DataType switch
+    public double AsDouble()
     {
-        PlcDataType.Bool => _bool ? 1 : 0,
-        PlcDataType.Float or PlcDataType.Double => _real,
-        PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
-            => throw new InvalidCastException($"Cannot read a {DataType} value as Double."),
-        _ => _integer,
-    };
+        ThrowIfArray();
+
+        return DataType switch
+        {
+            PlcDataType.Bool => _bool ? 1 : 0,
+            PlcDataType.Float or PlcDataType.Double => _real,
+            PlcDataType.String or PlcDataType.Raw or PlcDataType.Null
+                => throw new InvalidCastException($"Cannot read a {DataType} value as Double."),
+            _ => _integer,
+        };
+    }
 
     /// <summary>Gets the text value.</summary>
     public string AsString() => DataType switch
@@ -169,27 +285,32 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     };
 
     /// <summary>Gets the raw bytes.</summary>
-    public byte[] AsBytes() => DataType switch
+    public byte[] AsBytes()
     {
-        PlcDataType.Raw => (byte[])((byte[])_reference!).Clone(),
-        PlcDataType.Null => Array.Empty<byte>(),
-        _ => throw new InvalidCastException($"Cannot read a {DataType} value as Raw bytes."),
-    };
+        ThrowIfArray();
 
-    /// <summary>Returns the boxed underlying value.</summary>
+        return DataType switch
+        {
+            PlcDataType.Raw => (byte[])((byte[])_reference!).Clone(),
+            PlcDataType.Null => Array.Empty<byte>(),
+            _ => throw new InvalidCastException($"Cannot read a {DataType} value as Raw bytes."),
+        };
+    }
+
+    /// <summary>Returns the boxed underlying value. Array values are cloned.</summary>
     public object? ToObject() => DataType switch
     {
         PlcDataType.Null => null,
         PlcDataType.Bool => _bool,
         PlcDataType.Byte => (byte)_integer,
-        PlcDataType.Int16 => (short)_integer,
-        PlcDataType.UInt16 => (ushort)_integer,
-        PlcDataType.Int32 => (int)_integer,
-        PlcDataType.UInt32 => (uint)_integer,
-        PlcDataType.Int64 => _integer,
-        PlcDataType.UInt64 => unchecked((ulong)_integer),
-        PlcDataType.Float => (float)_real,
-        PlcDataType.Double => _real,
+        PlcDataType.Int16 => IsArray ? ((short[])_reference!).Clone() : (short)_integer,
+        PlcDataType.UInt16 => IsArray ? ((ushort[])_reference!).Clone() : (ushort)_integer,
+        PlcDataType.Int32 => IsArray ? ((int[])_reference!).Clone() : (int)_integer,
+        PlcDataType.UInt32 => IsArray ? ((uint[])_reference!).Clone() : (uint)_integer,
+        PlcDataType.Int64 => IsArray ? ((long[])_reference!).Clone() : _integer,
+        PlcDataType.UInt64 => IsArray ? ((ulong[])_reference!).Clone() : unchecked((ulong)_integer),
+        PlcDataType.Float => IsArray ? ((float[])_reference!).Clone() : (float)_real,
+        PlcDataType.Double => IsArray ? ((double[])_reference!).Clone() : _real,
         PlcDataType.String => _reference,
         PlcDataType.Raw => ((byte[])_reference!).Clone(),
         _ => null,
@@ -199,12 +320,18 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     /// <remarks>
     /// Quality and timestamp are metadata: two values with the same data type and payload compare equal
     /// even when their quality or timestamp differ, so change detection keeps working on polled reads.
+    /// Arrays compare element by element.
     /// </remarks>
     public bool Equals(PlcValue other)
     {
         if (DataType != other.DataType)
         {
             return false;
+        }
+
+        if (IsArray)
+        {
+            return EqualsArray(other);
         }
 
         return DataType switch
@@ -218,19 +345,51 @@ public readonly struct PlcValue : IEquatable<PlcValue>
         };
     }
 
+    private bool EqualsArray(PlcValue other)
+    {
+        if (other._reference is not Array rightArray || rightArray.Length != Length)
+        {
+            return false;
+        }
+
+        return DataType switch
+        {
+            PlcDataType.Int16 => ((short[])_reference!).AsSpan().SequenceEqual((short[])rightArray),
+            PlcDataType.UInt16 => ((ushort[])_reference!).AsSpan().SequenceEqual((ushort[])rightArray),
+            PlcDataType.Int32 => ((int[])_reference!).AsSpan().SequenceEqual((int[])rightArray),
+            PlcDataType.UInt32 => ((uint[])_reference!).AsSpan().SequenceEqual((uint[])rightArray),
+            PlcDataType.Int64 => ((long[])_reference!).AsSpan().SequenceEqual((long[])rightArray),
+            PlcDataType.UInt64 => ((ulong[])_reference!).AsSpan().SequenceEqual((ulong[])rightArray),
+            PlcDataType.Float => ((float[])_reference!).AsSpan().SequenceEqual((float[])rightArray),
+            PlcDataType.Double => ((double[])_reference!).AsSpan().SequenceEqual((double[])rightArray),
+            _ => false,
+        };
+    }
+
     /// <inheritdoc/>
     public override bool Equals(object? obj) => obj is PlcValue other && Equals(other);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => DataType switch
+    public override int GetHashCode()
     {
-        PlcDataType.Null => 0,
-        PlcDataType.Bool => _bool.GetHashCode(),
-        PlcDataType.Float or PlcDataType.Double => _real.GetHashCode(),
-        PlcDataType.String => StringComparer.Ordinal.GetHashCode((string)_reference!),
-        PlcDataType.Raw => ((byte[])_reference!).Length,
-        _ => _integer.GetHashCode(),
-    };
+        if (IsArray)
+        {
+            unchecked
+            {
+                return ((int)DataType * 397) ^ Length;
+            }
+        }
+
+        return DataType switch
+        {
+            PlcDataType.Null => 0,
+            PlcDataType.Bool => _bool.GetHashCode(),
+            PlcDataType.Float or PlcDataType.Double => _real.GetHashCode(),
+            PlcDataType.String => StringComparer.Ordinal.GetHashCode((string)_reference!),
+            PlcDataType.Raw => ((byte[])_reference!).Length,
+            _ => _integer.GetHashCode(),
+        };
+    }
 
     /// <summary>Compares two values for equality.</summary>
     /// <param name="left">Left operand.</param>
@@ -243,11 +402,13 @@ public readonly struct PlcValue : IEquatable<PlcValue>
     public static bool operator !=(PlcValue left, PlcValue right) => !left.Equals(right);
 
     /// <inheritdoc/>
-    public override string ToString() => DataType switch
-    {
-        PlcDataType.Null => "Null",
-        PlcDataType.String => $"String:\"{_reference}\"",
-        PlcDataType.Raw => $"Raw:{((byte[])_reference!).Length}B",
-        _ => $"{DataType}:{ToObject()}",
-    };
+    public override string ToString() => IsArray
+        ? $"{DataType}[{Length}]"
+        : DataType switch
+        {
+            PlcDataType.Null => "Null",
+            PlcDataType.String => $"String:\"{_reference}\"",
+            PlcDataType.Raw => $"Raw:{((byte[])_reference!).Length}B",
+            _ => $"{DataType}:{ToObject()}",
+        };
 }
