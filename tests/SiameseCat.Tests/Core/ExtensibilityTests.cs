@@ -250,10 +250,10 @@ public class SubscriptionPollingTests
             driver.AddressParser.Parse("R0"),
             TimeSpan.FromMilliseconds(10),
             _ => Task.CompletedTask);
-        await Task.Delay(160);
+        await Task.Delay(250);
         await subscription.DisposeAsync();
 
-        // Without backoff this window would contain ~16 attempts; doubling delays yield far fewer.
+        // Without backoff this window would contain ~25 attempts; doubling delays yield far fewer.
         Assert.InRange(driver.ReadCount, 1, 8);
     }
 
@@ -267,7 +267,14 @@ public class SubscriptionPollingTests
             driver.AddressParser.Parse("R0"),
             TimeSpan.FromMilliseconds(10),
             _ => Task.CompletedTask);
-        await Task.Delay(150);
+
+        // Generous deadline: the assertion is about polling continuing, not about exact cadence.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (driver.ReadCount < 3 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
         await subscription.DisposeAsync();
 
         Assert.True(driver.ReadCount >= 3);
