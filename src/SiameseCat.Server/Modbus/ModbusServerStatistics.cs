@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>
 /// Thread-safe request and frame counters for a Modbus slave, grouped by function code.

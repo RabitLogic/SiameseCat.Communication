@@ -1,6 +1,6 @@
 using SiameseCat.Core;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>Settings for <see cref="ModbusTcpServer"/>.</summary>
 public sealed class ModbusServerOptions
@@ -52,5 +52,5 @@ public sealed class ModbusServerOptions
         ModbusServerIdentifier.Validate(ServerIdentifier);
     }
 
-    private static void ValidateSize(int size, string name) => ModbusBufferSizes.Validate(size, name);
+    private static void ValidateSize(int size, string name) => ServerBufferSizes.Validate(size, name);
 }

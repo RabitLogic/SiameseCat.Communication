@@ -43,6 +43,7 @@ The 1.0.0 release renamed a few types and projects. The table below maps the old
 | `IAddressParser` | `IPlcAddressParser` |
 | `tools/SiameseCat.Tools` | `tools/SiameseCat.AotProbe` |
 | `Modbus/Protocol/*`, `S7/Addressing/*` namespaces | folded into the protocol namespaces |
+| `SiameseCat.Server` (single namespace) | `SiameseCat.Server.Modbus` and `SiameseCat.Server.S7` — add the matching `using`; `AddModbusServer()` / `AddS7Server()` stay in `Microsoft.Extensions.DependencyInjection` |
 
 Also in 1.0.0:
 

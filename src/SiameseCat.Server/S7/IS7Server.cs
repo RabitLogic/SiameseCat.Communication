@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>Common contract of the in-process S7 slave.</summary>
 public interface IS7Server : IAsyncDisposable

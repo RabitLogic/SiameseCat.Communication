@@ -4,7 +4,7 @@ using SiameseCat.Core;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Transport;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>
 /// Modbus RTU slave that exposes an in-process <see cref="ModbusDataStore"/> over a serial port.

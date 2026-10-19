@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using SiameseCat.Core;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>
 /// Modbus TCP slave that exposes an in-process <see cref="ModbusDataStore"/>.

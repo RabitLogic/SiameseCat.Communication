@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>Thread-safe counters for an <see cref="S7Server"/>.</summary>
 public sealed class S7ServerStatistics

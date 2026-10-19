@@ -1,7 +1,7 @@
 using SiameseCat.Core;
 using SiameseCat.Protocols.S7;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>S7 PDU handling used by <see cref="S7Server"/>.</summary>
 internal sealed class S7PduProcessor

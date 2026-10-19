@@ -1,6 +1,6 @@
 using SiameseCat.Core;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>Shared Modbus PDU handling used by the TCP and RTU slaves.</summary>
 internal sealed class ModbusPduProcessor

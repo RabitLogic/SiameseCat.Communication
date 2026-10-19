@@ -38,6 +38,23 @@ src/SiameseCat.Core/
 └── Transport/           ITransport, ITransportFactory, TransportKind
 ```
 
+The slave package follows the same protocol-first layout, and namespaces track the folders so the
+protocol is obvious from an `using` directive:
+
+```text
+src/SiameseCat.Server/
+├── Modbus/              namespace SiameseCat.Server.Modbus
+│   ├── ModbusTcpServer / ModbusRtuServer / IModbusServer
+│   ├── ModbusServerOptions / ModbusRtuServerOptions / ModbusServerIdentifier
+│   ├── ModbusPduProcessor / ModbusServerStatistics
+│   └── ModbusDataStore / ModbusDataStoreSnapshot / *WriteEventArgs
+├── S7/                  namespace SiameseCat.Server.S7
+│   ├── S7Server / IS7Server / S7ServerOptions
+│   ├── S7PduProcessor / S7ServerStatistics
+│   └── S7DataStore / S7WriteEventArgs
+└── ServerBufferSizes.cs internal buffer-size validation shared by both protocols
+```
+
 `DriverBase` is split by responsibility:
 
 | File | Responsibility |

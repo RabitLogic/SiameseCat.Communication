@@ -1,6 +1,6 @@
 using SiameseCat.Protocols.S7;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>
 /// Byte-oriented memory of an S7 slave: the M, I and Q areas plus data blocks created on demand.
@@ -29,10 +29,10 @@ public sealed class S7DataStore
         int defaultDataBlockSize = 1024,
         bool autoCreateDataBlocks = true)
     {
-        _merkers = new byte[ModbusBufferSizes.Validate(memorySize, nameof(memorySize))];
-        _inputs = new byte[ModbusBufferSizes.Validate(inputSize, nameof(inputSize))];
-        _outputs = new byte[ModbusBufferSizes.Validate(outputSize, nameof(outputSize))];
-        _defaultDataBlockSize = ModbusBufferSizes.Validate(defaultDataBlockSize, nameof(defaultDataBlockSize));
+        _merkers = new byte[ServerBufferSizes.Validate(memorySize, nameof(memorySize))];
+        _inputs = new byte[ServerBufferSizes.Validate(inputSize, nameof(inputSize))];
+        _outputs = new byte[ServerBufferSizes.Validate(outputSize, nameof(outputSize))];
+        _defaultDataBlockSize = ServerBufferSizes.Validate(defaultDataBlockSize, nameof(defaultDataBlockSize));
         _autoCreateDataBlocks = autoCreateDataBlocks;
     }
 

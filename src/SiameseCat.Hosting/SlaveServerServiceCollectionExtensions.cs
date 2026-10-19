@@ -1,7 +1,8 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SiameseCat.Core;
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
+using SiameseCat.Server.S7;
 
 namespace Microsoft.Extensions.DependencyInjection;
 

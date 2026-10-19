@@ -11,7 +11,8 @@ using SiameseCat.Drivers;
 using SiameseCat.Drivers.Inovance;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
+using SiameseCat.Server.S7;
 
 namespace SiameseCat.Compatibility;
 

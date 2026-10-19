@@ -1,7 +1,7 @@
 namespace SiameseCat.Server;
 
 /// <summary>Shared validation for the buffer sizes exposed by the slaves.</summary>
-internal static class ModbusBufferSizes
+internal static class ServerBufferSizes
 {
     public const int Min = 1;
 

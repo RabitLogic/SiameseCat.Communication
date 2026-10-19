@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>Validation shared by the slave options.</summary>
 internal static class ModbusServerIdentifier

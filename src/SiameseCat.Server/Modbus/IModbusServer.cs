@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>Common contract of the in-process Modbus slaves.</summary>
 public interface IModbusServer : IAsyncDisposable

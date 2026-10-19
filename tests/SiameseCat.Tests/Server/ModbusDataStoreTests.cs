@@ -1,4 +1,5 @@
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
+using SiameseCat.Server.S7;
 
 namespace SiameseCat.Tests.Server;
 

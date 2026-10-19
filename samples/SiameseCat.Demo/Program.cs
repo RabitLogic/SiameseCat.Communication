@@ -4,7 +4,8 @@ using SiameseCat.Core;
 using SiameseCat.Drivers;
 using SiameseCat.Protocols.Modbus;
 using SiameseCat.Protocols.S7;
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
+using SiameseCat.Server.S7;
 using SiameseCat.Transport;
 
 namespace SiameseCat.Demo;

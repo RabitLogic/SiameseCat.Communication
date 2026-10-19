@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>Describes a write of one or more coils or discrete inputs.</summary>
 public sealed class ModbusCoilWriteEventArgs : EventArgs

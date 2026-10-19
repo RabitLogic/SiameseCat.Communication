@@ -1,5 +1,6 @@
 using SiameseCat.Protocols.S7;
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
+using SiameseCat.Server.S7;
 
 namespace SiameseCat.Tests.Server;
 
@@ -69,7 +70,8 @@ public class S7ServerTests
         await using var client = await ConnectAsync(server);
         var start = S7Address.Parse("M10.6");
 
-        await client.WriteBitsAsync(start, new[] { true, true, false, true });
+        var bits = new[] { true, true, false, true };
+        await client.WriteBitsAsync(start, bits);
 
         Assert.True(await client.ReadBoolAsync(S7Address.Parse("M10.6")));
         Assert.True(await client.ReadBoolAsync(S7Address.Parse("M10.7")));

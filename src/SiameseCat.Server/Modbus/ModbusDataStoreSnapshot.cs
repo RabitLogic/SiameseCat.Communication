@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>
 /// Immutable copy of every <see cref="ModbusDataStore"/> area.

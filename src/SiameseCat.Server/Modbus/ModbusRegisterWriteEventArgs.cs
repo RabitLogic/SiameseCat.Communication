@@ -1,4 +1,4 @@
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>Describes a write of one or more holding or input registers.</summary>
 public sealed class ModbusRegisterWriteEventArgs : EventArgs

@@ -1,6 +1,6 @@
 using SiameseCat.Core;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.Modbus;
 
 /// <summary>
 /// Thread-safe register and coil storage used by the Modbus TCP and RTU slaves.
@@ -427,5 +427,5 @@ public sealed class ModbusDataStore
 
     private static int BitBufferLength(int count) => (count + 31) / 32;
 
-    private static int ValidateSize(int size, string name) => ModbusBufferSizes.Validate(size, name);
+    private static int ValidateSize(int size, string name) => ServerBufferSizes.Validate(size, name);
 }

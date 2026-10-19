@@ -434,7 +434,7 @@ services.AddS7Server(options =>
 Both share one PDU processor and the same data store.
 
 ```csharp
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
 
 await using var server = new ModbusTcpServer(new ModbusServerOptions
 {
@@ -543,7 +543,7 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 ### S7 slave (ISO-on-TCP)
 
 ```csharp
-using SiameseCat.Server;
+using SiameseCat.Server.S7;
 
 await using var s7 = new S7Server(new S7ServerOptions
 {

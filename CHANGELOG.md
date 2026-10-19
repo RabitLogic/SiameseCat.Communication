@@ -38,6 +38,7 @@
 - **订阅抖动与退避**：`DriverConfiguration.SubscriptionJitter`（默认 `true`，间隔 ±20%）与 `SubscriptionMaxBackoff`（默认 30 s，失败按 `interval × 2^n` 指数退避，成功后复位）避免多个驱动同步轮询打断 PLC。
 - **Modbus 从站协议补齐**：新增 FC07 读异常状态、FC0B 读通信事件计数、FC11 报表服务器标识（`ServerIdentifier` / `RunIndicator`）与 FC16 掩码写保持寄存器；TCP 从站允许单字节 PDU（`07/0B/11` 请求仅 1 字节），RTU 从站按功能码推断帧长（掩码写 8 字节固定帧）。
 - **代码组织**：`ModbusDriver` 拆为 `ModbusDriver.cs`（生命周期与 FC23）、`.Read.cs`、`.Write.cs`、`.Conversion.cs` 四个 partial；`ModbusClientBase` 拆为 `ModbusClientBase.cs`（请求管线与帧解析）、`.Read.cs`、`.Write.cs`，公共 API 不变。
+- **从站目录与命名空间按协议拆分**：`SiameseCat.Server` 由扁平的 20 个文件改为 `Modbus/` 与 `S7/` 两个目录，命名空间相应变为 `SiameseCat.Server.Modbus` / `SiameseCat.Server.S7`（引用方需补一个 `using`）；共享的缓冲区尺寸校验收敛为内部 `ServerBufferSizes`。
 - **工程化**：CI 测试步骤收集 XPlat 覆盖率并设 75% 行覆盖率门禁、上传 TRX 与 Cobertura 报告；新增 `.github/dependabot.yml`（NuGet 分组 + GitHub Actions 月度）与 `SECURITY.md`。
 - **S7 从站**：新增 `S7Server`（`IS7Server`）与 `S7DataStore`，处理 COTP 握手、Setup Communication（PDU 可配置）、读/写变量（含多变量、位、位数组、`STRING`），支持 M/I/Q/DB 区、按需创建数据块、`Written` 事件、`Reset()` 与 `S7ServerStatistics`；Hosting 新增 `AddS7Server()`。net48 运行器与 AOT 探针均增加 S7 从站往返检查。
 - **文档重构**：`README.md` 改为英文主文档（同时作为 NuGet 包内 README），原中文全文移至 `README.zh-CN.md`；新增 `docs/` 深度文档（[架构](docs/architecture.md)、[协议矩阵](docs/protocol-matrix.md)、[迁移与升级](docs/migration.md)），包内 README 用绝对 GitHub 链接指向它们；CI 新增文档链接检查与「包内必须包含 README.md」校验。

@@ -1,6 +1,6 @@
 using SiameseCat.Core;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>Settings for <see cref="S7Server"/>.</summary>
 public sealed class S7ServerOptions
@@ -59,5 +59,5 @@ public sealed class S7ServerOptions
         }
     }
 
-    private static void ValidateSize(int size, string name) => ModbusBufferSizes.Validate(size, name);
+    private static void ValidateSize(int size, string name) => ServerBufferSizes.Validate(size, name);
 }

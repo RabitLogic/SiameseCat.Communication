@@ -1,6 +1,6 @@
 using SiameseCat.Protocols.S7;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>Describes a write into the S7 data store.</summary>
 public sealed class S7WriteEventArgs : EventArgs

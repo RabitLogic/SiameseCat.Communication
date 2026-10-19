@@ -891,7 +891,7 @@ int read = await transport.ReadAsync(buffer);
 `SiameseCat.Server` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实 PLC 时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
 
 ```csharp
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
 
 await using var server = new ModbusTcpServer(new ModbusServerOptions
 {
@@ -977,7 +977,7 @@ server.Data.Load(snapshot);              // 恢复快照，尺寸不一致会抛
 同一套 PDU 逻辑也提供 RTU 版本，用于 RS-485 联调或串口仿真：
 
 ```csharp
-using SiameseCat.Server;
+using SiameseCat.Server.Modbus;
 
 await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
 {
@@ -998,7 +998,7 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 ### S7 从站（ISO-on-TCP）
 
 ```csharp
-using SiameseCat.Server;
+using SiameseCat.Server.S7;
 using SiameseCat.Protocols.S7;
 
 await using var s7 = new S7Server(new S7ServerOptions

@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 using SiameseCat.Core;
 
-namespace SiameseCat.Server;
+namespace SiameseCat.Server.S7;
 
 /// <summary>
 /// S7 (ISO-on-TCP) slave that exposes an in-process <see cref="S7DataStore"/>.
