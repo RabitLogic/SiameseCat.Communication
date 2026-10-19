@@ -42,6 +42,7 @@ internal static class Program
         failures += await CheckAsync("TCP transport loopback", CheckTcpAsync);
         failures += await CheckAsync("Modbus TCP round trip", CheckModbusTcpAsync);
         failures += await CheckAsync("Pluggable driver contract", CheckPlcDriverAsync);
+        failures += await CheckAsync("Numeric arrays", CheckArrayValuesAsync);
         failures += await CheckAsync("Transport injection", CheckTransportInjectionAsync);
         failures += await CheckAsync("Logging integration", CheckLoggingAsync);
 
@@ -300,6 +301,44 @@ internal static class Program
 
         Ensure(inovanceDriver.AddressParser.Parse("D100").Offset == 100, "Inovance address parsing failed.");
         Ensure(inovanceDriver.AddressParser.Parse("Y10").Offset == 8200, "Inovance Y base mapping failed.");
+    }
+
+    private static async Task CheckArrayValuesAsync()
+    {
+        var value = PlcValue.FromUInt16Array(new ushort[] { 1, 2, 3 });
+        Ensure(value.IsArray && value.Length == 3, "Array value metadata is wrong.");
+        Ensure(value.AsUInt16Array().SequenceEqual(new ushort[] { 1, 2, 3 }), "Array round trip failed.");
+        Ensure(value == PlcValue.FromUInt16Array(new ushort[] { 1, 2, 3 }), "Array equality failed.");
+        Ensure(value.ToString() == "UInt16[3]", $"Unexpected array text '{value}'.");
+
+        var address = new PlcAddress("holding", 0, PlcDataType.UInt16, length: 3);
+        Ensure(address.ByteSize == 6, $"Unexpected array byte size ({address.ByteSize}).");
+
+        var bytes = PlcValueCodec.ToBytes(value);
+        var decoded = PlcValueCodec.FromBytes(PlcDataType.UInt16, bytes, count: 3);
+        Ensure(decoded.AsUInt16Array().SequenceEqual(new ushort[] { 1, 2, 3 }), "Array codec round trip failed.");
+
+        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await slave.StartAsync().ConfigureAwait(false);
+
+        var registry = DriverRegistryExtensions.CreateDefaultRegistry();
+        await using var driver = registry.Create("modbus", new DriverConfiguration
+        {
+            Transport = TransportKind.Tcp,
+            Host = "127.0.0.1",
+            Port = slave.Port,
+            Timeout = TimeSpan.FromSeconds(2),
+            ProbeAddress = "40001",
+        });
+
+        await driver.ConnectAsync().ConfigureAwait(false);
+
+        var arrayAddress = driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(3);
+        await ((IWritable)driver).WriteAsync(arrayAddress, value).ConfigureAwait(false);
+
+        var readBack = await ((IReadable)driver).ReadAsync(arrayAddress).ConfigureAwait(false);
+        Ensure(readBack.IsArray && readBack.Length == 3, "Array read did not return three elements.");
+        Ensure(readBack.AsUInt16Array().SequenceEqual(new ushort[] { 1, 2, 3 }), "Array driver round trip failed.");
     }
 
     private static async Task CheckTransportInjectionAsync()

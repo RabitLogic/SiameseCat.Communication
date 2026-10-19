@@ -524,7 +524,7 @@ dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 从站（联调
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
 
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
+`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
 
 | RID | 格式 | 交叉工具链 |
 | --- | --- | --- |
