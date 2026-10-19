@@ -125,7 +125,7 @@ The package targets `net8.0` and `netstandard2.0`:
   `netstandard2.0`; `IntervalTimer` replaces `PeriodicTimer`; `[GeneratedRegex]` is used on `net8.0`
   and falls back to `RegexOptions.Compiled`; UDP uses `ArrayPool` + `ArraySegment` to bridge Span APIs.
 - `IsAotCompatible` and the trimming/AOT analyzers run for `net8.0` only. There is no reflection,
-  `dynamic`, runtime serialization or code generation anywhere in the libraries.
+  `dynamic`, runtime serialization or code generation anywhere in the package.
 - `EnablePackageValidation` compares the public API of both TFMs at pack time, so an API cannot be
   accidentally hidden behind `#if NET8_0_OR_GREATER`.
 
@@ -158,7 +158,7 @@ Both sides of the stack are allocation-lean by design.
   enum on every request.
 
 Measured on a 14-core Windows machine, loopback TCP, 20k requests per scenario, median of 3 runs
-(baseline = before this optimization pass):
+(baseline = the straightforward implementation without buffer reuse):
 
 | Scenario | Allocations before | Allocations after | Change |
 | --- | --- | --- | --- |
@@ -184,4 +184,4 @@ numbers on your hardware.
 | Optional features are separate namespaces | `SiameseCat.Communication.Hosting`, `SiameseCat.Communication.Server` |
 
 See [protocol-matrix.md](protocol-matrix.md) for the wire-level details and
-[migration.md](migration.md) before upgrading an existing integration.
+[migration.md](migration.md) when integrating the package into an existing stack.

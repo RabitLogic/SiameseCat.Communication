@@ -4,7 +4,7 @@
 
 面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)** 与 **.NET Standard 2.0**（可被 .NET Framework 4.8 等存量宿主引用）。
 
-> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与升级](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
+> 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
 本仓库只产出**一个** NuGet 包 `SiameseCat.Communication`：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。包内按**命名空间**分层，层内再按协议/品牌分组：
 
@@ -56,7 +56,7 @@ SiameseCat.Communication（契约 + 模型）
 - **模板方法**：状态机、事务锁、超时、重试、重连、指标都在 `DriverBase`，驱动只实现 `DoConnectAsync` / `DoReadAsync` / `DoWriteAsync`（可选 `DoReadBatchAsync`）。`DriverBase` 按职责拆成 5 个分部文件：`DriverBase.cs`（契约与读写 API）、`.Lifecycle.cs`（连接状态机）、`.Execution.cs`（超时/重试/重连管线）、`.Health.cs`（`PingAsync` / Keep-Alive）、`.Subscription.cs`（轮询订阅）。
 - **插件式注册**：`DriverRegistry` 按 id 注册 `IPlcDriverFactory`，核心库不硬编码任何协议；AOT 场景使用显式注册，非 AOT 场景可用 `RegisterFromAssembly` 扫描。
 
-内置驱动 id 与打包关系：
+内置驱动 id：
 
 | 驱动 id | 定义位置 | 典型设备 |
 | --- | --- | --- |
@@ -1111,7 +1111,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 ### 版本与打包
 
 - 目标框架：`net8.0`（.NET 8 及以上宿主）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
-- **为什么不再为 net9.0 / net10.0 / net11.0 各出一份资产**：.NET 的 TFM 向后兼容，net9/10/11 的宿主会自动选用 `lib/net8.0`（已实测：net10.0 与 net11.0 项目加载的都是 `TargetFramework=.NETCoreApp,Version=v8.0` 的程序集）。只有当我们真的要用「仅在更高 TFM 才存在」的 API 时，才值得增加目标并配合 `#if NET9_0_OR_GREATER`；否则多出的资产内容完全相同，只会增加构建矩阵与包体积
+- **为什么不单独提供 net9.0 / net10.0 / net11.0 资产**：.NET 的 TFM 向后兼容，net9/10/11 的宿主会自动选用 `lib/net8.0`（已实测：net10.0 与 net11.0 项目加载的都是 `TargetFramework=.NETCoreApp,Version=v8.0` 的程序集）。只有当我们真的要用「仅在更高 TFM 才存在」的 API 时，才值得增加目标并配合 `#if NET9_0_OR_GREATER`；否则多出的资产内容完全相同，只会增加构建矩阵与包体积
 - 启用 .NET 分析器（`latest-recommended`）
 - 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
 - 集中包版本管理（`Directory.Packages.props`）

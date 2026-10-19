@@ -1,6 +1,6 @@
-# Migration and upgrade notes
+# Migration and integration notes
 
-## Choosing a package
+## Choosing namespaces
 
 There is exactly one package:
 
@@ -18,6 +18,7 @@ health checks. Pick what you need by namespace:
 | ASP.NET Core / `Microsoft.Extensions.Hosting` | + `SiameseCat.Communication.Hosting` |
 | Simulator or integration tests | + `SiameseCat.Communication.Server.Modbus`, `.Server.S7` |
 
+You can start with the protocol clients and move to drivers later: both expose the same options
 (`ModbusTcpOptions`, `ModbusRtuOptions`, `S7Options`) and the same address parsers.
 
 ## Coming from NModbus / Sharp7
@@ -29,6 +30,7 @@ health checks. Pick what you need by namespace:
 | `ushort[]` batches assembled by hand | `IBatchReadable.ReadBatchAsync(addresses)` merges contiguous addresses |
 | `Plc.Read("DB1.DBD0")` / `S7.ReadArea(...)` | `client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"))` |
 | Manual conversions (`BitConverter`) | `ModbusRegisterConverter` / `PlcValueCodec` |
+| Socket/`SerialPort` plumbing per device | `DriverConfiguration` + `ITransport` (TCP, UDP, serial, custom) |
 
 Behavioural differences to be aware of:
 
@@ -38,32 +40,17 @@ Behavioural differences to be aware of:
   the protocol timeout is observed first.
 - **Writes are not retried** by default (`RetryWrites = false`) because not every device is idempotent.
 
-## Upgrading from pre-1.0 builds
+## Integrating a device step by step
 
-The 1.0.0 release renamed a few types and projects. The table below maps the old names.
-
-| Old | New |
-| --- | --- |
-| `SiameseCat.Integration` (package/project) | `SiameseCat.Communication.Hosting` namespace inside the single `SiameseCat.Communication` package |
-| `MicrosoftPlcLogger` | `MicrosoftLoggerAdapter` |
-| `Tag` | `PlcTag` |
-| `TagExtensions` | `PlcTagExtensions` |
-| `IAddressParser` | `IPlcAddressParser` |
-| `tools/SiameseCat.Tools` | `tools/SiameseCat.AotProbe` |
-| `Modbus/Protocol/*`, `S7/Addressing/*` namespaces | folded into the protocol namespaces |
-| `SiameseCat.Core` / `.Transport` / `.Protocols` / `.Drivers` / `.Hosting` / `.Server` packages | one `SiameseCat.Communication` package with the namespaces `SiameseCat.Communication`, `.Transport`, `.Modbus`, `.S7`, `.Siemens`, `.Drivers`, `.Server.*`, `.Hosting` |
-| `SiameseCat.Communication.Server` (single namespace) | `SiameseCat.Communication.Server.Modbus` and `SiameseCat.Communication.Server.S7` — add the matching `using`; `AddModbusServer()` / `AddS7Server()` moved to `SiameseCat.Communication.Hosting` |
-
-Also in 1.0.0:
-
-- `DoReadAsync` / `DoWriteAsync` became virtual (default: throw `NotSupportedException`). Drivers that
-  used to implement empty writes can drop them; drivers that relied on being called must declare the
-  capability.
-- `DriverDescriptor.Capabilities` gates every operation; add the flags you support.
-- `PlcAddress.Length` for numeric types now means **elements**, not registers. Code that built
-  `Length` from a register count for `Int32`/`Float`/`Double` must divide by the element width.
-- `PlcValue` scalars throw `InvalidCastException` when accessed as a different type; array values must
-  be read with `AsUInt16Array()` etc.
+1. `dotnet add package SiameseCat.Communication`.
+2. Pick a driver: `modbus` for any Modbus RTU/TCP device, `siemens` for S7, or implement `IPlcDriver`
+   (usually by deriving from `DriverBase`) for a new protocol or brand.
+3. Configure `DriverConfiguration` (`Transport`, `Host`/`Port` or `Serial`, `Timeout`, retries) and set
+   `ProbeAddress` so health checks and keep-alive have a harmless address to read.
+4. Map addresses with `driver.AddressParser.Parse("40001" | "HR10" | "DB1.DBW2")`, or describe them once
+   as `PlcTag` objects.
+5. Run a sample against a device (`dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
+   --host ...`) or against the in-process slave, then run `tools/SiameseCat.Soak` for a longer session.
 
 ## Multi-targeting notes (netstandard2.0)
 
@@ -80,7 +67,7 @@ When your host is .NET Framework 4.8 (or any `netstandard2.0` consumer):
 
 ## Native AOT hosts
 
-- The libraries are `IsAotCompatible`; keep `PublishAot` enabled only in the executable project, not as a
+- The package is `IsAotCompatible`; keep `PublishAot` enabled only in the executable project, not as a
   global property, otherwise `netstandard2.0` targets fail with `NETSDK1207`.
 - `System.IO.Ports` works under Native AOT on Windows and Linux; macOS needs the usual USB-serial driver.
 - If you enable `LogFrames`, expect `Trace` traffic in production builds; gate it behind configuration.

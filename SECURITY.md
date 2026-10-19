@@ -29,8 +29,7 @@ anonymous.
 
 In scope:
 
-- the six NuGet packages (`SiameseCat.Core`, `.Transport`, `.Protocols`, `.Drivers`, `.Hosting`,
-  `.Server`),
+- the `SiameseCat.Communication` NuGet package,
 - protocol handling that processes untrusted input (Modbus slaves, frame parsing, address parsing).
 
 Out of scope:

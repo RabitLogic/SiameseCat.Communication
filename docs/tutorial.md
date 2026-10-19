@@ -455,4 +455,4 @@ Event Counter, FC17 Report Server ID) — the same pattern works for vendor-spec
 * [protocol-matrix.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) — function codes, address syntax, slave services.
 * [modbus-comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) — how SiameseCat compares with NModbus and FluentModbus.
 * [comparison.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md) — how SiameseCat compares with S7.Net Plus.
-* [migration.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) — moving from NModbus, Sharp7 or an older SiameseCat.
+* [migration.md](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) — moving from NModbus or Sharp7, plus the integration checklist.

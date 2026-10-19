@@ -21,7 +21,7 @@ Deeper documentation:
 - [Tutorial (step-by-step, with runnable samples)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md)
 - [Architecture and layering](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md)
 - [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md)
-- [Migration and upgrade notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
+- [Migration and integration notes](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md)
 - [Comparison with NModbus and FluentModbus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md)
 - [Comparison with S7.Net Plus](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
