@@ -27,7 +27,6 @@ RUN arch="${TARGETARCH:-$(uname -m)}"; \
         --configuration Release \
         --runtime "$rid" \
         -p:PublishAot=true \
-        -p:PublishAotCrossDebug=false \
         --output /app
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:8.0

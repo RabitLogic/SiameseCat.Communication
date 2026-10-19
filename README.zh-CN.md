@@ -400,7 +400,7 @@ registry.Register(new MyProtocolFactory());
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
 | Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
 | S7 从站 | `SiameseCat.Communication.Server.S7`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
-| Native AOT | 程序集标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
+| Native AOT | 程序集标记 `IsAotCompatible`；CI 在 Windows/Linux/macOS 上原生发布并运行 AOT 探针 |
 
 Modbus 支持的功能码：
 
@@ -462,7 +462,7 @@ tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus
 tests/SiameseCat.Compatibility/          # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
 tests/SiameseCat.FrameworkMatrix/        # 框架矩阵：在 .NET 8 / 10 / 11 上验证实际加载的资产与 Modbus 往返
 samples/SiameseCat.Samples/              # 按目录分层的使用教程：list / run <id> / selftest
-tools/SiameseCat.AotProbe/               # 无硬件 AOT 探针，支持跨平台交叉编译
+tools/SiameseCat.AotProbe/               # 无硬件 AOT 探针，按宿主 RID 发布
 tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成功率、堆/句柄/线程增长校验
 benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 ```
@@ -506,62 +506,25 @@ dotnet add package SiameseCat.Communication
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
 
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、从站托管（DI 注册 + `IHostedService` 启停 + 统计计数）、S7 从站往返、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
-
-| RID | 格式 | 交叉工具链 |
-| --- | --- | --- |
-| `win-x64` / `win-arm64` | PE | xwin + lld-link |
-| `linux-x64` / `linux-arm64` | ELF (glibc) | Zig |
-| `linux-musl-x64` / `linux-musl-arm64` | ELF (musl) | Zig |
-| `osx-x64` / `osx-arm64` | Mach-O | Zig + MacOSX.SDK |
+`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、从站托管（DI 注册 + `IHostedService` 启停 + 统计计数）、S7 从站往返、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。按宿主 RID 发布：
 
 ```powershell
-# 当前宿主
+# 发布当前宿主 RID 并运行
 ./scripts/publish-aot.ps1 -Run
-
-# 全部 RID（Windows/Linux/macOS 均可）
-./scripts/publish-aot.ps1 -All
-
-# 只交叉编译 Linux，并在 Docker 中运行验证
-./scripts/publish-aot.ps1 -RuntimeIdentifier linux-x64,linux-musl-x64 -Docker
 ```
 
-```bash
-# Linux / macOS
-bash scripts/publish-aot.sh all
-bash scripts/run-aot-docker.sh linux-x64
-bash scripts/run-aot-docker.sh linux-musl-x64
-```
-
-也可以使用发布配置：
+等价的直接命令：
 
 ```powershell
-dotnet publish tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj -p:PublishProfile=linux-arm64
-```
-
-或直接指定 RID：
-
-```powershell
-dotnet publish tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj `
-  -c Release -r osx-arm64 -p:PublishAot=true -o out
-```
-
-Docker 构建：
-
-```powershell
-docker build -f tools/SiameseCat.AotProbe/Dockerfile -t siamesecat-aot-probe .
-docker run --rm siamesecat-aot-probe
-
-# 交叉构建 ARM64 镜像（BuildKit/buildx）
-docker buildx build --platform linux/arm64 -f tools/SiameseCat.AotProbe/Dockerfile -t siamesecat-aot-probe:arm64 .
+dotnet publish tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj -c Release -r win-x64 -o out
+./out/SiameseCat.AotProbe.exe
 ```
 
 说明：
 
-- `PublishAotCross.Tools` 会自动下载 Zig/xwin/lld-link 工具链，首次构建较慢。
-- 交叉编译到 macOS 时符号剥离会自动关闭（宿主没有 `dsymutil`/`strip`），因此 Mach-O 体积较大。
-- 交叉编译到 Windows 不需要本机安装 Visual Studio C++ 工具；Linux 原生 AOT 需要 `clang` 与 `zlib1g-dev`；macOS 原生 AOT 需要 Xcode 命令行工具。
-- CI 一方面在 `win-x64`、`linux-x64`、`osx-arm64` 上执行原生 AOT 探针，另一方面在 Linux 上交叉编译全部 RID，并用 Docker 运行 glibc/musl 两个 Linux 探针。
+- **不做跨操作系统 AOT 交叉编译**。包本身发布 IL 资产，探针的作用是证明库在各平台的裁剪/AOT 编译与运行期行为；CI 在 `win-x64`、`linux-x64`、`osx-arm64` 上各自原生发布并执行探针。
+- Linux 原生 AOT 需要 `clang` 与 `zlib1g-dev`；macOS 原生 AOT 需要 Xcode 命令行工具。
+- 如需在容器中验证，可使用 `tools/SiameseCat.AotProbe/Dockerfile`。
 
 ## 快速开始
 

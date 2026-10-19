@@ -688,17 +688,17 @@ The package enables `IsAotCompatible`; there is no reflection, `dynamic`, runtim
 generation, and `S7Address` uses a source-generated regex. `tools/SiameseCat.AotProbe` is a
 hardware-free probe covering 15 scenarios (CRC, register conversion, address parsing, TCP loopback,
 Modbus round trips, numeric arrays, batch subscription, slave data store, DI hosting, S7 slave round
-trip, transport injection, logging). It uses **PublishAotCross.Tools**, so every supported RID can be cross-compiled from
-any host (win-x64/arm64, linux-x64/arm64, linux-musl-x64/arm64, osx-x64/arm64).
+trip, transport injection, logging). It is published for the host runtime:
 
 ```powershell
-./scripts/publish-aot.ps1 -Run                     # host RID
-./scripts/publish-aot.ps1 -All                     # every RID
-./scripts/publish-aot.ps1 -RuntimeIdentifier linux-x64,linux-musl-x64 -Docker
+./scripts/publish-aot.ps1 -Run          # publish for the host RID and run it
+./scripts/publish-aot.ps1               # publish only
 ```
 
-CI runs the probe natively on `win-x64`, `linux-x64` and `osx-arm64`, cross-compiles every RID on Linux
-and executes the glibc/musl probes in Docker.
+CI publishes and runs the probe natively on `win-x64`, `linux-x64` and `osx-arm64`. There is no
+cross-OS AOT step: the package ships IL assets, so the probe proves that the library survives trimming
+and AOT compilation on each supported operating system. Linux needs `clang` and `zlib1g-dev`, macOS
+needs the Xcode command line tools.
 
 ## Build and test
 

@@ -13,14 +13,10 @@
     <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
     <DebuggerSupport>false</DebuggerSupport>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
-
-    <!-- PublishAotCross.Tools enables cross-OS AOT publishing (Zig for Linux/macOS, xwin for Windows). -->
-    <StripSymbols Condition="!$(RuntimeIdentifier.StartsWith('osx'))">true</StripSymbols>
-    <UseLdClassicXCodeLinker Condition="$(RuntimeIdentifier.StartsWith('osx'))">false</UseLdClassicXCodeLinker>
+    <StripSymbols>true</StripSymbols>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="PublishAotCross.Tools" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 
