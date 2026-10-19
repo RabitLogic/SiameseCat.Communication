@@ -36,6 +36,9 @@
 - **Modbus RTU 从站**：新增 `ModbusRtuServer`，与 TCP 从站共用 `ModbusPduProcessor`，提供 RTU 组帧、CRC 校验（坏帧丢弃）、站号过滤、广播写与帧间隔超时；可通过 `ITransport` 注入自定义链路便于测试。`SiameseCat.Server` 因此依赖协议层（CRC）与传输层（串口）。
 - **S7 STRING 批量读写**：`SiemensDriver` 的批量读写不再因包含 `STRING` 而整批回退——批量写把 `[maxLen, actualLen, chars]` 作为普通数据项放进多变量写，批量读按 `maxLen + 2` 请求并就地解码。
 - **订阅抖动与退避**：`DriverConfiguration.SubscriptionJitter`（默认 `true`，间隔 ±20%）与 `SubscriptionMaxBackoff`（默认 30 s，失败按 `interval × 2^n` 指数退避，成功后复位）避免多个驱动同步轮询打断 PLC。
+- **Modbus 从站协议补齐**：新增 FC07 读异常状态、FC0B 读通信事件计数、FC11 报表服务器标识（`ServerIdentifier` / `RunIndicator`）与 FC16 掩码写保持寄存器；TCP 从站允许单字节 PDU（`07/0B/11` 请求仅 1 字节），RTU 从站按功能码推断帧长（掩码写 8 字节固定帧）。
+- **从站可观测性**：`ModbusTcpServer` / `ModbusRtuServer` 都实现新的 `IModbusServer` 并暴露 `Statistics`（总请求、每功能码请求/异常、接收帧、丢弃帧），`ModbusServerOptions` / `ModbusRtuServerOptions` 新增 `Logger`（`IPlcLogger`），记录连接、丢弃帧、未知功能码与异常响应。
+- **从站 DI 集成**：`SiameseCat.Hosting` 新增 `AddModbusServer(...)` / `AddModbusRtuServer(...)`，把从站注册为 `IModbusServer` 单例并通过单个 `IHostedService` 随宿主启停，未设置 `Logger` 时自动使用 DI 中的 `IPlcLogger`。
 - **批量订阅**：新增 `IBatchSubscribable.SubscribeBatchAsync` 与 `DriverCapabilities.SubscribeBatch`，一组点位共用一次 `ReadBatchAsync` 请求（Modbus 按区/连续性分组），回调收到整组当前值、仅在任一点位变化时触发；协议原生批量订阅可重写 `DoSubscribeBatchAsync`，返回 `null` 时回退轮询（需要 `BatchRead` 能力）。
 - **从站数据存储增强**：`ModbusDataStore` 新增四个写入事件（`HoldingRegistersWritten` / `InputRegistersWritten` / `CoilsWritten` / `DiscreteInputsWritten`，带 `Start` / `Values` / `PreviousValues`，锁外触发），支持 `Snapshot()` / `Load()` / `Reset()` 预置与复位状态；内部改为按区独立锁 + 线圈位图存储（65536 点占 8 KB，原为 64 KB）。
 - **宿主集成包**（`SiameseCat.Hosting`，可选）：`MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，AOT 友好）；`AddSiameseCat()` 注册 `DriverRegistry` 与日志适配器，`AddSiameseCatDriver(id, configure)` 以 keyed transient 方式解析驱动。
@@ -70,4 +73,4 @@
 - Modbus 的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，避免打断进行中的请求。
 - 异常消息补充单元号、功能码、S7 地址/条目序号等上下文，便于现场诊断。
 - 单元测试从 81 个增加到 95 个。
-- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 327 个。
+- 新增驱动契约测试（Mock 驱动）、Modbus/Siemens/Inovance 地址解析与驱动测试，测试总数增加到 342 个。

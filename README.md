@@ -10,8 +10,8 @@
 | `SiameseCat.Transport` | 传输层 | TCP / UDP / 串口传输实现 | Core、`System.IO.Ports` |
 | `SiameseCat.Protocols` | 协议层 | Modbus（RTU/TCP）与 Siemens S7 的帧、客户端，以及通用 Modbus 驱动 | Core、Transport |
 | `SiameseCat.Drivers` | 品牌层 | Siemens / Inovance 品牌驱动（地址映射）+ 注册入口 | Core、Protocols |
-| `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器与 `IServiceCollection` 注册 | Core、Drivers、`Microsoft.Extensions.*` |
-| `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/15/16/23），用于联调、仿真与集成测试 | Core、Protocols、Transport |
+| `SiameseCat.Hosting` | 宿主集成（可选） | `Microsoft.Extensions.Logging` 适配器、`IServiceCollection` 注册与从站托管 | Core、Drivers、Server、`Microsoft.Extensions.*` |
+| `SiameseCat.Server` | 从站（可选） | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23），含统计与日志，用于联调、仿真与集成测试 | Core、Protocols、Transport |
 
 协议栈自行实现，不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
 
@@ -257,6 +257,27 @@ await driver.ConnectAsync();
 - 未注册日志时自动退化为 `NullPlcLogger`，因此宿主集成包不强制引入日志实现。
 - 单独使用适配器：`new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`。
 
+Modbus 从站也可以交给 DI 管理（注册为 `IModbusServer` 单例，随宿主自动启停）：
+
+```csharp
+services.AddModbusServer(options =>
+{
+    options.Port = 0;                        // TCP 从站，0 = 系统分配
+    options.ServerIdentifier = "SIM-1";      // FC17 Report Server ID
+});
+
+// 或串口从站
+services.AddModbusRtuServer(options =>
+{
+    options.UnitId = 1;
+    options.Serial.PortName = "COM3";
+});
+```
+
+- 两种从站都以 `IModbusServer` 注册，`provider.GetServices<IModbusServer>()` 可取到全部实例。
+- 内部注册一个 `IHostedService`，在宿主启动/停止时统一 `StartAsync` / `StopAsync`。
+- 未显式设置 `Logger` 时自动使用 DI 中的 `IPlcLogger`。
+
 ### 地址模型
 
 | 品牌 | 原生地址示例 | 解析结果 |
@@ -366,7 +387,7 @@ registry.Register(new MyProtocolFactory());
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
-| Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer` + `ModbusDataStore`，支持 FC01/02/03/04/05/06/15/16/23、并发客户端、广播写与坏 CRC 丢弃；数据存储提供写入事件、快照/恢复/复位 |
+| Modbus 从站 | `SiameseCat.Server`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/16/17/23、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
 | Native AOT | 全部库标记 `IsAotCompatible`；通过 PublishAotCross 交叉编译 8 个 RID，并在 CI/Docker 中运行探针 |
 
 Modbus 支持的功能码：
@@ -403,8 +424,8 @@ broadcast.Options["unitId"] = "0";
 | 传输层 | `SiameseCat.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
 | 协议层 | `SiameseCat.Protocols` | Modbus（RTU/TCP）与 S7 的帧、客户端，以及通用 Modbus 驱动 |
 | 品牌层 | `SiameseCat.Drivers` | Siemens / Inovance 的品牌驱动与原生地址映射 |
-| 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器与 DI 注册，不参与分层依赖链 |
-| 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站，用于联调、仿真与集成测试；复用协议层 PDU 与传输层串口 |
+| 宿主集成（可选） | `SiameseCat.Hosting` | `Microsoft.Extensions.Logging` 适配器、DI 注册与从站托管（`AddModbusServer`），不参与分层依赖链 |
+| 从站（可选） | `SiameseCat.Server` | Modbus TCP/RTU 从站（统一 `IModbusServer`），用于联调、仿真与集成测试；复用协议层 PDU 与传输层串口；提供按功能码统计与日志 |
 
 ```text
 src/
@@ -492,9 +513,9 @@ SiameseCat.Core            （契约 + 模型，无 I/O）
 └── SiameseCat.Transport   （TCP / UDP / 串口实现）
     └── SiameseCat.Protocols（Modbus、S7）
         └── SiameseCat.Drivers（Siemens、Inovance 品牌驱动）
-            └── SiameseCat.Hosting（可选：DI + Microsoft.Extensions.Logging）
 
 SiameseCat.Protocols ← SiameseCat.Server（可选：Modbus TCP/RTU 从站，复用协议层 PDU 与 CRC）
+SiameseCat.Drivers + SiameseCat.Server ← SiameseCat.Hosting（可选：DI + 日志 + 从站托管）
 ```
 
 引用对应层的项目/包：
@@ -525,7 +546,7 @@ dotnet add package SiameseCat.Server   # 可选：Modbus TCP/RTU 从站（联调
 
 所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
 
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
+`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、从站托管（DI 注册 + `IHostedService` 启停 + 统计计数）、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。项目引用了 **PublishAotCross.Tools** 包，因此可以从任意宿主系统交叉编译到受支持的 RID：
 
 | RID | 格式 | 交叉工具链 |
 | --- | --- | --- |
@@ -882,10 +903,36 @@ await client.ConnectAsync();
 var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 ```
 
-- 支持功能码 `01/02/03/04/05/06/15/16/23`；越界地址返回 `02`，非法数量返回 `03`，未知功能码返回 `01`。
+- 支持功能码 `01/02/03/04/05/06/07/0B/0F/10/11/16/17/23`；越界地址返回 `02`，非法数量返回 `03`，未知功能码返回 `01`。
+- 诊断类功能码：`07` 读异常状态（`Data.ExceptionStatus`，应用可随时修改）、`0B` 读通信事件计数（`Data.EventCount`，每次成功写入递增）、`11` 报表服务器标识（`ServerIdentifier` + `RunIndicator`）、`16` 掩码写保持寄存器（`(当前值 AND andMask) OR (orMask AND NOT andMask)`）。
 - 单元号原样回显，一个从站可服务多个站号；单元号 `0` 视为广播，写请求生效但不返回响应（与客户端广播模式配套）。
 - 支持并发客户端，每个连接一个会话任务；`StopAsync` / `DisposeAsync` 会关闭监听与全部会话。
 - `ModbusDataStore` 线程安全，可在运行期间修改输入寄存器与离散输入来模拟现场变化。
+
+### 可观测性（统计与日志）
+
+两个从站都实现 `IModbusServer`，并暴露 `Statistics`（`ModbusServerStatistics`）：
+
+```csharp
+using var server = new ModbusTcpServer(new ModbusServerOptions
+{
+    Port = 0,
+    Logger = myPlcLogger,       // 可选：实现 IPlcLogger 即可
+    ServerIdentifier = "SIM-1",
+});
+
+await server.StartAsync();
+// … 客户端读写 …
+
+Console.WriteLine($"requests={server.Statistics.TotalRequests} "
+    + $"exceptions={server.Statistics.TotalExceptions} "
+    + $"frames={server.Statistics.FramesReceived} discarded={server.Statistics.FramesDiscarded} "
+    + $"FC03={server.Statistics.GetRequests(0x03)}");
+```
+
+- 计数维度：总请求 / 每功能码请求 / 每功能码异常 / 接收帧数 / 丢弃帧数（TCP 长度非法、RTU CRC 错误或半帧）。
+- 日志级别：连接建立/断开为 `Debug`；丢弃帧与未知功能码为 `Warning`；异常响应的细节为 `Debug`。未设置 `Logger` 时完全不产生日志。
+- `Statistics.Reset()` 可清零计数器，便于按测试用例统计。
 
 ### 数据存储（`ModbusDataStore`）
 
@@ -932,7 +979,8 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 ```
 
 - `Serial.ReadTimeout` 同时用作**帧间隔**：超时即认为当前帧结束（默认 100 ms，视波特率调整）。
-- 只应答 `UnitId` 指定的站号；站号 `0` 的写请求生效但不响应；CRC 错误的帧直接丢弃。
+- 只应答 `UnitId` 指定的站号；站号 `0` 的写请求生效但不响应；CRC 错误的帧直接丢弃（计入 `Statistics.FramesDiscarded`）。
+- 功能码覆盖与 TCP 从站完全一致（含 `07/0B/11/16`）；请求长度按功能码推断，掩码写（`16`）为 8 字节固定长度帧。
 - 也可以通过 `new ModbusRtuServer(ITransport, options)` 注入自定义链路（串口隧道或测试替身），便于在无硬件环境验证。
 
 ## 数据类型转换（Modbus）

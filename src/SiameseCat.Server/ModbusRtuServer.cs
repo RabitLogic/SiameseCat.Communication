@@ -19,7 +19,7 @@ namespace SiameseCat.Server;
 /// used over a tunnel or in tests.
 /// </para>
 /// </remarks>
-public sealed class ModbusRtuServer : IAsyncDisposable
+public sealed class ModbusRtuServer : IModbusServer
 {
     private readonly ModbusRtuServerOptions _options;
     private readonly ModbusPduProcessor _processor;
@@ -55,11 +55,20 @@ public sealed class ModbusRtuServer : IAsyncDisposable
             _options.InputRegisters,
             _options.Coils,
             _options.DiscreteInputs);
-        _processor = new ModbusPduProcessor(Data);
+        Statistics = new ModbusServerStatistics();
+        _processor = new ModbusPduProcessor(
+            Data,
+            Statistics,
+            _options.ServerIdentifier,
+            _options.RunIndicator,
+            _options.Logger);
     }
 
     /// <summary>Gets the register and coil storage that the slave exposes.</summary>
     public ModbusDataStore Data { get; }
+
+    /// <summary>Gets the request and frame counters of the slave.</summary>
+    public ModbusServerStatistics Statistics { get; }
 
     /// <summary>Gets whether the slave is currently listening for frames.</summary>
     public bool IsRunning => _runTask is { IsCompleted: false };
@@ -147,14 +156,19 @@ public sealed class ModbusRtuServer : IAsyncDisposable
 
             if (length < 4)
             {
+                Statistics.RecordDiscardedFrame();
                 continue;
             }
 
             var frame = buffer.AsSpan(0, length);
             if (!ModbusCrc16.Validate(frame))
             {
+                Statistics.RecordDiscardedFrame();
+                _options.Logger?.Warning("Modbus RTU slave dropped a frame with an invalid CRC.");
                 continue;
             }
+
+            Statistics.RecordFrame();
 
             var address = frame[0];
             if (address != _options.UnitId && address != 0)
@@ -220,6 +234,18 @@ public sealed class ModbusRtuServer : IAsyncDisposable
                 }
 
                 expected = 13 + buffer[10];
+                break;
+
+            case 0x07:
+            case 0x0B:
+            case 0x11:
+                // Fixed two-byte requests (function code + padding) plus the CRC.
+                expected = 4;
+                break;
+
+            case 0x16:
+                // Mask write register: address, AND mask, OR mask, CRC.
+                expected = 10;
                 break;
 
             default:

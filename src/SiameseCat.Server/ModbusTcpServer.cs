@@ -13,7 +13,7 @@ namespace SiameseCat.Server;
 /// <para>The unit identifier of a request is echoed back, so one server can answer several station ids.</para>
 /// <para>Unit id 0 is treated as a broadcast: writes are applied and no response is sent.</para>
 /// </remarks>
-public sealed class ModbusTcpServer : IAsyncDisposable
+public sealed class ModbusTcpServer : IModbusServer
 {
     private readonly ModbusServerOptions _options;
     private readonly ModbusPduProcessor _processor;
@@ -36,12 +36,21 @@ public sealed class ModbusTcpServer : IAsyncDisposable
             _options.InputRegisters,
             _options.Coils,
             _options.DiscreteInputs);
-        _processor = new ModbusPduProcessor(Data);
+        Statistics = new ModbusServerStatistics();
+        _processor = new ModbusPduProcessor(
+            Data,
+            Statistics,
+            _options.ServerIdentifier,
+            _options.RunIndicator,
+            _options.Logger);
         _listener = new TcpListener(ResolveAddress(_options.Host), _options.Port);
     }
 
     /// <summary>Gets the register and coil storage that the slave exposes.</summary>
     public ModbusDataStore Data { get; }
+
+    /// <summary>Gets the request and frame counters of the slave.</summary>
+    public ModbusServerStatistics Statistics { get; }
 
     /// <summary>Gets the port the listener is bound to. Useful when <see cref="ModbusServerOptions.Port"/> is 0.</summary>
     public int Port => _port;
@@ -155,6 +164,7 @@ public sealed class ModbusTcpServer : IAsyncDisposable
                 _clients.Add(client);
             }
 
+            _options.Logger?.Log(PlcLogLevel.Debug, $"Modbus TCP client connected: {client.Client.RemoteEndPoint}.");
             _ = Task.Run(() => ServeAsync(client, token), CancellationToken.None);
         }
     }
@@ -178,16 +188,21 @@ public sealed class ModbusTcpServer : IAsyncDisposable
 
                     var length = (header[4] << 8) | header[5];
                     var pduLength = length - 1;
-                    if (pduLength is < 2 or > 253)
+                    if (pduLength is < 1 or > 253)
                     {
+                        Statistics.RecordDiscardedFrame();
+                        _options.Logger?.Warning($"Modbus TCP slave dropped a frame with invalid length {length}.");
                         return;
                     }
 
                     var pdu = new byte[pduLength];
                     if (!await ReadExactlyAsync(stream, pdu, pdu.Length, token).ConfigureAwait(false))
                     {
+                        Statistics.RecordDiscardedFrame();
                         return;
                     }
+
+                    Statistics.RecordFrame();
 
                     var response = _processor.Process(header[6], pdu);
                     if (response is null)
@@ -217,6 +232,8 @@ public sealed class ModbusTcpServer : IAsyncDisposable
             {
                 _clients.Remove(client);
             }
+
+            _options.Logger?.Log(PlcLogLevel.Debug, "Modbus TCP client disconnected.");
         }
     }
 

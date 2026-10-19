@@ -25,6 +25,8 @@ public sealed class ModbusDataStore
     private readonly uint[] _discreteInputs;
     private readonly int _coilCount;
     private readonly int _discreteInputCount;
+    private int _exceptionStatus;
+    private long _eventCount;
 
     /// <summary>Creates a store with the given buffer sizes.</summary>
     /// <param name="holdingRegisters">Number of holding registers (FC03/FC06/FC16/FC23).</param>
@@ -68,6 +70,19 @@ public sealed class ModbusDataStore
 
     /// <summary>Gets the number of discrete inputs.</summary>
     public int DiscreteInputCount => _discreteInputCount;
+
+    /// <summary>
+    /// Gets or sets the exception status byte returned by function code 07.
+    /// The application updates it to simulate device faults.
+    /// </summary>
+    public byte ExceptionStatus
+    {
+        get => (byte)Volatile.Read(ref _exceptionStatus);
+        set => Volatile.Write(ref _exceptionStatus, value);
+    }
+
+    /// <summary>Gets how many write requests were completed, as reported by function code 11.</summary>
+    public long EventCount => Interlocked.Read(ref _eventCount);
 
     /// <summary>Gets or sets a holding register. Indexes outside the buffer are ignored.</summary>
     /// <param name="index">Register offset.</param>
@@ -201,6 +216,37 @@ public sealed class ModbusDataStore
         WriteRegisters(0, new ushort[_inputRegisters.Length], _inputRegisters, _inputSync, InputRegistersWritten);
         WriteCoils(0, new bool[_coilCount], _coils, _coilCount, _coilSync, CoilsWritten);
         WriteCoils(0, new bool[_discreteInputCount], _discreteInputs, _discreteInputCount, _discreteSync, DiscreteInputsWritten);
+        ExceptionStatus = 0;
+        Interlocked.Exchange(ref _eventCount, 0);
+    }
+
+    internal void RecordEvent() => Interlocked.Increment(ref _eventCount);
+
+    /// <summary>Applies a mask write (function code 22) to one holding register.</summary>
+    /// <param name="index">Register offset.</param>
+    /// <param name="andMask">Bits that are preserved.</param>
+    /// <param name="orMask">Bits that are set.</param>
+    /// <param name="result">The new register value.</param>
+    /// <returns><see langword="false"/> when the offset is outside the buffer.</returns>
+    internal bool TryMaskWriteHoldingRegister(int index, ushort andMask, ushort orMask, out ushort result)
+    {
+        result = 0;
+        ModbusRegisterWriteEventArgs? args = null;
+        lock (_holdingSync)
+        {
+            if (index < 0 || index >= _holdingRegisters.Length)
+            {
+                return false;
+            }
+
+            var previous = _holdingRegisters[index];
+            result = (ushort)((previous & andMask) | (orMask & ~andMask));
+            _holdingRegisters[index] = result;
+            args = new ModbusRegisterWriteEventArgs(index, new[] { result }, new[] { previous });
+        }
+
+        HoldingRegistersWritten?.Invoke(this, args);
+        return true;
     }
 
     internal bool TryWriteSingleCoil(int index, bool value)

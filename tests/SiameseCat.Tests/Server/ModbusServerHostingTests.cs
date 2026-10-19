@@ -1,0 +1,91 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+using SiameseCat.Server;
+using SiameseCat.Tests.Fakes;
+
+namespace SiameseCat.Tests.Server;
+
+public class ModbusServerHostingTests
+{
+    [Fact]
+    public async Task AddModbusServer_RegistersAndStartsTheSlave()
+    {
+        var services = new ServiceCollection();
+        services.AddModbusServer(options =>
+        {
+            options.Port = 0;
+            options.HoldingRegisters = 32;
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<IModbusServer>();
+
+        Assert.IsType<ModbusTcpServer>(server);
+        Assert.False(server.IsRunning);
+        Assert.Equal(32, server.Data.HoldingRegisterCount);
+
+        await provider.GetRequiredService<IHostedService>().StartAsync(CancellationToken.None);
+        Assert.True(server.IsRunning);
+        Assert.True(((ModbusTcpServer)server).Port > 0);
+
+        await provider.GetRequiredService<IHostedService>().StopAsync(CancellationToken.None);
+        Assert.False(server.IsRunning);
+    }
+
+    [Fact]
+    public async Task AddModbusServer_RegistersOneHostedService()
+    {
+        var services = new ServiceCollection();
+        services.AddModbusServer(options => options.Port = 0);
+        services.AddModbusServer(options => options.Port = 0);
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Single(provider.GetServices<IHostedService>());
+        Assert.Equal(2, provider.GetServices<IModbusServer>().Count());
+    }
+
+    [Fact]
+    public async Task AddModbusRtuServer_RegistersTheRtuSlave()
+    {
+        var services = new ServiceCollection();
+        services.AddModbusRtuServer(options =>
+        {
+            options.UnitId = 9;
+            options.Serial.PortName = "COM3";
+        });
+
+        await using var provider = services.BuildServiceProvider();
+        var server = provider.GetRequiredService<IModbusServer>();
+
+        Assert.IsType<ModbusRtuServer>(server);
+        Assert.False(server.IsRunning);
+    }
+
+    [Fact]
+    public async Task AddModbusServer_UsesTheRegisteredPlcLogger()
+    {
+        var logger = new RecordingLogger();
+        var services = new ServiceCollection();
+        services.AddSingleton<SiameseCat.Core.IPlcLogger>(logger);
+        services.AddModbusServer(options => options.Port = 0);
+
+        await using var provider = services.BuildServiceProvider();
+        var server = (ModbusTcpServer)provider.GetRequiredService<IModbusServer>();
+
+        await provider.GetRequiredService<IHostedService>().StartAsync(CancellationToken.None);
+        await using var client = new SiameseCat.Protocols.Modbus.ModbusTcpClient(
+            new SiameseCat.Protocols.Modbus.ModbusTcpOptions
+            {
+                UnitId = 1,
+                Timeout = TimeSpan.FromSeconds(2),
+                Tcp = { Host = "127.0.0.1", Port = server.Port },
+            });
+
+        await client.ConnectAsync();
+        await client.ReadHoldingRegistersAsync(1, 0, 1);
+
+        Assert.True(logger.Contains(SiameseCat.Core.PlcLogLevel.Debug, "client connected"));
+    }
+}

@@ -5,6 +5,8 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SiameseCat.Core;
@@ -45,6 +47,7 @@ internal static class Program
         failures += await CheckAsync("Numeric arrays", CheckArrayValuesAsync);
         failures += await CheckAsync("Batch subscription", CheckBatchSubscriptionAsync);
         failures += await CheckAsync("Slave data store", CheckDataStoreAsync);
+        failures += await CheckAsync("Modbus slave hosting", CheckSlaveHostingAsync);
         failures += await CheckAsync("Transport injection", CheckTransportInjectionAsync);
         failures += await CheckAsync("Logging integration", CheckLoggingAsync);
 
@@ -473,6 +476,37 @@ internal static class Program
             "Log level mapping failed.");
 
         return Task.CompletedTask;
+    }
+
+    private static async Task CheckSlaveHostingAsync()
+    {
+        var services = new ServiceCollection();
+        services.AddModbusServer(options => options.Port = 0);
+        await using var provider = services.BuildServiceProvider();
+
+        var hosted = provider.GetServices<IHostedService>().Single();
+        await hosted.StartAsync(CancellationToken.None).ConfigureAwait(false);
+
+        var server = provider.GetRequiredService<IModbusServer>();
+        Ensure(server.IsRunning, "The hosted Modbus slave did not start.");
+
+        await using var client = new ModbusTcpClient(new ModbusTcpOptions
+        {
+            UnitId = 1,
+            Timeout = TimeSpan.FromSeconds(2),
+            Tcp = { Host = "127.0.0.1", Port = ((ModbusTcpServer)server).Port },
+        });
+
+        await client.ConnectAsync().ConfigureAwait(false);
+        await client.WriteSingleRegisterAsync(1, 4, 321).ConfigureAwait(false);
+        var values = await client.ReadHoldingRegistersAsync(1, 4, 1).ConfigureAwait(false);
+
+        Ensure(values[0] == 321, "The hosted slave did not serve the request.");
+        Ensure(server.Statistics.GetRequests(0x03) == 1 && server.Statistics.GetRequests(0x06) == 1, "Statistics were not recorded.");
+        Ensure(server.Data.EventCount == 1, "The event counter did not record the write.");
+
+        await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        Ensure(!server.IsRunning, "The hosted Modbus slave did not stop.");
     }
 
     private static void Ensure(bool condition, string message)

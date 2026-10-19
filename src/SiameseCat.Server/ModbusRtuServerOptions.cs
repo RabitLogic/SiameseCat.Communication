@@ -26,6 +26,15 @@ public sealed class ModbusRtuServerOptions
     /// <summary>Gets or sets how many discrete inputs the slave exposes. Defaults to 256.</summary>
     public int DiscreteInputs { get; set; } = 256;
 
+    /// <summary>Gets or sets the identifier returned by FC17 Report Server ID. Defaults to <c>SiameseCat</c>.</summary>
+    public string ServerIdentifier { get; set; } = "SiameseCat";
+
+    /// <summary>Gets or sets whether FC17 reports the run indicator as ON; <see langword="false"/> reports OFF.</summary>
+    public bool RunIndicator { get; set; } = true;
+
+    /// <summary>Gets or sets the logger used for frame and protocol diagnostics. Defaults to no logging.</summary>
+    public IPlcLogger? Logger { get; set; }
+
     /// <summary>Validates the options and throws when a value is out of range.</summary>
     public void Validate()
     {
@@ -40,6 +49,7 @@ public sealed class ModbusRtuServerOptions
         ValidateSize(InputRegisters, nameof(InputRegisters));
         ValidateSize(Coils, nameof(Coils));
         ValidateSize(DiscreteInputs, nameof(DiscreteInputs));
+        ModbusServerIdentifier.Validate(ServerIdentifier);
     }
 
     private static void ValidateSize(int size, string name) => ModbusBufferSizes.Validate(size, name);

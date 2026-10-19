@@ -1,13 +1,28 @@
+using SiameseCat.Core;
+
 namespace SiameseCat.Server;
 
 /// <summary>Shared Modbus PDU handling used by the TCP and RTU slaves.</summary>
 internal sealed class ModbusPduProcessor
 {
     private readonly ModbusDataStore _data;
+    private readonly ModbusServerStatistics _statistics;
+    private readonly byte[] _identifierBytes;
+    private readonly bool _runIndicator;
+    private readonly IPlcLogger? _logger;
 
-    public ModbusPduProcessor(ModbusDataStore data)
+    public ModbusPduProcessor(
+        ModbusDataStore data,
+        ModbusServerStatistics statistics,
+        string serverIdentifier,
+        bool runIndicator,
+        IPlcLogger? logger)
     {
         _data = data ?? throw new ArgumentNullException(nameof(data));
+        _statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
+        _identifierBytes = System.Text.Encoding.ASCII.GetBytes(serverIdentifier);
+        _runIndicator = runIndicator;
+        _logger = logger;
     }
 
     private ModbusDataStore Data => _data;
@@ -18,8 +33,12 @@ internal sealed class ModbusPduProcessor
     private const byte FunctionReadInputRegisters = 0x04;
     private const byte FunctionWriteSingleCoil = 0x05;
     private const byte FunctionWriteSingleRegister = 0x06;
+    private const byte FunctionReadExceptionStatus = 0x07;
+    private const byte FunctionGetCommEventCounter = 0x0B;
     private const byte FunctionWriteMultipleCoils = 0x0F;
     private const byte FunctionWriteMultipleRegisters = 0x10;
+    private const byte FunctionReportServerId = 0x11;
+    private const byte FunctionMaskWriteRegister = 0x16;
     private const byte FunctionReadWriteRegisters = 0x17;
 
     private const byte ExceptionIllegalFunction = 0x01;
@@ -34,6 +53,28 @@ internal sealed class ModbusPduProcessor
     /// <summary>Handles one request PDU.</summary>
     /// <returns>The response PDU, or <see langword="null"/> when the request must not be answered.</returns>
     public byte[]? Process(byte unitId, byte[] pdu)
+    {
+        if (pdu.Length == 0)
+        {
+            return null;
+        }
+
+        var function = pdu[0];
+        _statistics.RecordRequest(function);
+
+        var response = ProcessCore(unitId, pdu);
+        if (response is { Length: >= 1 } && (response[0] & 0x80) != 0)
+        {
+            _statistics.RecordException(function);
+            _logger?.Log(
+                PlcLogLevel.Debug,
+                $"Modbus slave answered function {function} with exception 0x{response[1]:X2}.");
+        }
+
+        return response;
+    }
+
+    private byte[]? ProcessCore(byte unitId, byte[] pdu)
     {
         var broadcast = unitId == 0;
 
@@ -57,18 +98,82 @@ internal sealed class ModbusPduProcessor
             case FunctionWriteSingleRegister:
                 return WriteSingleRegister(pdu, broadcast);
 
+            case FunctionReadExceptionStatus:
+                return broadcast ? null : ReadExceptionStatus();
+
+            case FunctionGetCommEventCounter:
+                return broadcast ? null : GetCommEventCounter();
+
             case FunctionWriteMultipleCoils:
                 return WriteMultipleCoils(pdu, broadcast);
 
             case FunctionWriteMultipleRegisters:
                 return WriteMultipleRegisters(pdu, broadcast);
 
+            case FunctionReportServerId:
+                return broadcast ? null : ReportServerId();
+
+            case FunctionMaskWriteRegister:
+                return MaskWriteRegister(pdu, broadcast);
+
             case FunctionReadWriteRegisters:
                 return broadcast ? null : ReadWriteRegisters(pdu);
 
             default:
+                _logger?.Warning($"Modbus slave received unsupported function code 0x{pdu[0]:X2}.");
                 return broadcast ? null : Exception(pdu[0], ExceptionIllegalFunction);
         }
+    }
+
+    private byte[] ReadExceptionStatus() => new[] { FunctionReadExceptionStatus, Data.ExceptionStatus };
+
+    private byte[] GetCommEventCounter()
+    {
+        var count = Data.EventCount;
+        return new byte[]
+        {
+            FunctionGetCommEventCounter,
+            0x00,
+            0x00,
+            (byte)((count >> 8) & 0xFF),
+            (byte)(count & 0xFF),
+        };
+    }
+
+    private byte[] ReportServerId()
+    {
+        var response = new byte[2 + _identifierBytes.Length + 1];
+        response[0] = FunctionReportServerId;
+        response[1] = (byte)(_identifierBytes.Length + 1);
+        _identifierBytes.CopyTo(response, 2);
+        response[response.Length - 1] = _runIndicator ? (byte)0xFF : (byte)0x00;
+        return response;
+    }
+
+    private byte[]? MaskWriteRegister(byte[] pdu, bool broadcast)
+    {
+        if (pdu.Length < 7)
+        {
+            return broadcast ? null : Exception(pdu[0], ExceptionIllegalDataValue);
+        }
+
+        var address = ReadUInt16(pdu, 1);
+        var andMask = ReadUInt16(pdu, 3);
+        var orMask = ReadUInt16(pdu, 5);
+        var written = Data.TryMaskWriteHoldingRegister(address, andMask, orMask, out _);
+
+        if (broadcast)
+        {
+            return null;
+        }
+
+        if (!written)
+        {
+            return Exception(pdu[0], ExceptionIllegalDataAddress);
+        }
+
+        Data.RecordEvent();
+        return pdu.Copy(0, 7);
     }
 
     private byte[]? ReadBits(byte[] pdu, byte function, bool coils)
@@ -155,6 +260,11 @@ internal sealed class ModbusPduProcessor
         }
 
         var written = Data.TryWriteSingleCoil(address, value == 0xFF00);
+        if (written)
+        {
+            Data.RecordEvent();
+        }
+
         if (broadcast)
         {
             return null;
@@ -173,6 +283,10 @@ internal sealed class ModbusPduProcessor
         var address = ReadUInt16(pdu, 1);
         var value = ReadUInt16(pdu, 3);
         var written = Data.TryWriteSingleRegister(address, value);
+        if (written)
+        {
+            Data.RecordEvent();
+        }
 
         if (broadcast)
         {
@@ -205,6 +319,11 @@ internal sealed class ModbusPduProcessor
         }
 
         var written = Data.TryWriteCoils(start, values);
+        if (written)
+        {
+            Data.RecordEvent();
+        }
+
         if (broadcast)
         {
             return null;
@@ -231,6 +350,11 @@ internal sealed class ModbusPduProcessor
 
         var values = ReadRegistersFrom(pdu, 6 + byteCount, count);
         var written = Data.TryWriteHoldingRegisters(start, values);
+        if (written)
+        {
+            Data.RecordEvent();
+        }
+
         if (broadcast)
         {
             return null;
@@ -265,6 +389,8 @@ internal sealed class ModbusPduProcessor
         {
             return Exception(pdu[0], ExceptionIllegalDataAddress);
         }
+
+        Data.RecordEvent();
 
         var readValues = Data.ReadHoldingRegisters(readStart, readCount);
         if (readValues is null)
