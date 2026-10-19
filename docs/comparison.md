@@ -30,7 +30,7 @@ plc.Read("DB1.DBD0");
 | --- | --- | --- |
 | Protocols | Modbus RTU/TCP, Siemens S7, raw TCP/UDP/Serial | S7 only |
 | Abstraction | Address/value model, `IPlcDriver` + `DriverBase`, registry, capability flags, batch/subscription, metrics | `Plc` class with string addresses and `DataItem`s |
-| Target frameworks | `net8.0` + `netstandard2.0` (package validation for both) | `net452`, `netstandard1.3`, `netstandard2.0` |
+| Target frameworks | `net8.0`, `net10.0` + `netstandard2.0` (package validation for every asset) | `net452`, `netstandard1.3`, `netstandard2.0` |
 | Simulation | `SiameseCat.Communication.Server`: Modbus TCP/RTU **and** S7 slaves | none (tests use the native Snap7 DLL) |
 | History | new (1.0) | continuation of S7.Net (2009), 657 forks, 116 open issues |
 

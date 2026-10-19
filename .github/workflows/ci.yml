@@ -46,8 +46,9 @@ jobs:
       - name: Verify package layout
         run: |
           for pkg in artifacts/*.nupkg; do
-            unzip -l "$pkg" | grep -q 'lib/net8.0/' || { echo "::error::$pkg is missing lib/net8.0"; exit 1; }
-            unzip -l "$pkg" | grep -q 'lib/netstandard2.0/' || { echo "::error::$pkg is missing lib/netstandard2.0"; exit 1; }
+            for tfm in net8.0 net10.0 netstandard2.0; do
+              unzip -l "$pkg" | grep -q "lib/$tfm/" || { echo "::error::$pkg is missing lib/$tfm"; exit 1; }
+            done
             unzip -l "$pkg" | grep -q 'README.md' || { echo "::error::$pkg is missing README.md"; exit 1; }
           done
 
@@ -93,6 +94,29 @@ jobs:
         run: >
           dotnet run --project tools/SiameseCat.Soak --configuration Release
           -- --duration 00:01:00 --workers 4 --fault-period 00:00:10 --fault-duration 00:00:02
+
+  framework-matrix:
+    name: Framework matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build the matrix runner
+        run: dotnet build tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj --configuration Release
+
+      - name: Run on .NET 8
+        run: dotnet run --project tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj --configuration Release --no-build --framework net8.0
+
+      - name: Run on .NET 10
+        run: dotnet run --project tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj --configuration Release --no-build --framework net10.0
 
   dotnet-framework:
     runs-on: windows-latest

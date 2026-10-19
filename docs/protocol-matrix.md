@@ -134,6 +134,15 @@ Everything SiameseCat speaks, on the wire and in the API.
 
 | Host | Selected asset |
 | --- | --- |
+| .NET 8 | `lib/net8.0` |
+| .NET 9 | `lib/net8.0` (nearest lower) |
+| .NET 10 | `lib/net10.0` |
+| .NET 11 and later | `lib/net10.0` (nearest lower) |
 | .NET Framework 4.6.1 – 4.8 | `lib/netstandard2.0` |
 | .NET Core 2.x, .NET 5 – 7 | `lib/netstandard2.0` |
-| .NET 8 and later (including 9, 10, 11) | `lib/net8.0` |
+
+The assets are floors, not ceilings: a host always takes the nearest asset at or below its own version,
+so a new runtime (for example .NET 12) keeps working without a package update. Building an asset for a
+newer framework only requires
+`dotnet pack -p:SiameseCatTargetFrameworks=net8.0;net12.0;netstandard2.0`.
+

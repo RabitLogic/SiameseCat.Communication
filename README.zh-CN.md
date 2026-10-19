@@ -2,7 +2,7 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-面向 PLC 和工业设备的轻量级 .NET 通讯库，目标框架为 **.NET 8 (LTS)** 与 **.NET Standard 2.0**（可被 .NET Framework 4.8 等存量宿主引用）。
+面向 PLC 和工业设备的轻量级 .NET 通讯库。包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
 
 > 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat/blob/main/docs/migration.md) · [与 NModbus / FluentModbus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/modbus-comparison.md) · [与 S7.Net Plus 对比](https://github.com/RabitLogic/SiameseCat/blob/main/docs/comparison.md)
 
@@ -458,6 +458,7 @@ src/SiameseCat.Communication/
 
 tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus / S7 / Siemens / Server / Integration / Fakes）
 tests/SiameseCat.Compatibility/          # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
+tests/SiameseCat.FrameworkMatrix/        # 框架矩阵：在 .NET 8 / 10 / 11 上验证实际加载的资产与 Modbus 往返
 samples/SiameseCat.Samples/              # 按目录分层的使用教程：list / run <id> / selftest
 tools/SiameseCat.AotProbe/               # 无硬件 AOT 探针，支持跨平台交叉编译
 tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成功率、堆/句柄/线程增长校验
@@ -497,7 +498,7 @@ SiameseCat.Communication                     契约 + 模型，无 I/O
 dotnet add package SiameseCat.Communication
 ```
 
-包同时提供 `net8.0` 与 `netstandard2.0` 资产，只引入 `System.IO.Ports` 与 `Microsoft.Extensions.*` 抽象包（健康检查用到 `Microsoft.Extensions.Diagnostics.HealthChecks`）；DI、日志、ASP.NET Core、Worker 宿主本身已提供完整实现。
+包同时提供 `net8.0`、`net10.0` 与 `netstandard2.0` 资产，只引入 `System.IO.Ports` 与 `Microsoft.Extensions.*` 抽象包（健康检查用到 `Microsoft.Extensions.Diagnostics.HealthChecks`）；DI、日志、ASP.NET Core、Worker 宿主本身已提供完整实现。
 
 ## Native AOT
 
@@ -1110,19 +1111,19 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 ### 版本与打包
 
-- 目标框架：`net8.0`（.NET 8 及以上宿主）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析只对 `net8.0` 目标生效
-- **为什么不单独提供 net9.0 / net10.0 / net11.0 资产**：.NET 的 TFM 向后兼容，net9/10/11 的宿主会自动选用 `lib/net8.0`（已实测：net10.0 与 net11.0 项目加载的都是 `TargetFramework=.NETCoreApp,Version=v8.0` 的程序集）。只有当我们真的要用「仅在更高 TFM 才存在」的 API 时，才值得增加目标并配合 `#if NET9_0_OR_GREATER`；否则多出的资产内容完全相同，只会增加构建矩阵与包体积
+- 目标框架：`net8.0` + `net10.0`（.NET 8 / .NET 10 两个 LTS 代际）+ `netstandard2.0`（.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5/6/7 等）；`IsAotCompatible` 与 Native AOT 分析对现代目标生效
+- **上限不封顶**：目标框架是「下限」而不是「上限」——.NET 9 自动选用 `lib/net8.0`，.NET 11 / .NET 12 选用 `lib/net10.0`（`tests/SiameseCat.FrameworkMatrix` 在 .NET 8 / 10 / 11 上实跑同一套 Modbus 往返并打印实际加载的资产）。需要为新框架单独出资产时无需改代码：`dotnet pack -p:SiameseCatTargetFrameworks=net8.0;net11.0;netstandard2.0`
 - 启用 .NET 分析器（`latest-recommended`）
-- 启用包校验（`EnablePackageValidation`）：两个 TFM 的公共 API 面必须一致，防止某个 API 被误放进 `#if NET8_0_OR_GREATER`
+- 启用包校验（`EnablePackageValidation`）：各资产（`net8.0` / `net10.0` / `netstandard2.0`）的公共 API 面必须一致，防止某个 API 被误放进 `#if` 分支
 - 集中包版本管理（`Directory.Packages.props`）
 - Release 构建生成 `.nupkg` 与 `.snupkg`，并启用 SourceLink
 - 一键打包脚本：`./scripts/pack.ps1` 构建并校验包（双 TFM + 包内 README）与符号包，输出大小与 SHA256；`-Version 1.0.0-preview.1` 覆盖版本，`-Push <源>` 直接推送（`NUGET_API_KEY` 环境变量提供密钥）
-- CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）；测试同时收集 XPlat 覆盖率，行覆盖率低于 **75%** 时任务失败（当前约 79%）
+- CI 在每次 push / PR 时执行构建、测试和打包（见 [.github/workflows/ci.yml](.github/workflows/ci.yml)）；测试同时收集 XPlat 覆盖率，行覆盖率低于 **75%** 时任务失败（当前约 80%）
 - 依赖升级由 `.github/dependabot.yml` 每周自动发起（NuGet 按 `Microsoft.Extensions.*`、测试工具分组；GitHub Actions 每月）；安全报告流程见 [SECURITY.md](SECURITY.md)
 
 ## 构建与测试
 
-解决方案使用 `.slnx` 格式，需要 .NET SDK 9.0.200 或更高版本（CI 使用 10.0.x 构建 `net8.0` 目标）。
+解决方案使用 `.slnx` 格式，需要 .NET SDK 10.0.100 或更高版本（`net10.0` 资产需要能编译该框架的 SDK；CI 使用 10.0.x）。运行框架矩阵需要装好对应运行时。
 
 ```powershell
 dotnet build SiameseCat.slnx
@@ -1148,6 +1149,10 @@ dotnet run --project tools/SiameseCat.AotProbe -p:PublishAot=false
 
 # .NET Framework 4.8 兼容性验证（跑 netstandard2.0 资产，仅 Windows）
 dotnet run --project tests/SiameseCat.Compatibility -c Release
+
+# 框架矩阵：每个运行时实际加载哪个资产（需装好对应运行时）
+dotnet run --project tests/SiameseCat.FrameworkMatrix -f net8.0
+dotnet run --project tests/SiameseCat.FrameworkMatrix -f net10.0
 
 # 基准测试（BenchmarkDotNet；-c Release 必须，结果写到 BenchmarkDotNet.Artifacts/）
 dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"

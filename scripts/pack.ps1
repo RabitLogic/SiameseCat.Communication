@@ -80,6 +80,8 @@ $failures = 0
 Write-Host ''
 Write-Host 'Package layout' -ForegroundColor Cyan
 
+$requiredFrameworks = @('net8.0', 'net10.0', 'netstandard2.0')
+
 foreach ($package in $packages) {
     $archive = [IO.Compression.ZipFile]::OpenRead($package.FullName)
     try {
@@ -89,18 +91,34 @@ foreach ($package in $packages) {
         $archive.Dispose()
     }
 
-    $net8 = @($entries | Where-Object { $_ -like 'lib/net8.0/*.dll' }).Count
-    $netstandard = @($entries | Where-Object { $_ -like 'lib/netstandard2.0/*.dll' }).Count
+    $missing = @()
+    foreach ($tfm in $requiredFrameworks) {
+        $found = @($entries | Where-Object { $_ -like "lib/$tfm/*.dll" })
+        if ($found.Count -eq 0) {
+            $missing += $tfm
+        }
+    }
+
     $readme = @($entries | Where-Object { $_ -eq 'README.md' }).Count
-    $ok = $net8 -ge 1 -and $netstandard -ge 1 -and $readme -eq 1
+    $ok = $missing.Count -eq 0 -and $readme -eq 1
 
     if (-not $ok) {
         $failures++
     }
 
     $hash = (Get-FileHash $package.FullName -Algorithm SHA256).Hash
-    '{0,-42} {1,9:N1} KB  net8:{2} netstandard2.0:{3} readme:{4}  sha256:{5}' -f `
-        $package.Name, ($package.Length / 1KB), $net8, $netstandard, $readme, $hash.Substring(0, 16) | Write-Host
+    $present = @()
+    foreach ($tfm in $requiredFrameworks) {
+        if ($missing -contains $tfm) {
+            $present += "missing:$tfm"
+        }
+        else {
+            $present += $tfm
+        }
+    }
+
+    '{0,-42} {1,9:N1} KB  tfm:[{2}] readme:{3}  sha256:{4}' -f `
+        $package.Name, ($package.Length / 1KB), ($present -join ' '), $readme, $hash.Substring(0, 16) | Write-Host
 }
 
 $symbols = @(Get-ChildItem $Output -Filter *.snupkg)
@@ -109,7 +127,7 @@ Write-Host ''
 Write-Host ("{0} package(s), {1} symbol package(s) in {2}" -f @($packages).Count, $symbols.Count, $Output) -ForegroundColor Green
 
 if ($failures -gt 0) {
-    throw "$failures package(s) do not contain both target frameworks and README.md."
+    throw "$failures package(s) are missing an expected target framework or README.md."
 }
 
 Write-Host ''

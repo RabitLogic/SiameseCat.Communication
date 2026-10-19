@@ -52,11 +52,15 @@ Behavioural differences to be aware of:
 5. Run a sample against a device (`dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
    --host ...`) or against the in-process slave, then run `tools/SiameseCat.Soak` for a longer session.
 
-## Multi-targeting notes (netstandard2.0)
+## Target frameworks and assets
+
+The package ships `net8.0`, `net10.0` and `netstandard2.0` assets. A host always resolves the nearest
+asset at or below its own version (.NET 9 → `net8.0`, .NET 11 → `net10.0`), so newer runtimes keep working
+without a package update. `tests/SiameseCat.FrameworkMatrix` verifies this end to end.
 
 When your host is .NET Framework 4.8 (or any `netstandard2.0` consumer):
 
-- The package resolves `lib/netstandard2.0`; public API is identical to `lib/net8.0` (enforced by
+- The package resolves `lib/netstandard2.0`; the public API is identical to the modern assets (enforced by
   `EnablePackageValidation`).
 - AOT/trimming analyzers and source-generated regexes are not used; regexes fall back to
   `RegexOptions.Compiled`.

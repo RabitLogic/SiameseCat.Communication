@@ -2,8 +2,10 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-A lightweight .NET communication library for PLCs and industrial devices. It targets **.NET 8 (LTS)** and
-**.NET Standard 2.0** (so .NET Framework 4.8 hosts can reference it too).
+A lightweight .NET communication library for PLCs and industrial devices. It ships assets for
+**.NET 8 (LTS)**, **.NET 10 (LTS)** and **.NET Standard 2.0** — the two modern targets are floors, not
+ceilings: .NET 9, .NET 11 and later resolve the nearest lower asset automatically, so the package is
+never pinned to a single runtime version.
 
 - **Pluggable drivers** — one contract (`IPlcDriver` / `DriverBase`) with capability flags, batch
   read/write, polling or native subscriptions, health probes and metrics.
@@ -66,7 +68,7 @@ Other products (for example `SiameseCat.Mes.Template`) are separate repositories
 dotnet add package SiameseCat.Communication
 ```
 
-The package targets `net8.0` and `netstandard2.0` and brings only `System.IO.Ports` plus the
+The package ships `net8.0`, `net10.0` and `netstandard2.0` assets and brings only `System.IO.Ports` plus the
 `Microsoft.Extensions.*` abstractions (and `Microsoft.Extensions.Diagnostics.HealthChecks` for the
 health-check integration). DI, logging, ASP.NET Core and worker hosts already provide the full implementations.
 
@@ -686,14 +688,15 @@ and executes the glibc/musl probes in Docker.
 
 ## Build and test
 
-The solution uses the `.slnx` format and needs the .NET SDK 9.0.200 or later (CI uses 10.0.x to build the
-`net8.0` targets).
+The solution uses the `.slnx` format and needs the .NET SDK 10.0.100 or later (the `net10.0` asset
+requires an SDK that can target it; CI uses 10.0.x). Running the framework matrix also needs the
+corresponding runtimes: `dotnet run --project tests/SiameseCat.FrameworkMatrix -f net8.0` and `-f net10.0`.
 
 ```powershell
 dotnet build SiameseCat.slnx
 dotnet test SiameseCat.slnx
 
-# Coverage (CI enforces a 75% line-coverage gate, currently ~79%)
+# Coverage (CI enforces a 75% line-coverage gate, currently ~80%)
 dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-directory test-results
 
 # Samples: one folder per topic, every step runnable without hardware
@@ -715,10 +718,14 @@ dotnet run --project tools/SiameseCat.AotProbe
 # .NET Framework 4.8 compatibility runner (netstandard2.0 assets, Windows only)
 dotnet run --project tests/SiameseCat.Compatibility -c Release
 
+# Framework matrix: which asset each runtime loads (needs the matching runtimes installed)
+dotnet run --project tests/SiameseCat.FrameworkMatrix -f net8.0
+dotnet run --project tests/SiameseCat.FrameworkMatrix -f net10.0
+
 # Benchmarks (BenchmarkDotNet; results go to BenchmarkDotNet.Artifacts/)
 dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 
-# Build and verify the package (both TFMs + bundled README + SHA256)
+# Build and verify the package (all assets + bundled README + SHA256)
 ./scripts/pack.ps1
 
 # Override the version or push straight to a feed
@@ -726,9 +733,9 @@ dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 $env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
 ```
 
-Packaging: the library is packed for `net8.0` and `netstandard2.0`, with
+Packaging: the library is packed for `net8.0`, `net10.0` and `netstandard2.0`, with
 `EnablePackageValidation` ensuring both TFMs expose the same public API. CI verifies that the `.nupkg`
-contains `lib/net8.0`, `lib/netstandard2.0` and `README.md`, and that the coverage gate passes.
+contains `lib/net8.0`, `lib/net10.0`, `lib/netstandard2.0` and `README.md`, and that the coverage gate passes.
 Dependencies are updated weekly by Dependabot; see [SECURITY.md](https://github.com/RabitLogic/SiameseCat/blob/main/SECURITY.md)
 for the vulnerability reporting process.
 

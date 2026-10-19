@@ -11,8 +11,12 @@
 
 - 单一 NuGet 包 **`SiameseCat.Communication`**，包内按命名空间分层：`SiameseCat.Communication`（契约 + 模型）、
   `.Transport`、`.Modbus`、`.S7`、`.Siemens`、`.Drivers`、`.Server.Modbus` / `.Server.S7`、`.Hosting`。
-- 同时提供 `net8.0` 与 `netstandard2.0` 资产：.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5–7 走
-  `netstandard2.0`，.NET 8 及以上走 `net8.0`；`EnablePackageValidation` 校验两个 TFM 的公共 API 完全一致。
+- 提供 `net8.0`、`net10.0` 与 `netstandard2.0` 三份资产：.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5–7 走
+  `netstandard2.0`，.NET 8 走 `net8.0`，.NET 10 走 `net10.0`。目标是**下限而非上限**：.NET 9 解析到
+  `lib/net8.0`、.NET 11 及以后解析到 `lib/net10.0`，新运行时无需等待包更新；`tests/SiameseCat.FrameworkMatrix`
+  在 .NET 8 / 10 / 11 上实跑同一套 Modbus 往返并校验实际加载的资产。需要为新框架额外出资产时用
+  `-p:SiameseCatTargetFrameworks=net8.0;net11.0;netstandard2.0` 即可，无需改代码。
+  `EnablePackageValidation` 校验各资产的公共 API 面完全一致；`IsAotCompatible` 对现代目标生效。
 - Native AOT：程序集标记 `IsAotCompatible`，无反射、`dynamic`、运行时序列化与动态代码生成，`S7Address`
   使用源生成正则；`tools/SiameseCat.AotProbe` 覆盖 15 项无硬件检查，CI 在 Windows/Linux/macOS 原生运行，
   并通过 `PublishAotCross` 交叉编译 win-x64/arm64、linux-x64/arm64、linux-musl-x64/arm64、osx-x64/arm64，
@@ -129,14 +133,14 @@
 
 ### 质量与工程化
 
-- 352 个单元/集成测试，行覆盖率 79.8%、分支覆盖率 64.9%（CI 门禁 75%）；Release 构建零警告，
-  启用 `latest-recommended` 分析器与 `CS1591` XML 文档检查，`dotnet format --verify-no-changes` 通过。
+- 352 个单元/集成测试，行覆盖率 79.8%、分支覆盖率 64.9%（CI 门禁 75%）；`tests/SiameseCat.FrameworkMatrix` 在 .NET 8 / .NET 10 / .NET 11 上分别加载对应资产并完成同一套 Modbus 往返（.NET 11 取 `net10.0` 资产）；
+  Release 构建零警告，启用 `latest-recommended` 分析器与 `CS1591` XML 文档检查，`dotnet format --verify-no-changes` 通过。
 - `tests/SiameseCat.Compatibility` 在 .NET Framework 4.8 上实际运行 `netstandard2.0` 资产（CI Windows 任务）。
 - `tools/SiameseCat.Soak`：多个驱动经 TCP 代理（按计划切断链路、拒绝新连接）访问内置从站，逐秒输出
   ops / 成功率 / 托管堆 / 工作集 / 线程 / 句柄，结束时校验恢复、成功率与资源增长；CI 每次推送跑 1 分钟。
 - `benchmarks/SiameseCat.Benchmarks` 提供 BenchmarkDotNet 基线（寄存器转换、CRC、地址解析、值编解码、
   从站吞吐）。
-- CI 校验包内 `lib/net8.0`、`lib/netstandard2.0`、`README.md` 与文档链接；Dependabot 每周更新依赖，
+- CI 校验包内 `lib/net8.0`、`lib/net10.0`、`lib/netstandard2.0`、`README.md` 与文档链接，并在 .NET 8 / .NET 10 上运行框架矩阵；Dependabot 每周更新依赖，
   安全报告流程见 [SECURITY.md](SECURITY.md)。
 
 ## 版本约定

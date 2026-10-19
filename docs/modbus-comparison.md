@@ -40,7 +40,7 @@ fluent.ReadHoldingRegisters<ushort>(1, 0, 10);
 | Modbus slave | `SiameseCat.Communication.Server` (RTU + TCP, FC01…FC17h) | `ModbusFactory.CreateSlave(Network)` | `ModbusTcpServer` / `ModbusRtuServer` |
 | Other protocols | S7 (client + slave), raw TCP/UDP/Serial | Modbus only | Modbus only |
 | Abstraction | `IPlcDriver` + capability interfaces + registry + metrics + subscriptions | `IModbusMaster` with sync/async pairs | `ModbusClient` family, span-based, sync-first |
-| Target frameworks | `net8.0`, `netstandard2.0` | `net46`, `netstandard1.3`, `netstandard2.0`, `net6.0` | `netstandard2.0`, `netstandard2.1`, `net5.0`+ |
+| Target frameworks | `net8.0`, `net10.0`, `netstandard2.0` | `net46`, `netstandard1.3`, `netstandard2.0`, `net6.0` | `netstandard2.0`, `netstandard2.1`, `net5.0`+ |
 | License | MIT | MIT | MIT |
 | Tests in CI of this repo | yes (`SiameseCat.Tests`) | n/a | n/a |
 

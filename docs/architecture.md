@@ -116,17 +116,27 @@ Declaring `KeepAliveInterval` without the `Health` capability is rejected in the
 
 ## Multi-targeting and AOT
 
-The package targets `net8.0` and `netstandard2.0`:
+The package ships three assets; the modern ones are floors, not ceilings:
 
-- `netstandard2.0` covers .NET Framework 4.6.1+, .NET Core 2.x+ and .NET 5–7 hosts.
-- `net8.0` covers .NET 8 and later; newer hosts consume this asset (verified for .NET 10 and .NET 11).
-  No separate assets are shipped for net9/net10/net11 because the TFM contract is forward compatible.
+| Asset | Consumed by |
+| --- | --- |
+| `lib/net8.0` | .NET 8 hosts |
+| `lib/net10.0` | .NET 10 hosts |
+| `lib/netstandard2.0` | .NET Framework 4.6.1+, .NET Core 2.x+, .NET 5–7, and any host that prefers the standard asset |
+
+- .NET 9 resolves `lib/net8.0`, and .NET 11 / .NET 12 resolve `lib/net10.0`: a host always takes the
+  nearest asset at or below its own version, so the package is never pinned to one runtime version.
+  `tests/SiameseCat.FrameworkMatrix` proves it by running the same Modbus round trip on .NET 8, .NET 10
+  and .NET 11 and printing which asset was loaded.
+- To produce an asset for a framework that is newer than `net10.0`, build with
+  `-p:SiameseCatTargetFrameworks=net8.0;net11.0;netstandard2.0`; no source change is needed.
 - Shared sources (`src/Shared/Guard.cs`) replace `ThrowIf*` helpers that do not exist on
-  `netstandard2.0`; `IntervalTimer` replaces `PeriodicTimer`; `[GeneratedRegex]` is used on `net8.0`
-  and falls back to `RegexOptions.Compiled`; UDP uses `ArrayPool` + `ArraySegment` to bridge Span APIs.
-- `IsAotCompatible` and the trimming/AOT analyzers run for `net8.0` only. There is no reflection,
+  `netstandard2.0`; `IntervalTimer` replaces `PeriodicTimer`; `[GeneratedRegex]` is used on the modern
+  targets and falls back to `RegexOptions.Compiled`; UDP uses `ArrayPool` + `ArraySegment` to bridge
+  Span APIs.
+- `IsAotCompatible` and the trimming/AOT analyzers run for the modern targets. There is no reflection,
   `dynamic`, runtime serialization or code generation anywhere in the package.
-- `EnablePackageValidation` compares the public API of both TFMs at pack time, so an API cannot be
+- `EnablePackageValidation` compares the public API of every asset at pack time, so an API cannot be
   accidentally hidden behind `#if NET8_0_OR_GREATER`.
 
 ## Performance notes
