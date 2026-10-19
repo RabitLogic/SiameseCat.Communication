@@ -17,6 +17,12 @@ xwin for Windows), so every supported runtime identifier can be produced from an
 
 .EXAMPLE
 ./scripts/publish-aot.ps1 -All -Run
+
+.EXAMPLE
+./scripts/publish-aot.ps1 -SatoriGCTargets ./eng/SatoriGC.targets
+
+.EXAMPLE
+./scripts/publish-aot.ps1 -MSBuildProperty PublishWithSatoriGC=true
 #>
 [CmdletBinding()]
 param(
@@ -25,7 +31,9 @@ param(
     [string]$OutputDirectory = "",
     [switch]$Run,
     [switch]$Docker,
-    [switch]$NoRestore
+    [switch]$NoRestore,
+    [string]$SatoriGCTargets = "",
+    [string[]]$MSBuildProperty = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,6 +78,16 @@ elseif ($RuntimeIdentifier.Count -eq 0) {
 
 $hostRid = Get-HostRuntimeIdentifier
 
+foreach ($property in $MSBuildProperty) {
+    if (-not $property.Contains('=')) {
+        throw "MSBuildProperty '$property' must use the Name=Value form."
+    }
+}
+
+if ($SatoriGCTargets) {
+    $SatoriGCTargets = (Resolve-Path -LiteralPath $SatoriGCTargets -ErrorAction Stop).Path
+}
+
 foreach ($rid in $RuntimeIdentifier) {
     if ($supported -notcontains $rid) {
         throw "Unsupported runtime identifier '$rid'. Supported: $($supported -join ', ')."
@@ -88,6 +106,14 @@ foreach ($rid in $RuntimeIdentifier) {
 
     if ($NoRestore) {
         $arguments += '--no-restore'
+    }
+
+    if ($SatoriGCTargets) {
+        $arguments += "-p:SatoriGCTargetsPath=$SatoriGCTargets"
+    }
+
+    foreach ($property in $MSBuildProperty) {
+        $arguments += "-p:$property"
     }
 
     & dotnet @arguments

@@ -582,6 +582,44 @@ docker buildx build --platform linux/arm64 -f tools/SiameseCat.AotProbe/Dockerfi
 - 交叉编译到 Windows 不需要本机安装 Visual Studio C++ 工具；Linux 原生 AOT 需要 `clang` 与 `zlib1g-dev`；macOS 原生 AOT 需要 Xcode 命令行工具。
 - CI 一方面在 `win-x64`、`linux-x64`、`osx-arm64` 上执行原生 AOT 探针，另一方面在 Linux 上交叉编译全部 RID，并用 Docker 运行 glibc/musl 两个 Linux 探针。
 
+### 发布时更换 GC（SatoriGC 等）
+
+GC 由**宿主运行时**决定，不是类库能切换的选项：6 个 NuGet 包（`net8.0` + `netstandard2.0`）保持与 GC 无关，任何引用本库的宿主程序都用自己选择的运行时。因此「换成 SatoriGC」只作用于**可执行工程的发布**——本仓库里是 `tools/SiameseCat.AotProbe` 与 `samples/SiameseCat.Demo`，它们预留了一个可选的提供方导入钩子（文件不存在时完全不生效）：
+
+```powershell
+# 方式 1：把提供方文件放到约定位置（存在即自动导入）
+eng/SatoriGC.targets
+
+# 方式 2：显式指定路径（任意位置）
+./scripts/publish-aot.ps1 -SatoriGCTargets ./eng/SatoriGC.targets
+dotnet publish samples/SiameseCat.Demo -c Release -r win-x64 -p:SatoriGCTargetsPath=./eng/SatoriGC.targets
+
+# 方式 3：直接透传任意 MSBuild 属性给提供方
+./scripts/publish-aot.ps1 -MSBuildProperty PublishWithSatoriGC=true
+```
+
+`eng/SatoriGC.targets` 的内容由提供方决定，通常只是把它的封装引进来（版本号与调用方式以提供方文档为准）：
+
+```xml
+<Project>
+  <!-- 示例：提供方以 NuGet 包形式分发时 -->
+  <ItemGroup>
+    <PackageReference Include="PublishWithSatoriGC" Version="x.y.z" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- 示例：提供方以 MSBuild target 形式分发时，挂到发布之后 -->
+  <Target Name="UseSatoriGC" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
+    <CallTarget Targets="PublishWithSatoriGC" />
+  </Target>
+</Project>
+```
+
+注意事项：
+
+- 自定义 GC 通常需要配套的 runtime pack 或自包含发布，因此必须使用 `dotnet publish -r <rid>`（AOT 探针脚本已如此）；`dotnet build` 与普通类库包不受影响。
+- 钩子只加在可执行工程上，库工程的构建与打包行为保持不变。
+- 接入后请用提供方自带的自检输出确认生效，并重跑 `./scripts/publish-aot.ps1 -Run` 与 CI 的 AOT 矩阵（`win-x64` / `linux-x64` / `osx-arm64` + Docker glibc/musl）。
+
 ## 快速开始
 
 ### Modbus TCP

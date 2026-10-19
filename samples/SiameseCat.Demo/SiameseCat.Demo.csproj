@@ -18,4 +18,13 @@
     <ProjectReference Include="..\..\src\SiameseCat.Server\SiameseCat.Server.csproj" />
   </ItemGroup>
 
+  <!--
+    Optional GC provider hook (see tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj).
+    Point SatoriGCTargetsPath at the provider file, or drop it at eng/SatoriGC.targets.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\eng\SatoriGC.targets"
+          Condition="'$(SatoriGCTargetsPath)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\eng\SatoriGC.targets')" />
+  <Import Project="$(SatoriGCTargetsPath)"
+          Condition="'$(SatoriGCTargetsPath)' != '' and Exists('$(SatoriGCTargetsPath)')" />
+
 </Project>
