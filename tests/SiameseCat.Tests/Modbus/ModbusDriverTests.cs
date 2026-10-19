@@ -24,12 +24,23 @@ public class ModbusAddressParserTests
     [InlineData("DI7", ModbusAddressParser.DiscreteInputRegion, 7)]
     [InlineData("holding:12", ModbusAddressParser.HoldingRegisterRegion, 12)]
     [InlineData("10", ModbusAddressParser.HoldingRegisterRegion, 10)]
+    [InlineData("1000", ModbusAddressParser.HoldingRegisterRegion, 1000)]
+    [InlineData("01000", ModbusAddressParser.CoilRegion, 999)]
     public void Parse_ReturnsExpectedRegionAndOffset(string text, string region, int offset)
     {
         var address = _parser.Parse(text);
 
         Assert.Equal(region, address.Region);
         Assert.Equal(offset, address.Offset);
+    }
+
+    [Theory]
+    [InlineData("DB1.DBW2")]
+    [InlineData("MW2")]
+    [InlineData("I0.1")]
+    public void Parse_RejectsS7Notation(string text)
+    {
+        Assert.Throws<FormatException>(() => _parser.Parse(text));
     }
 
     [Fact]
@@ -52,6 +63,7 @@ public class ModbusAddressParserTests
 
     [Theory]
     [InlineData("50001")]
+    [InlineData("10000")]
     [InlineData("abc")]
     [InlineData("")]
     [InlineData("HR-1")]

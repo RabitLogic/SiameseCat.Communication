@@ -12,7 +12,17 @@ namespace SiameseCat.Communication.Modbus;
 /// </list>
 /// </summary>
 /// <remarks>
-/// A bare number shorter than five digits is treated as a zero-based holding-register offset.
+/// <para>
+/// A plain number is classified by its digit count, not by intent: four digits or fewer is a
+/// zero-based holding-register offset, five or six digits are Modicon reference numbers whose leading
+/// digit selects the area. A zero-padded offset therefore turns into a reference number:
+/// <c>1000</c> is holding register 1000, but <c>01000</c> is coil 999.
+/// </para>
+/// <para>Use <c>holding:1000</c> or <c>HR1000</c> when an offset must be unambiguous.</para>
+/// <para>
+/// S7 notation such as <c>DB1.DBW2</c> is not a Modbus address and is rejected; use
+/// <see cref="SiameseCat.Communication.Siemens.SiemensAddressParser"/> for it.
+/// </para>
 /// </remarks>
 public sealed partial class ModbusAddressParser : IPlcAddressParser
 {

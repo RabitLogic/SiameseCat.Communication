@@ -296,6 +296,8 @@ services.AddS7Server(options =>
 | Modbus（通用） | `40001` / `HR10` / `IR0` / `C0` / `DI0` | `{ Region="holding", Offset=0, DataType=UInt16 }` |
 | Siemens | `DB1.DBX0.0` / `DB1.DBW2` / `M0.0` / `IW4` | `{ Region="DB1", Offset=0, BitOffset=0, DataType=Bool }` |
 
+裸数字按位数分类：`1000` 是保持寄存器 1000，而 `01000` 是线圈 999；偏移有歧义时请写 `holding:1000`。每种解析器只管自己的记法——Modbus 解析器拒绝 S7 地址，S7 解析器也不认 Modbus 地址。
+
 数组/文本使用 `Length`：`String` 为最大字符数，`Raw` 为字节数，**数值类型为元素个数**（`UInt16` + `Length=10` 就是 10 个寄存器/字，`ByteSize` 自动等于 20）。`Bool` 始终表示单个位，多个位请用多个地址。
 
 ```csharp

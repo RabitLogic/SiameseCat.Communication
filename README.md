@@ -295,6 +295,10 @@ await using var serial = new SerialPortTransport(new SerialPortOptions { PortNam
 | Modbus named offsets | `HR10`, `IR0`, `C0`, `DI0` | Same areas with zero-based offsets |
 | Siemens | `DB1.DBX0.0`, `DB1.DBW2`, `DB1.DBD4`, `MW2`, `IW4`, `Q0.0` | Data block, memory, input and output areas |
 
+A plain number is classified by digit count, not by intent: `1000` is holding register 1000, while
+`01000` is coil 999. Use `holding:1000` when an offset must be unambiguous. Each parser owns its own
+notation — the Modbus parser rejects S7 addresses and the S7 parser rejects Modbus ones.
+
 `PlcAddress` carries `Region`, `Offset`, `BitOffset`, `DataType`, `Length` and an optional `Symbol` for
 symbol-addressed protocols. `PlcValue` carries the payload plus optional `Quality` and `Timestamp`;
 neither participates in equality (so change detection is unchanged).

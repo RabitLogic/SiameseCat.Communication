@@ -121,6 +121,11 @@ echoes writes and the client validates the echo; `unitId = 0` broadcasts a write
 
 ### Address syntax
 
+`ModbusAddressParser` turns the notations used in PLC documentation into a protocol-neutral
+`PlcAddress`. The protocol itself has no textual address format: the clients take a zero-based numeric
+offset only, so this notation lives in the driver layer and can be replaced through
+`IPlcAddressParser`.
+
 | Notation | Example | Area | Zero-based offset |
 | --- | --- | --- | --- |
 | Reference numbers | `00001`–`09999` | Coils | `N - 1` |
@@ -129,9 +134,23 @@ echoes writes and the client validates the echo; `unitId = 0` broadcasts a write
 | | `40001`–`49999` | Holding registers | `N - 40001` |
 | | `400001`–`465536` | Holding registers (6-digit) | `N - 400001` |
 | Named | `HR10`, `IR10`, `C0`, `DI0` | Holding / input / coil / discrete | literal |
+| Explicit region | `holding:10`, `input=10`, `coil:0`, `discrete:0` | as named | literal |
 | Bare number | `10` | Holding registers | literal |
 
-`ModbusAddressParser` also accepts `holding:10`, `input=10`, `coil:0` and `discrete:0` spellings.
+A plain number is classified by its **digit count**, not by intent:
+
+| Input | Result | Reason |
+| --- | --- | --- |
+| `1000` | holding register 1000 | four digits: zero-based offset |
+| `10000` | `FormatException` | five digits: a `1xxxx` reference number, whose record number `0000` does not exist |
+| `01000` | coil 999 | five digits; the leading zero is a reference-number prefix, not padding |
+
+That trap is inherent to the Modicon notation, so write `holding:1000` or `HR1000` whenever an offset
+must be unambiguous (configuration files, tag tables, generated code).
+
+S7 native notation (`DB1.DBW2`, `MW2`, `I0.1`) is **not** a Modbus address and is rejected here; it
+belongs to `SiemensAddressParser`. Vendor nouns such as `D100` or `M10` are not guessed either: map
+them in the vendor driver or write `holding:100`.
 
 ### Data types and register usage
 
