@@ -17,9 +17,8 @@
   在 .NET 8 / 10 / 11 上实跑同一套 Modbus 往返并校验实际加载的资产。需要为新框架额外出资产时用
   `-p:SiameseCatTargetFrameworks=net8.0;net11.0;netstandard2.0` 即可，无需改代码。
   `EnablePackageValidation` 校验各资产的公共 API 面完全一致；`IsAotCompatible` 对现代目标生效。
-- Native AOT：程序集标记 `IsAotCompatible`，无反射、`dynamic`、运行时序列化与动态代码生成，`S7Address`
-  使用源生成正则；`tools/SiameseCat.AotProbe` 覆盖 15 项无硬件检查，CI 在 Windows/Linux/macOS 上
-  原生发布并执行探针（不做跨操作系统 AOT 交叉编译，包发布的是 IL 资产）。
+- Native AOT：程序集标记 `IsAotCompatible`，`net8.0`/`net10.0` 构建时运行裁剪与 AOT 分析器；无反射、`dynamic`、
+  运行时序列化与动态代码生成，`S7Address` 使用源生成正则。`PublishAot` 只应在可执行项目中开启。
 - 包内附带 `README.md`（`PackageReadmeFile`）与 XML 文档，启用 SourceLink 并同时产出 `.snupkg`。
 - `scripts/pack.ps1` 一条命令完成构建、打包、三资产/README 校验、输出大小与 SHA256，并可选 `-Version` 覆盖版本、`-Push` 直接推送。
 - 发布：新增 `.github/workflows/release.yml`（推送 `v*` 标签即构建 → 测试 → 框架矩阵 → 打包 → 推送 nuget.org → 创建 GitHub Release），采用 **NuGet Trusted Publishing**（GitHub OIDC 令牌换取 1 小时临时 API Key，仓库不保存密钥，只需配置 `NUGET_USER` 变量与 nuget.org 策略）；配套 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)（策略配置、本地预检、手工发布、私有源、故障排查与发布清单）；`scripts/pack.ps1 -Push` 支持 nuget.org、Azure Artifacts、Nexus 与文件夹源。

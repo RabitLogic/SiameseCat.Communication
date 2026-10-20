@@ -11,7 +11,6 @@
     <Project Path="tests/SiameseCat.FrameworkMatrix/SiameseCat.FrameworkMatrix.csproj" />
   </Folder>
   <Folder Name="/tools/">
-    <Project Path="tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj" />
     <Project Path="tools/SiameseCat.Soak/SiameseCat.Soak.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">

@@ -15,8 +15,8 @@ never pinned to a single runtime version.
   with thread-safe data stores, write events, snapshots and per-request statistics.
 - **One package** — `SiameseCat.Communication` contains the contracts, transports, protocols, drivers,
   slaves, dependency injection and health checks; there is nothing else to install.
-- **Zero-warning, multi-target, Native AOT ready** — analyzer-clean builds, package validation for both
-  TFMs, and an AOT probe that is published and executed in CI for Windows, Linux and macOS.
+- **Zero-warning, multi-target, trim/AOT friendly** — analyzer-clean builds, package validation for both
+  TFMs, and trimming/AOT analyzers enabled for the modern targets.
 
 Deeper documentation:
 
@@ -684,21 +684,10 @@ float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
 
 ## Native AOT
 
-The package enables `IsAotCompatible`; there is no reflection, `dynamic`, runtime serialization or code
-generation, and `S7Address` uses a source-generated regex. `tools/SiameseCat.AotProbe` is a
-hardware-free probe covering 15 scenarios (CRC, register conversion, address parsing, TCP loopback,
-Modbus round trips, numeric arrays, batch subscription, slave data store, DI hosting, S7 slave round
-trip, transport injection, logging). It is published for the host runtime:
-
-```powershell
-./scripts/publish-aot.ps1 -Run          # publish for the host RID and run it
-./scripts/publish-aot.ps1               # publish only
-```
-
-CI publishes and runs the probe natively on `win-x64`, `linux-x64` and `osx-arm64`. There is no
-cross-OS AOT step: the package ships IL assets, so the probe proves that the library survives trimming
-and AOT compilation on each supported operating system. Linux needs `clang` and `zlib1g-dev`, macOS
-needs the Xcode command line tools.
+The package enables `IsAotCompatible`, so the trimming and AOT analyzers run for `net8.0` and `net10.0`.
+There is no reflection, `dynamic`, runtime serialization or code generation, and `S7Address` uses a
+source-generated regex. Keep `PublishAot` enabled only in the executable project, never in a library.
+`System.IO.Ports` works under Native AOT on Windows and Linux; macOS needs the usual USB-serial driver.
 
 ## Build and test
 
@@ -725,9 +714,6 @@ dotnet run --project samples/SiameseCat.Samples -- selftest
 # Soak test with fault injection: recovery, success rate, memory/handle/thread growth
 dotnet run --project tools/SiameseCat.Soak -c Release -- --duration 00:01:00
 dotnet run --project tools/SiameseCat.Soak -c Release -- --help
-
-# Native AOT probe (the project enables PublishAot)
-dotnet run --project tools/SiameseCat.AotProbe
 
 # .NET Framework 4.8 compatibility runner (netstandard2.0 assets, Windows only)
 dotnet run --project tests/SiameseCat.Compatibility -c Release

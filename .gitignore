@@ -6,7 +6,6 @@ BenchmarkDotNet.Artifacts/
 *.log
 publish/
 out/
-.aot-test/
 TestResults/
 
 # Visual Studio / Rider

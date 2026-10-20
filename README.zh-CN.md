@@ -400,7 +400,7 @@ registry.Register(new MyProtocolFactory());
 | 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
 | Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
 | S7 从站 | `SiameseCat.Communication.Server.S7`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
-| Native AOT | 程序集标记 `IsAotCompatible`；CI 在 Windows/Linux/macOS 上原生发布并运行 AOT 探针 |
+| Native AOT | 程序集标记 `IsAotCompatible`；现代目标启用裁剪/AOT 分析器，代码无反射与动态代码生成 |
 
 Modbus 支持的功能码：
 
@@ -462,7 +462,6 @@ tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus
 tests/SiameseCat.Compatibility/          # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
 tests/SiameseCat.FrameworkMatrix/        # 框架矩阵：在 .NET 8 / 10 / 11 上验证实际加载的资产与 Modbus 往返
 samples/SiameseCat.Samples/              # 按目录分层的使用教程：list / run <id> / selftest
-tools/SiameseCat.AotProbe/               # 无硬件 AOT 探针，按宿主 RID 发布
 tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成功率、堆/句柄/线程增长校验
 benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 ```
@@ -504,27 +503,7 @@ dotnet add package SiameseCat.Communication
 
 ## Native AOT
 
-所有库项目都启用了 `IsAotCompatible`，构建时会运行裁剪与 AOT 分析器，代码中没有反射、`dynamic`、运行时序列化或动态代码生成。`S7Address` 使用源生成正则。
-
-`tools/SiameseCat.AotProbe` 是无硬件依赖的 AOT 探针，覆盖 CRC、寄存器转换、S7 地址解析、串口配置校验、TCP 环回、Modbus TCP 读写与批量写、数值数组（模型 + 编解码 + 驱动读写）、批量订阅、从站数据存储（写入事件 + 快照/恢复）、从站托管（DI 注册 + `IHostedService` 启停 + 统计计数）、S7 从站往返、可插拔驱动契约（注册表 → 驱动 → 批量读写 → 健康探针 → 指标）、传输注入（共享链路 + 帧日志）以及日志集成适配器。按宿主 RID 发布：
-
-```powershell
-# 发布当前宿主 RID 并运行
-./scripts/publish-aot.ps1 -Run
-```
-
-等价的直接命令：
-
-```powershell
-dotnet publish tools/SiameseCat.AotProbe/SiameseCat.AotProbe.csproj -c Release -r win-x64 -o out
-./out/SiameseCat.AotProbe.exe
-```
-
-说明：
-
-- **不做跨操作系统 AOT 交叉编译**。包本身发布 IL 资产，探针的作用是证明库在各平台的裁剪/AOT 编译与运行期行为；CI 在 `win-x64`、`linux-x64`、`osx-arm64` 上各自原生发布并执行探针。
-- Linux 原生 AOT 需要 `clang` 与 `zlib1g-dev`；macOS 原生 AOT 需要 Xcode 命令行工具。
-- 如需在容器中验证，可使用 `tools/SiameseCat.AotProbe/Dockerfile`。
+所有库项目都启用了 `IsAotCompatible`，`net8.0`/`net10.0` 构建时会运行裁剪与 AOT 分析器；代码中没有反射、`dynamic`、运行时序列化或动态代码生成，`S7Address` 使用源生成正则。`PublishAot` 只应在可执行项目中开启，不要加在库上。`System.IO.Ports` 在 Windows/Linux 的 Native AOT 下可用，macOS 需要常规的 USB 串口驱动。
 
 ## 快速开始
 
@@ -1106,12 +1085,6 @@ dotnet run --project samples/SiameseCat.Samples -- run server/s7
 
 # 跑完全部带仿真器的示例（17 步，约 10 秒，失败返回 1）
 dotnet run --project samples/SiameseCat.Samples -- selftest
-
-# 直接以 Native AOT 运行探针（项目已启用 PublishAot）
-dotnet run --project tools/SiameseCat.AotProbe
-
-# 仅用 JIT 快速运行
-dotnet run --project tools/SiameseCat.AotProbe -p:PublishAot=false
 
 # .NET Framework 4.8 兼容性验证（跑 netstandard2.0 资产，仅 Windows）
 dotnet run --project tests/SiameseCat.Compatibility -c Release
