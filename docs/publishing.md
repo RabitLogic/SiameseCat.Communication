@@ -67,7 +67,7 @@ $feed = "$env:TEMP\siamesecat-feed"
 dotnet new console -o "$env:TEMP\consumer" --force
 Push-Location "$env:TEMP\consumer"
 dotnet nuget add source $feed --name siamesecat-local
-dotnet add package SiameseCat.Communication --version 1.0.0
+dotnet add package SiameseCat.Communication --version 0.9.0
 Pop-Location
 ```
 
@@ -78,7 +78,7 @@ Pop-Location
 [.github/workflows/release.yml](../.github/workflows/release.yml) runs when a `v*` tag is pushed:
 
 1. restore, Release build, all 352 tests, framework matrix on .NET 8 and .NET 10;
-2. pack with the version taken from the tag (a tag `v1.0.0` produces `1.0.0`);
+2. pack with the version taken from the tag (a tag `v0.9.0` produces `0.9.0`);
 3. verify the three assets and `README.md` are inside the `.nupkg`;
 4. `NuGet/login@v1` exchanges the OIDC token for a one-hour API key;
 5. push `.nupkg` + `.snupkg` to nuget.org with `--skip-duplicate`;
@@ -87,12 +87,12 @@ Pop-Location
 ```powershell
 # 1. Update CHANGELOG.md, commit and push the code
 git add -A
-git commit -m "release: 1.0.0"
+git commit -m "release: 0.9.0"
 git push origin main
 
 # 2. Tag and push — this starts the publish
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 Watch **Actions → Release**. The package appears on nuget.org a few minutes after the push (indexing
@@ -134,9 +134,9 @@ $env:NUGET_API_KEY = 'oy2...'
 
 # Equivalent raw commands
 dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Release -o artifacts
-dotnet nuget push artifacts/SiameseCat.Communication.1.0.0.nupkg `
+dotnet nuget push artifacts/SiameseCat.Communication.0.9.0.nupkg `
   --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
-dotnet nuget push artifacts/SiameseCat.Communication.1.0.0.snupkg `
+dotnet nuget push artifacts/SiameseCat.Communication.0.9.0.snupkg `
   --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
 ```
 
@@ -182,9 +182,9 @@ Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`
 When a tag run fails before the push, nothing was published. Fix the cause and either
 
 - re-run the failed jobs of the same run (**Actions → Release → Re-run failed jobs**), or
-- run **Release → Run workflow** on `main` with version `1.0.0`; this uses the latest workflow
+- run **Release → Run workflow** on `main` with version `0.9.0`; this uses the latest workflow
   definition but skips the GitHub release step, which you can add afterwards with
-  `gh release create v1.0.0 --notes-file CHANGELOG.md`.
+  `gh release create v0.9.0 --notes-file CHANGELOG.md`.
 
 Both paths are safe to repeat: the push uses `--skip-duplicate`, so an already published version is
 skipped instead of failing.

@@ -8,7 +8,7 @@
     artefacts can be attached to a release or pushed to a feed.
 
 .PARAMETER Version
-    Optional package version override (for example 1.0.0-preview.1). Defaults to the version in the
+    Optional package version override (for example 0.9.0-preview.1). Defaults to the version in the
     project files.
 
 .PARAMETER Output
@@ -22,7 +22,7 @@
     ./scripts/pack.ps1
 
 .EXAMPLE
-    ./scripts/pack.ps1 -Version 1.0.0-preview.1
+    ./scripts/pack.ps1 -Version 0.9.0-preview.1
 
 .EXAMPLE
     $env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json

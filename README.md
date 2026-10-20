@@ -732,7 +732,7 @@ dotnet run --project benchmarks/SiameseCat.Benchmarks -c Release -- --filter "*"
 ./scripts/pack.ps1
 
 # Override the version or push straight to a feed
-./scripts/pack.ps1 -Version 1.0.0-preview.1
+./scripts/pack.ps1 -Version 0.9.0-preview.1
 $env:NUGET_API_KEY = '...'; ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json
 
 # CI publishes with NuGet Trusted Publishing (OIDC); only set the NUGET_USER variable

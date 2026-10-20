@@ -78,7 +78,7 @@ When your host is .NET Framework 4.8 (or any `netstandard2.0` consumer):
 
 ## Versioning policy
 
-- Semantic Versioning; the 1.0.0 baseline is validated by `EnablePackageValidation`.
+- Semantic Versioning; the current version is used as the baseline for `EnablePackageValidation`.
 - Adding a member to an interface is a breaking change for external implementers — new optional
   capabilities therefore ship as separate interfaces (for example `IBatchSubscribable`).
 - Deprecated APIs stay for at least one minor release and are marked `[Obsolete]` with a replacement.
