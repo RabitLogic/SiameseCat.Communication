@@ -25,6 +25,7 @@ Deeper documentation:
 - [Protocol matrix (addresses, function codes, data types)](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md)
 - [Migration and integration notes](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md)
 - [Publishing the package](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md)
+- [Repository settings (rulesets, workflow permissions)](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/repository-settings.md)
 
 ## Samples
 
