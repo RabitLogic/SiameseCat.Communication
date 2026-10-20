@@ -102,7 +102,25 @@ A manual run (**Actions → Release → Run workflow**) can pass a version and p
 GitHub release. It uses the same trusted publishing policy, because the policy matches the workflow file
 rather than the trigger.
 
-## 4. Publish by hand (workstation)
+## 4. GitHub Packages mirror
+
+Every tag also publishes the `.nupkg` to GitHub Packages (`https://nuget.pkg.github.com/RabitLogic`).
+No extra secret is required: the job requests `packages: write` and authenticates with
+`secrets.GITHUB_TOKEN`, so the mirror keeps working when NuGet.org or its Trusted Publishing policy is
+unavailable.
+
+Consumers add the feed once and then install from it:
+
+```bash
+dotnet nuget add source "https://nuget.pkg.github.com/RabitLogic/index.json" --name github \
+  --username <github-user> --password <PAT with read:packages> --store-password-in-clear-text
+dotnet add package SiameseCat.Communication --source github
+```
+
+A consuming GitHub Actions workflow can pass `secrets.GITHUB_TOKEN` with `packages: read` instead of a
+PAT. Symbol packages are not mirrored: the `.snupkg` goes to NuGet.org only.
+
+## 5. Publish by hand (workstation)
 
 Trusted Publishing only works from CI, so a manual push still needs a normal API key from
 <https://www.nuget.org/account/apikeys> with *Push new packages and package versions*:
@@ -125,7 +143,7 @@ dotnet nuget push artifacts/SiameseCat.Communication.1.0.0.snupkg `
 Keep that key in a password manager or your user profile — never in the repository, never in a workflow
 file. `--skip-duplicate` makes re-runs harmless.
 
-## 5. Publish to a private feed
+## 6. Publish to a private feed
 
 | Feed | Command |
 | --- | --- |
@@ -137,7 +155,7 @@ file. `--skip-duplicate` makes re-runs harmless.
 Folder feeds store only `.nupkg` files (symbols need a package server); the script reports that and keeps
 the `.snupkg` in the output folder.
 
-## 6. Consumers then use
+## 7. Consumers then use
 
 ```bash
 dotnet add package SiameseCat.Communication              # latest stable
@@ -147,11 +165,12 @@ dotnet add package SiameseCat.Communication --prerelease # previews
 Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`, .NET 9 → `lib/net8.0`,
 .NET 11+ → `lib/net10.0`, .NET Framework → `lib/netstandard2.0`.
 
-## 7. If something goes wrong
+## 8. If something goes wrong
 
 | Symptom | Cause and fix |
 | --- | --- |
 | `Check NUGET_USER` fails | The repository variable `NUGET_USER` is missing; add it under Settings → Secrets and variables → Actions → Variables with your nuget.org profile name. |
+| `Push to GitHub Packages` fails with 403/422 | The job needs `packages: write`, and the package's `repository` URL must point at this repository (`RepositoryUrl` in `Directory.Build.props`). |
 | `NuGet/login` returns no key, or the push gets 403 | Policy mismatch: check owner `RabitLogic`, repository `SiameseCat.Communication`, workflow file `release.yml`, scope and glob pattern. Also confirm the job has `id-token: write`. |
 | Workflow ran but the policy did not match | Renaming the workflow file or moving the job under a different `environment:` breaks the match; update the policy accordingly. |
 | Pushed a wrong version that nobody consumes yet | On nuget.org open the package → **Unlist**; it stays restorable by exact version. Publish a corrected patch. |
@@ -170,7 +189,7 @@ When a tag run fails before the push, nothing was published. Fix the cause and e
 Both paths are safe to repeat: the push uses `--skip-duplicate`, so an already published version is
 skipped instead of failing.
 
-## 8. Repository name and package id
+## 9. Repository name and package id
 
 The GitHub repository is `RabitLogic/SiameseCat.Communication` and the package id is
 `SiameseCat.Communication`, so the two fields happen to carry the same text — they are still separate
@@ -189,7 +208,7 @@ Renaming the repository does not affect consumers: the package id is independent
 redirects the old URLs. Updating the absolute links anyway keeps the nuget.org page independent of that
 redirect.
 
-## 9. Release checklist
+## 10. Release checklist
 
 
 - [ ] `CHANGELOG.md` has the version section and the date.

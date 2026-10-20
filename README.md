@@ -67,6 +67,8 @@ Other products (for example `SiameseCat.Mes.Template`) are separate repositories
 dotnet add package SiameseCat.Communication
 ```
 
+A mirror is also published to GitHub Packages on every release; see [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md#4-github-packages-mirror) for the feed URL and credentials.
+
 The package ships `net8.0`, `net10.0` and `netstandard2.0` assets and brings only `System.IO.Ports` plus the
 `Microsoft.Extensions.*` abstractions (and `Microsoft.Extensions.Diagnostics.HealthChecks` for the
 health-check integration). DI, logging, ASP.NET Core and worker hosts already provide the full implementations.

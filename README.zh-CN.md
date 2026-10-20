@@ -499,6 +499,8 @@ SiameseCat.Communication                     契约 + 模型，无 I/O
 dotnet add package SiameseCat.Communication
 ```
 
+每次发布也会镜像到 GitHub Packages，源地址与凭据见 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md#4-github-packages-mirror)。
+
 包同时提供 `net8.0`、`net10.0` 与 `netstandard2.0` 资产，只引入 `System.IO.Ports` 与 `Microsoft.Extensions.*` 抽象包（健康检查用到 `Microsoft.Extensions.Diagnostics.HealthChecks`）；DI、日志、ASP.NET Core、Worker 宿主本身已提供完整实现。
 
 ## Native AOT

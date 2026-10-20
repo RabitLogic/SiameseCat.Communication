@@ -15,6 +15,8 @@ permissions:
   # Required by NuGet/login@v1: GitHub issues an OIDC token that nuget.org exchanges for a
   # short-lived API key, so no long-lived NuGet secret is stored in the repository.
   id-token: write
+  # Required to mirror the package into GitHub Packages with the workflow token.
+  packages: write
 
 jobs:
   publish:
@@ -82,6 +84,18 @@ jobs:
             done
             unzip -l "$pkg" | grep -q 'README.md' || { echo "::error::$pkg is missing README.md"; exit 1; }
           done
+
+      # The GitHub Packages mirror uses the workflow token, so a release exists even when NuGet.org
+      # is unavailable or its Trusted Publishing policy needs attention.
+      - name: Push to GitHub Packages
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push artifacts/SiameseCat.Communication.*.nupkg \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "$GITHUB_TOKEN" \
+            --skip-duplicate
 
       - name: Check NUGET_USER
         shell: bash
