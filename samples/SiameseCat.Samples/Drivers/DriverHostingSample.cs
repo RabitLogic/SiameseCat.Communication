@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Hosting;
 using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Simulation.S7;

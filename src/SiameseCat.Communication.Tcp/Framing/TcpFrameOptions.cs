@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication.Tcp;
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>Settings for the built-in <see cref="TcpFrameCodec"/> presets.</summary>
 public sealed class TcpFrameOptions

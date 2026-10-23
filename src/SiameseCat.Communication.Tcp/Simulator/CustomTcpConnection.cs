@@ -1,6 +1,7 @@
 using System.Net;
-using Microsoft.Extensions.Logging;
-using SiameseCat.Communication.Tcp;
+
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Simulation.Tcp;
 
@@ -23,7 +24,7 @@ public sealed class CustomTcpConnection
         EndPoint? remoteEndPoint,
         ITcpFrameCodec codec,
         CustomTcpSimulatorStatistics statistics,
-        ILogger? logger,
+        ICommunicationLogger? logger,
         bool logFrames)
     {
         _transport = new StreamTransport(stream);

@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\SimulatorShared\SimulatorBufferSizes.cs" LinkBase="SimulatorShared" />
+    <Compile Include="..\SimulatorShared\SimulatorLimits.cs" LinkBase="SimulatorShared" />
     <ProjectReference Include="..\SiameseCat.Communication.Core\SiameseCat.Communication.Core.csproj" />
     <ProjectReference Include="..\SiameseCat.Communication.Modbus\SiameseCat.Communication.Modbus.csproj" />
     <PackageReference Include="System.IO.Ports" />

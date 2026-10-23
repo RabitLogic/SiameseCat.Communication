@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 
 namespace SiameseCat.Communication.Hosting;
 

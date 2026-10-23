@@ -1,7 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>
 /// Registry of driver factories, used to discover and create drivers at runtime.

@@ -1,7 +1,12 @@
 using System.IO.Ports;
 using System.Text;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Modbus;
 
@@ -48,7 +53,7 @@ public static class ModbusClientFactory
     /// <param name="configuration">Driver configuration.</param>
     /// <param name="unitId">Unit identifier used for requests.</param>
     /// <param name="defaultPort">Port used when the configuration does not specify one.</param>
-    /// <param name="logger">Optional logger that receives frame dumps when <see cref="DriverConfiguration.LogFrames"/> is enabled.</param>
+    /// <param name="logger">Optional logger that receives frame dumps when <see cref="CommunicationOptions.LogFrames"/> is enabled.</param>
     public static ModbusClientBase Create(
         DriverConfiguration configuration,
         byte unitId,

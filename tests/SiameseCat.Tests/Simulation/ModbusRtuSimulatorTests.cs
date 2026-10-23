@@ -210,6 +210,24 @@ public class ModbusRtuSimulatorTests
         Assert.Equal(new ushort[] { 0x1234, 0x5678 }, server.Data.ReadFileRecord(4, 0, 2));
     }
 
+    [Fact]
+    public async Task UnknownFunction_FrameIsDrainedAndNextFrameIsServed()
+    {
+        var transport = new MockTransport();
+
+        // Vendor-specific function 0x41 with one data byte; its length cannot be derived.
+        transport.EnqueueResponse(ProtocolFrames.Rtu(0x01, 0x41, 0x03));
+        transport.EnqueueResponse(ProtocolFrames.Rtu(0x01, 0x03, 0x00, 0x00, 0x00, 0x01));
+        await using var server = new ModbusRtuSimulator(transport, new ModbusRtuSimulatorOptions());
+
+        await server.StartAsync();
+        await WaitForAsync(() => transport.Writes.Count == 1);
+
+        Assert.Equal(ProtocolFrames.Rtu(0x01, 0x03, 0x02, 0x00, 0x00), transport.Writes[0]);
+        Assert.Equal(1, server.Statistics.FramesDiscarded);
+        Assert.True(transport.DiscardCount > 0);
+    }
+
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 2000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

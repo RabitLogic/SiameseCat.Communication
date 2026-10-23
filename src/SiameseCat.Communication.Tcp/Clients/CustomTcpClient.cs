@@ -1,6 +1,7 @@
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Transport;
 
-namespace SiameseCat.Communication.Tcp;
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>
 /// Client for a vendor-specific or in-house TCP protocol. It owns the connection, the request timeout,

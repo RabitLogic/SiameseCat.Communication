@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 
 namespace SiameseCat.Communication.Hosting;
 

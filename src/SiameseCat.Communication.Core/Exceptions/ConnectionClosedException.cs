@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Exceptions;
 
 /// <summary>Raised when the peer closes the connection unexpectedly.</summary>
 public sealed class ConnectionClosedException : CommunicationException

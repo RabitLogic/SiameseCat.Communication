@@ -1,5 +1,9 @@
 using System.Text;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Exceptions;
 
 namespace SiameseCat.Communication.S7;
 

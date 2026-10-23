@@ -1,5 +1,9 @@
 using System.Diagnostics.Metrics;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;

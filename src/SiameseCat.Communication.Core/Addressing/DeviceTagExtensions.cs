@@ -1,3 +1,5 @@
+using SiameseCat.Communication.Drivers;
+
 namespace SiameseCat.Communication;
 
 /// <summary>Reads tags through an <see cref="IDeviceDriver"/>.</summary>

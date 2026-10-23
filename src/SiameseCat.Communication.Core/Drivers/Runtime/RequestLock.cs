@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>
 /// Serializes protocol requests. Drivers use their own lock by default; assign a shared instance to

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SiameseCat.Communication.Diagnostics;
 using SiameseCat.Communication.Hosting;
 using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Simulation.S7;
@@ -101,7 +102,7 @@ public class ModbusSimulatorHostingTests
     {
         var logger = new RecordingLogger();
         var services = new ServiceCollection();
-        services.AddSingleton<SiameseCat.Communication.ICommunicationLogger>(logger);
+        services.AddSingleton<SiameseCat.Communication.Diagnostics.ICommunicationLogger>(logger);
         services.AddModbusSimulator(options => options.Port = 0);
 
         await using var provider = services.BuildServiceProvider();
@@ -119,6 +120,6 @@ public class ModbusSimulatorHostingTests
         await client.ConnectAsync();
         await client.ReadHoldingRegistersAsync(1, 0, 1);
 
-        Assert.True(logger.Contains(SiameseCat.Communication.CommunicationLogLevel.Debug, "client connected"));
+        Assert.True(logger.Contains(SiameseCat.Communication.Diagnostics.CommunicationLogLevel.Debug, "client connected"));
     }
 }

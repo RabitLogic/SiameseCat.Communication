@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+
 using SiameseCat.Communication;
 
 namespace SiameseCat.Communication.Modbus;

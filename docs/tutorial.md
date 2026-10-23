@@ -465,7 +465,7 @@ var reply = await client.RequestAsync(Encoding.ASCII.GetBytes("READ temperature"
 
 `TcpFrameOptions` covers raw, length-prefixed, delimited and fixed-size frames; implement
 `ITcpFrameCodec` when the wire format needs escaping or a checksum. `TcpFrameConnection` is the shared
-core, and `ModbusTcpFrameCodec` feeds MBAP frames into it, which is how Modbus TCP reuses the same
+core, and `MbapFrameCodec` feeds MBAP frames into it, which is how Modbus TCP reuses the same
 reader without depending on the device model.
 
 `transports/raw-tcp` also shows how to send hand-built MBAP frames (FC07 Read Exception Status, FC0B Comm

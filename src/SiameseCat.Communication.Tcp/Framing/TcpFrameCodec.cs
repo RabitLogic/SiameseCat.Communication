@@ -1,6 +1,9 @@
 using System.Buffers.Binary;
 
-namespace SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>
 /// Built-in framing for custom TCP protocols: raw reads, a length prefix, a trailing delimiter or a

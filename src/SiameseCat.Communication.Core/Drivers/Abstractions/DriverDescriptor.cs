@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Transport kinds a driver can use.</summary>
 [Flags]

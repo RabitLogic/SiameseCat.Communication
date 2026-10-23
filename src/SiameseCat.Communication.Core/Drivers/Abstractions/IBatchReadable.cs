@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Capability: reading several addresses in one request when the protocol allows it.</summary>
 public interface IBatchReadable
@@ -11,7 +11,7 @@ public interface IBatchReadable
         IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Reads several values with a per-call timeout that overrides <see cref="DriverConfiguration.Timeout"/>.</summary>
+    /// <summary>Reads several values with a per-call timeout that overrides <see cref="CommunicationOptions.Timeout"/>.</summary>
     /// <param name="addresses">Addresses to read.</param>
     /// <param name="timeout">Timeout for this call.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

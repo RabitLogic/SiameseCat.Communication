@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+
+namespace SiameseCat.Communication.Transport;
 
 /// <summary>
 /// Adds a small read-ahead buffer in front of an <see cref="ITransport"/> so bytes that were read

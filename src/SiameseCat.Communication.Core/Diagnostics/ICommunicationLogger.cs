@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Diagnostics;
 
 /// <summary>Log severity used by <see cref="ICommunicationLogger"/>.</summary>
 public enum CommunicationLogLevel

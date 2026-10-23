@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 
 namespace SiameseCat.Tests.Fakes;
 

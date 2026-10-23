@@ -2,7 +2,6 @@ using System.Text;
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
-
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.S7;

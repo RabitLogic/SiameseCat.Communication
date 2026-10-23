@@ -1,5 +1,8 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;
@@ -183,6 +186,46 @@ public class SharedTransportTests
     }
 
     [Fact]
+    public async Task Drivers_DisposedBeforeFactory_LeaveTheSharedLockUsable()
+    {
+        var transport = new MockTransport();
+        var factory = new SharedTransportFactory(() => transport);
+
+        var first = CreateRtuDriver(factory, unitId: 1);
+        var second = CreateRtuDriver(factory, unitId: 2);
+        await first.ConnectAsync();
+        await second.ConnectAsync();
+
+        await first.DisposeAsync();
+        await second.DisposeAsync();
+
+        // A driver must not dispose a lock it does not own.
+        await factory.RequestLock.WaitAsync();
+        factory.RequestLock.Release();
+
+        await factory.DisposeAsync();
+
+        Assert.True(transport.Disposed);
+    }
+
+    [Fact]
+    public async Task Factory_DisposedBeforeDrivers_FailsRequestsAndStillDisposesTheDriver()
+    {
+        var transport = new MockTransport();
+        var factory = new SharedTransportFactory(() => transport);
+        var driver = CreateRtuDriver(factory, unitId: 1);
+        await driver.ConnectAsync();
+
+        await factory.DisposeAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(
+            () => driver.ReadAsync(driver.AddressParser.Parse("HR0")));
+
+        // Disposing in the wrong order must not throw; the driver skips the released lock.
+        await driver.DisposeAsync();
+    }
+
+    [Fact]
     public void Modbus_CustomTransport_RequiresKnownFraming()
     {
         var configuration = new DriverConfiguration
@@ -230,6 +273,24 @@ public class SharedTransportTests
         configuration.Options["framing"] = "rtu";
 
         return (ModbusRtuClient)ModbusClientFactory.Create(configuration, unitId);
+    }
+
+    private static ModbusDriver CreateRtuDriver(SharedTransportFactory factory, byte unitId)
+    {
+        var configuration = new DriverConfiguration
+        {
+            Transport = TransportKind.Custom,
+            TransportFactory = factory,
+            RequestLock = factory.RequestLock,
+            Timeout = TimeSpan.FromSeconds(1),
+            RetryDelay = TimeSpan.Zero,
+        };
+        configuration.Options["unitId"] = unitId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        configuration.Options["framing"] = "rtu";
+
+        var client = (ModbusRtuClient)ModbusClientFactory.Create(configuration, unitId);
+
+        return new ModbusDriver(client, configuration, unitId);
     }
 }
 

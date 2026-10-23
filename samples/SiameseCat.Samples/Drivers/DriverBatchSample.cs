@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using SiameseCat.Communication;
 using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Simulation.Modbus;

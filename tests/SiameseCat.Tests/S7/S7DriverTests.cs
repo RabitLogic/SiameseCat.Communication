@@ -1,4 +1,5 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.S7;
 using SiameseCat.Tests.Fakes;
 

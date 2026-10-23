@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Exceptions;
 
 /// <summary>Raised when an operation does not complete within the configured timeout.</summary>
 public sealed class CommunicationTimeoutException : CommunicationException

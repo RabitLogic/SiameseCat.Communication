@@ -1,7 +1,7 @@
 namespace SiameseCat.Communication.Simulation.Modbus;
 
-/// <summary>Validation shared by the slave options.</summary>
-internal static class ModbusSimulatorIdentifier
+/// <summary>Default and limit values shared by the Modbus slave options.</summary>
+internal static class ModbusSimulatorDefaults
 {
     public const int MaxLength = 240;
 
@@ -12,7 +12,7 @@ internal static class ModbusSimulatorIdentifier
     /// <returns>Vendor name, product code and revision.</returns>
     public static IDictionary<byte, string> CreateDefaultDeviceIdentification()
     {
-        var version = typeof(ModbusSimulatorIdentifier).Assembly.GetName().Version;
+        var version = typeof(ModbusSimulatorDefaults).Assembly.GetName().Version;
         var revision = version is null
             ? "1.0"
             : $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";

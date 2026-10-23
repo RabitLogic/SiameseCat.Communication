@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication.Transport;
+namespace SiameseCat.Communication.Transport.Udp;
 
 /// <summary>Settings for <see cref="UdpTransport"/>.</summary>
 public sealed class UdpTransportOptions

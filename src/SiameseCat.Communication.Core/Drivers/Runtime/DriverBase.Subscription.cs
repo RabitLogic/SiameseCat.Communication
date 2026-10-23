@@ -1,8 +1,13 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+
+namespace SiameseCat.Communication.Drivers;
 
 public abstract partial class DriverBase
 {
+#if !NET6_0_OR_GREATER
+    /// <summary>Fallback jitter source for targets without <c>Random.Shared</c>.</summary>
     private static readonly Random SubscriptionRandom = new();
+#endif
 
     /// <inheritdoc/>
     public async Task<IAsyncDisposable> SubscribeAsync(
@@ -223,13 +228,22 @@ public abstract partial class DriverBase
 
         if (Configuration.SubscriptionJitter)
         {
-            lock (SubscriptionRandom)
-            {
-                interval = TimeSpan.FromMilliseconds(interval.TotalMilliseconds * (0.8 + (SubscriptionRandom.NextDouble() * 0.4)));
-            }
+            interval = TimeSpan.FromMilliseconds(interval.TotalMilliseconds * (0.8 + (NextJitter() * 0.4)));
         }
 
         return interval;
+    }
+
+    private static double NextJitter()
+    {
+#if NET6_0_OR_GREATER
+        return Random.Shared.NextDouble();
+#else
+        lock (SubscriptionRandom)
+        {
+            return SubscriptionRandom.NextDouble();
+        }
+#endif
     }
 
     private sealed class Subscription : IAsyncDisposable

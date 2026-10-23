@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+
+namespace SiameseCat.Communication.Drivers;
 
 public abstract partial class DriverBase
 {

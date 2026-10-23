@@ -1,7 +1,10 @@
 using System.Buffers;
 using System.IO.Ports;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 namespace SiameseCat.Communication.Modbus;
 

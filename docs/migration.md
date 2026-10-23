@@ -22,6 +22,24 @@ helpers and the health checks. Pick what you need:
 You can start with the protocol clients and move to drivers later: both expose the same options
 (`ModbusTcpOptions`, `ModbusRtuOptions`, `S7Options`) and the same address parsers.
 
+## Migrating `using` directives from 0.10
+
+Namespaces are grouped by concept, not by package, since 0.9.2. If a type no longer resolves, add the
+namespace from this table (package names did not change):
+
+| Type moved from `SiameseCat.Communication` | New namespace |
+| --- | --- |
+| `IDeviceDriver`, `IDeviceDriverFactory`, `IReadable`, `IWritable`, `IBatchReadable`, `IBatchWritable`, `ISubscribable`, `IBatchSubscribable`, `IHealthCheckable`, `DriverDescriptor`, `DriverState`, `DriverCapabilities`, `TransportKind`, `DriverBase`, `DriverConfiguration`, `DriverRegistry`, `RequestLock` | `SiameseCat.Communication.Drivers` |
+| `ICommunicationLogger`, `CommunicationLogLevel`, `NullCommunicationLogger`, `CommunicationMetrics`, `CommunicationDiagnostics`, `LoggingTransport` | `SiameseCat.Communication.Diagnostics` |
+| `CommunicationException`, `CommunicationTimeoutException`, `ConnectionClosedException`, `ProtocolException` | `SiameseCat.Communication.Exceptions` |
+| `ITransport`, `ITransportFactory`, `TransportReader`, `SharedTransportFactory` | `SiameseCat.Communication.Transport` |
+| `TcpTransport`, `TcpFrameCodec`, `ITcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` (previously `SiameseCat.Communication.Tcp`) | `SiameseCat.Communication.Transport.Tcp` |
+| `UdpTransport` / `SerialPortTransport`, `SerialPortOptions` | `SiameseCat.Communication.Transport.Udp` / `SiameseCat.Communication.Transport.Serial` |
+
+`DeviceAddress`, `DeviceValue`, `DeviceDataType`, `DeviceTag`, `DeviceValueCodec`, `DeviceWriteRequest`,
+`IDeviceAddressParser`, `CommunicationOptions` and `RetryPolicy` stay in `SiameseCat.Communication`.
+`ModbusTcpFrameCodec` was renamed to `MbapFrameCodec`; the Modbus and S7 namespaces are unchanged.
+
 The built-in driver ids are `modbus` and `s7`. There is no brand driver: S7 is provided by the generic
 `s7` driver (`S7Driver` / `S7AddressParser` / `S7DriverFactory` in `SiameseCat.Communication.S7`), and
 brand-specific address mappings (for example vendor register names) belong in a third-party

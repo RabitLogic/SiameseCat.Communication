@@ -1,5 +1,7 @@
 using System.Net.Sockets;
 
+using SiameseCat.Communication.Exceptions;
+
 namespace SiameseCat.Communication;
 
 /// <summary>Executes an operation with the retry settings from <see cref="CommunicationOptions"/>.</summary>

@@ -1,3 +1,5 @@
+using SiameseCat.Communication.Diagnostics;
+
 namespace SiameseCat.Communication;
 
 /// <summary>Common options for protocol clients.</summary>

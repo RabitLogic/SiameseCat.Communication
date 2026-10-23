@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Creates drivers of one protocol.</summary>
 public interface IDeviceDriverFactory

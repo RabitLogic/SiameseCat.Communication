@@ -1,5 +1,7 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Modbus;
 

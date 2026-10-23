@@ -1,7 +1,10 @@
 using System.Text;
-using Microsoft.Extensions.Logging;
 
-namespace SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>
 /// Writes and reads whole frames over a transport with a <see cref="ITcpFrameCodec"/>. It contains no
@@ -11,14 +14,8 @@ namespace SiameseCat.Communication.Tcp;
 /// <remarks>Instances are not thread-safe; serialize calls or use one instance per connection.</remarks>
 public sealed class TcpFrameConnection
 {
-    private static readonly Action<ILogger, string, string, Exception?> LogTx =
-        LoggerMessage.Define<string, string>(LogLevel.Trace, new EventId(1, "TcpTx"), "{Name} TX {Frame}");
-
-    private static readonly Action<ILogger, string, string, Exception?> LogRx =
-        LoggerMessage.Define<string, string>(LogLevel.Trace, new EventId(2, "TcpRx"), "{Name} RX {Frame}");
-
     private readonly ITransport _transport;
-    private readonly ILogger? _logger;
+    private readonly ICommunicationLogger? _logger;
     private readonly bool _logFrames;
     private readonly string _name;
     private ITcpFrameReader _reader;
@@ -32,7 +29,7 @@ public sealed class TcpFrameConnection
     public TcpFrameConnection(
         ITransport transport,
         ITcpFrameCodec codec,
-        ILogger? logger = null,
+        ICommunicationLogger? logger = null,
         bool logFrames = false,
         string? name = null)
     {
@@ -66,9 +63,9 @@ public sealed class TcpFrameConnection
     {
         EnsureConnected();
 
-        if (_logFrames && _logger is not null && _logger.IsEnabled(LogLevel.Trace))
+        if (_logFrames && _logger is not null)
         {
-            LogTx(_logger, _name, ToHex(frame.Span), null);
+            _logger.Trace($"{_name} TX {ToHex(frame.Span)}");
         }
 
         await _transport.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
@@ -81,9 +78,9 @@ public sealed class TcpFrameConnection
     {
         var frame = await _reader.ReadFrameAsync(_transport, cancellationToken).ConfigureAwait(false);
 
-        if (frame is not null && _logFrames && _logger is not null && _logger.IsEnabled(LogLevel.Trace))
+        if (frame is not null && _logFrames && _logger is not null)
         {
-            LogRx(_logger, _name, ToHex(frame), null);
+            _logger.Trace($"{_name} RX {ToHex(frame)}");
         }
 
         return frame;

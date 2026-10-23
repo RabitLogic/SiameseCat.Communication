@@ -1,6 +1,8 @@
 using System.Text;
 
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Diagnostics;
 
 /// <summary>
 /// Decorates a transport and writes every frame to an <see cref="ICommunicationLogger"/> at

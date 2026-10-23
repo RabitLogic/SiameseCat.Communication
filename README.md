@@ -7,8 +7,6 @@ A lightweight .NET communication library for industrial devices. It ships assets
 ceilings: .NET 9, .NET 11 and later resolve the nearest lower asset automatically, so the package is
 never pinned to a single runtime version.
 
-> Build-it-yourself tutorial (Chinese): [tutorial/](tutorial/README.md)
-
 - **Pluggable drivers** — one contract (`IDeviceDriver` / `DriverBase`) with capability flags, batch
   read/write, polling or native subscriptions, health probes and metrics.
 - **Protocols built in-house** — Modbus RTU/TCP and S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
@@ -55,7 +53,8 @@ dotnet run --project samples/SiameseCat.Samples -- selftest
 ## Packages
 
 `SiameseCat` is the organization name. The library is split so a consumer only restores the protocols it
-uses; namespaces stay the same as in earlier versions.
+uses; every package keeps its namespace tree (`SiameseCat.Communication.*`), and the transport layer is
+grouped by protocol under `SiameseCat.Communication.Transport`.
 
 | Package | Contents | Depends on |
 | --- | --- | --- |
@@ -73,10 +72,14 @@ uses; namespaces stay the same as in earlier versions.
 
 | Namespace | Responsibility |
 | --- | --- |
-| `SiameseCat.Communication` | Driver contracts, `DriverBase`, registry, `DeviceAddress`/`DeviceValue`/`DeviceTag`, options, exceptions, metrics, `ITransport` |
-| `SiameseCat.Communication.Transport` | TCP, UDP and serial port transports |
-| `SiameseCat.Communication.Tcp` | Protocol-agnostic framing (`TcpFrameCodec`), `TcpFrameConnection`, `CustomTcpClient` |
-| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames (`ModbusTcpFrameCodec`), clients, address parser and generic Modbus driver |
+| `SiameseCat.Communication` | Address/value model (`DeviceAddress`, `DeviceValue`, `DeviceTag`), `CommunicationOptions`, `RetryPolicy` |
+| `SiameseCat.Communication.Drivers` | Driver contracts and runtime: `IDeviceDriver`, `DriverBase`, `DriverConfiguration`, `DriverRegistry`, `RequestLock` |
+| `SiameseCat.Communication.Diagnostics` | `ICommunicationLogger`, `CommunicationMetrics`, `CommunicationDiagnostics`, `LoggingTransport` |
+| `SiameseCat.Communication.Exceptions` | `CommunicationException`, `ProtocolException`, `ConnectionClosedException`, `CommunicationTimeoutException` |
+| `SiameseCat.Communication.Transport` | Transport contracts: `ITransport`, `ITransportFactory`, `TransportReader`, `SharedTransportFactory` |
+| `SiameseCat.Communication.Transport.Tcp` | `TcpTransport`, protocol-agnostic framing (`TcpFrameCodec`), `TcpFrameConnection`, `CustomTcpClient` |
+| `SiameseCat.Communication.Transport.Udp` / `.Serial` | `UdpTransport` and `SerialPortTransport` |
+| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames (`MbapFrameCodec`), clients, address parser and generic Modbus driver |
 | `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client, addresses, options and driver |
 | `SiameseCat.Communication.Simulation` | Modbus TCP/RTU, S7 and custom TCP simulators (`.Simulation.Modbus`, `.Simulation.S7`, `.Simulation.Tcp`) |
 | `SiameseCat.Communication.Hosting` | `AddSiameseCat()`, keyed drivers, simulator hosting, logging adapter, health checks |
@@ -221,6 +224,7 @@ Use the clients directly when you do not need the driver lifecycle.
 
 ```csharp
 using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport.Tcp;
 
 var options = new ModbusTcpOptions
 {
@@ -247,7 +251,7 @@ float value = ModbusRegisterConverter.ReadSingle(await client.ReadHoldingRegiste
 ```csharp
 using System.IO.Ports;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 var options = new ModbusRtuOptions
 {
@@ -304,7 +308,9 @@ answer is capped at 960); multi-variable requests are split automatically for la
 ### Raw TCP / UDP / serial
 
 ```csharp
-using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
+using SiameseCat.Communication.Transport.Tcp;
+using SiameseCat.Communication.Transport.Udp;
 
 await using var tcp = new TcpTransport(new TcpTransportOptions { Host = "127.0.0.1", Port = 9000 });
 await tcp.OpenAsync();
@@ -320,7 +326,7 @@ await using var serial = new SerialPortTransport(new SerialPortOptions { PortNam
 `SiameseCat.Communication.Tcp` adds framing and request/response handling without any device-model coupling:
 
 ```csharp
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Transport.Tcp;
 
 var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };   // CR LF
 
@@ -358,7 +364,7 @@ await using var server = new CustomTcpSimulator(
 
 `TcpFrameConnection` is the reusable core: it writes and reads whole frames over any `ITransport` and
 adds optional trace logging, while timeouts, retries and serialization stay with the owner. Modbus TCP
-uses the same core through `ModbusTcpFrameCodec`, which supplies MBAP framing and leaves transaction-id
+uses the same core through `MbapFrameCodec`, which supplies MBAP framing and leaves transaction-id
 and unit-id validation to `ModbusTcpClient`.
 
 ## Address and value model
@@ -448,7 +454,9 @@ await using var many = await driver.SubscribeBatchAsync(
 
 ```csharp
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 await using var link = new SharedTransportFactory(() => new SerialPortTransport(new SerialPortOptions
 {
@@ -502,6 +510,8 @@ var value = await readable.ReadAsync(driver.AddressParser.Parse("HR0"), TimeSpan
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Hosting;
 
 var services = new ServiceCollection();

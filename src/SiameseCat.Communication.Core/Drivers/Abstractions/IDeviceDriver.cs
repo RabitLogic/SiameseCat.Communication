@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Base contract implemented by every device driver.</summary>
 public interface IDeviceDriver : IAsyncDisposable

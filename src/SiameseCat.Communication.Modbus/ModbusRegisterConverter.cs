@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+
 using SiameseCat.Communication;
 
 namespace SiameseCat.Communication.Modbus;

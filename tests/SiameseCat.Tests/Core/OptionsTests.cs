@@ -1,7 +1,10 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.S7;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Tests.Core;
 

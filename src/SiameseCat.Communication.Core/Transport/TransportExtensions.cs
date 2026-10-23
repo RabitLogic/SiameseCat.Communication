@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+
+namespace SiameseCat.Communication.Transport;
 
 /// <summary>Helpers for reading a fixed number of bytes from an <see cref="ITransport"/>.</summary>
 public static class TransportExtensions

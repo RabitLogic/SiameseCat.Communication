@@ -1,6 +1,9 @@
 using System.Diagnostics;
 
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
+
+namespace SiameseCat.Communication.Drivers;
 
 public abstract partial class DriverBase
 {
@@ -128,15 +131,18 @@ public abstract partial class DriverBase
         token = cached.Token;
         return null;
 #else
+        // Without TryReset every attempt needs a new source. The previous one is disposed here, so the
+        // driver holds at most one live source and never a released reference.
+        _timeoutCts?.Dispose();
         var source = new CancellationTokenSource();
         if (timeout > TimeSpan.Zero)
         {
             source.CancelAfter(timeout);
         }
 
-        token = source.Token;
         _timeoutCts = source;
-        return source;
+        token = source.Token;
+        return null;
 #endif
     }
 

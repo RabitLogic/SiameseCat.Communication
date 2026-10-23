@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Transport;
 
 /// <summary>
 /// Byte-oriented transport used by the protocol clients. A transport is not thread-safe;

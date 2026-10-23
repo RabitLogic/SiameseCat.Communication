@@ -83,7 +83,13 @@ public sealed class S7SimulatorStatistics
         Interlocked.Add(ref _itemsWritten, items);
     }
 
-    internal void RecordItemError() => Interlocked.Increment(ref _itemErrors);
+    internal void RecordItemErrors(int count)
+    {
+        if (count > 0)
+        {
+            Interlocked.Add(ref _itemErrors, count);
+        }
+    }
 
     internal void RecordDiscardedFrame() => Interlocked.Increment(ref _framesDiscarded);
 }

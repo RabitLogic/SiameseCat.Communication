@@ -1,7 +1,10 @@
 using System.Buffers;
-using SiameseCat.Communication;
 
-namespace SiameseCat.Communication.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Transport.Serial;
 
 /// <summary>
 /// Raw serial port transport. Reads and writes are executed on the thread pool because

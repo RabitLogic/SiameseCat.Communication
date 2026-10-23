@@ -1,4 +1,5 @@
 using System.Globalization;
+
 using SiameseCat.Communication;
 
 namespace SiameseCat.Communication.S7;

@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Optional capabilities that a driver can support.</summary>
 [Flags]

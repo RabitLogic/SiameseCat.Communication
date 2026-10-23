@@ -6,9 +6,8 @@
 
 > 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) · [发布指南](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md) · [仓库设置（规则集、工作流权限）](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/repository-settings.md)
 >
-> 从零动手复刻教程（中文）：[tutorial/](tutorial/README.md)
 
-本仓库按**层/协议拆分为多个 NuGet 包**，命名空间与旧版保持一致：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
+本仓库按**层/协议拆分为多个 NuGet 包**：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。命名空间按概念分层：契约模型在 `SiameseCat.Communication`，驱动在 `.Drivers`，传输在 `.Transport`（按协议再分 `.Tcp` / `.Udp` / `.Serial`），异常与诊断分别在 `.Exceptions` / `.Diagnostics`。
 
 | 包 | 内容 | 依赖 |
 | --- | --- | --- |
@@ -177,7 +176,9 @@ Console.WriteLine(driver.Metrics.Snapshot());
 
 ```csharp
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 // 一条物理链路 + 一把共享请求锁
 await using var link = new SharedTransportFactory(() => new SerialPortTransport(new SerialPortOptions
@@ -241,6 +242,8 @@ var value = await readable.ReadAsync(driver.AddressParser.Parse("HR0"), TimeSpan
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Hosting;
 
 var services = new ServiceCollection();
@@ -437,7 +440,7 @@ broadcast.Options["unitId"] = "0";
 | --- | --- |
 | `SiameseCat.Communication.Core` | 驱动契约、`DriverBase`、注册表、`DeviceAddress`/`DeviceValue`/`DeviceTag`、选项、异常、指标、`ITransport` 与 TCP/UDP/串口实现 |
 | `SiameseCat.Communication.Tcp` | 与设备模型无关的分帧与连接核心：`TcpFrameCodec`、`TcpFrameConnection`、`CustomTcpClient`、`CustomTcpSimulator` |
-| `SiameseCat.Communication.Modbus` | Modbus（RTU/TCP）帧（含 `ModbusTcpFrameCodec`）、客户端与通用 Modbus 驱动 |
+| `SiameseCat.Communication.Modbus` | Modbus（RTU/TCP）帧（含 `MbapFrameCodec`）、客户端与通用 Modbus 驱动 |
 | `SiameseCat.Communication.S7` | `S7Client`、`S7Address`、S7 选项与读写项、`S7Driver` 与原生地址映射 |
 | `SiameseCat.Communication.Simulation.Modbus` | Modbus TCP/RTU 仿真器（`ModbusTcpSimulator` / `ModbusRtuSimulator`） |
 | `SiameseCat.Communication.Simulation.S7` | S7（ISO-on-TCP）仿真器（`S7Simulator`） |
@@ -451,7 +454,7 @@ src/
 │   ├── Diagnostics/                       # ICommunicationLogger、CommunicationMetrics、CommunicationDiagnostics
 │   ├── Drivers/                           # IDeviceDriver、DriverBase、DriverRegistry、DriverConfiguration、RequestLock
 │   ├── Exceptions/                        # CommunicationException 及子类
-│   └── Transport/                         # ITransport + Tcp/Udp/SerialPort 实现
+│   └── Transport/                         # ITransport、TransportReader、SharedTransportFactory；Tcp/、Udp/、Serial/ 子目录
 ├── SiameseCat.Communication.Tcp/           # Framing/、Clients/、Simulator/
 ├── SiameseCat.Communication.Modbus/        # Clients/、Drivers/、CRC、寄存器转换、设备标识、文件记录
 ├── SiameseCat.Communication.S7/            # Clients/、Drivers/、S7Address、读写项
@@ -460,7 +463,7 @@ src/
 ├── SiameseCat.Communication.Hosting/       # DI、仿真器托管、健康检查、日志适配
 ├── SiameseCat.Communication.All/           # 聚合注册入口
 ├── Shared/                                 # Guard.cs，按程序集引入
-└── SimulatorShared/                        # SimulatorBufferSizes.cs，供两个仿真项目链接
+└── SimulatorShared/                        # SimulatorLimits.cs，供两个仿真项目链接
 
 tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus / S7 / Simulation / Integration / Fakes）
 tests/SiameseCat.Compatibility/          # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
@@ -470,14 +473,14 @@ tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成�
 benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 ```
 
-> 命名空间：`SiameseCat.Communication`、`.Transport`、`.Tcp`、`.Modbus`、`.S7`、`.Drivers`、`.Simulation.Modbus`、`.Simulation.S7`、`.Simulation.Tcp`、`.Hosting`。项目拆分不影响 `using`。
+> 命名空间：`SiameseCat.Communication`、`.Drivers`、`.Diagnostics`、`.Exceptions`、`.Transport`、`.Transport.Tcp`、`.Transport.Udp`、`.Transport.Serial`、`.Modbus`、`.S7`、`.Simulation.Modbus`、`.Simulation.S7`、`.Simulation.Tcp`、`.Hosting`。包拆分与命名空间分层相互独立：TCP 分帧虽然位于 `SiameseCat.Communication.Tcp` 包，命名空间仍是 `SiameseCat.Communication.Transport.Tcp`。
 
 ### 命名约定
 
 | 约定 | 说明 | 示例 |
 | --- | --- | --- |
 | 包名 = 产品 + 层/协议 | 按层与协议拆包，消费者只还原所需依赖 | `SiameseCat.Communication.S7`、`.Simulation.Modbus` |
-| 命名空间 = 产品 + 层/协议 | 命名空间保持不变，包拆分不影响 `using` | `SiameseCat.Communication.Modbus` |
+| 命名空间 = 产品 + 概念层 | 命名空间按概念分层（驱动/诊断/异常/传输），与 NuGet 包边界解耦 | `SiameseCat.Communication.Drivers`、`SiameseCat.Communication.Transport.Tcp` |
 | 领域模型用 `Device`，诊断用 `Communication` | 设备域类型统一 `Device` 前缀；日志、指标等通信诊断用 `Communication` 前缀 | `DeviceAddress`、`DeviceValue`、`DeviceTag`、`IDeviceDriver`、`ICommunicationLogger`、`CommunicationMetrics` |
 | 驱动类按协议命名 | 通用驱动用 `协议 + Driver`，协议客户端保留协议名 | `ModbusDriver`、`S7Driver`、`S7Client` |
 | 工厂 = 契约入口 | `IDeviceDriverFactory` 的实现类以 `DriverFactory` 结尾 | `ModbusDriverFactory`、`S7DriverFactory` |
@@ -525,6 +528,7 @@ dotnet add package SiameseCat.Communication.Hosting
 ```csharp
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport.Tcp;
 
 var options = new ModbusTcpOptions
 {
@@ -557,7 +561,7 @@ float value = ModbusRegisterConverter.ReadSingle(readBack, 0);
 ```csharp
 using System.IO.Ports;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 var options = new ModbusRtuOptions
 {
@@ -657,6 +661,7 @@ S7 注意事项：
 ```csharp
 using System.Text;
 using SiameseCat.Communication;
+using SiameseCat.Communication.Transport.Tcp;
 
 await using var transport = new TcpTransport(new TcpTransportOptions
 {
@@ -678,7 +683,7 @@ int read = await transport.ReadAsync(buffer);
 `SiameseCat.Communication.Tcp` 提供与设备模型解耦的分帧与请求/响应能力：
 
 ```csharp
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Transport.Tcp;
 
 var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };   // CR LF
 
@@ -714,13 +719,13 @@ await using var server = new CustomTcpSimulator(
 ```
 
 `TcpFrameConnection` 是可复用核心：在任意 `ITransport` 上收发完整帧，并可输出 Trace 帧日志；超时、
-重试与并发串行化留给持有连接的调用方。Modbus TCP 通过 `ModbusTcpFrameCodec` 复用同一核心：MBAP
+重试与并发串行化留给持有连接的调用方。Modbus TCP 通过 `MbapFrameCodec` 复用同一核心：MBAP
 分帧由 codec 负责，事务号与单元号校验仍留在 `ModbusTcpClient`。
 
 ### 原始 UDP
 
 ```csharp
-using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Udp;
 
 await using var transport = new UdpTransport(new UdpTransportOptions
 {
@@ -739,7 +744,7 @@ UDP 不保证送达与顺序：协议层超时与驱动的 `RetryCount` 负责�
 ### 原始串口
 
 ```csharp
-using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 await using var transport = new SerialPortTransport(new SerialPortOptions
 {
@@ -869,8 +874,8 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 ### S7 从站（ISO-on-TCP）
 
 ```csharp
-using SiameseCat.Communication.Simulation.S7;
 using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Simulation.S7;
 
 await using var s7 = new S7Simulator(new S7SimulatorOptions
 {
@@ -1107,7 +1112,7 @@ S7 item error 0x0A: Object does not exist. Address: DB1.DBW0.
 
 - 单元号 0 视为广播：写请求只发送不等待响应，读请求直接拒绝。
 - 客户端的 `ConnectAsync` / `DisconnectAsync` 与请求共用同一把锁，不会打断进行中的请求。
-- 命名空间跟随分层：`SiameseCat.Communication`、`SiameseCat.Communication.Transport`、`SiameseCat.Communication.Modbus` / `.S7`。
+- 命名空间跟随分层：`SiameseCat.Communication`、`.Drivers`、`.Diagnostics`、`.Exceptions`、`.Transport`（含 `.Tcp` / `.Udp` / `.Serial`）、`SiameseCat.Communication.Modbus` / `.S7`。
 - 所有公共 API 都有 XML 文档（`CS1591` 已启用），生成的 `.xml` 随 NuGet 包一起发布。
 
 ### 版本与打包

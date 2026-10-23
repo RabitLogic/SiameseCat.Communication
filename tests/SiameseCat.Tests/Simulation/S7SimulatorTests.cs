@@ -1,3 +1,4 @@
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.S7;
 using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Simulation.S7;
@@ -178,13 +179,13 @@ public class S7SimulatorTests
 
         await using var driver = new SiameseCat.Communication.S7.S7Driver(
             client,
-            new SiameseCat.Communication.DriverConfiguration { Timeout = TimeSpan.FromSeconds(2) });
+            new SiameseCat.Communication.Drivers.DriverConfiguration { Timeout = TimeSpan.FromSeconds(2) });
 
         await driver.ConnectAsync();
 
         var address = driver.AddressParser.Parse("DB1.DBD2", SiameseCat.Communication.DeviceDataType.Float);
-        await ((SiameseCat.Communication.IWritable)driver).WriteAsync(address, SiameseCat.Communication.DeviceValue.FromFloat(2.5f));
-        var value = await ((SiameseCat.Communication.IReadable)driver).ReadAsync(address);
+        await ((SiameseCat.Communication.Drivers.IWritable)driver).WriteAsync(address, SiameseCat.Communication.DeviceValue.FromFloat(2.5f));
+        var value = await ((SiameseCat.Communication.Drivers.IReadable)driver).ReadAsync(address);
 
         Assert.Equal(2.5f, value.AsFloat(), 4);
     }

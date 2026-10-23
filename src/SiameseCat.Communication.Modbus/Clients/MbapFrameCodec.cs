@@ -1,4 +1,6 @@
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Modbus;
 
@@ -7,7 +9,12 @@ namespace SiameseCat.Communication.Modbus;
 /// returned as the complete MBAP header plus body so the client can validate the transaction id,
 /// protocol id and unit id before it parses the PDU.
 /// </summary>
-public sealed class ModbusTcpFrameCodec : ITcpFrameCodec
+/// <remarks>
+/// This codec only understands the Modbus Application Protocol header; it is unrelated to the generic
+/// framing presets in <see cref="TcpFrameCodec"/>. The Modbus RTU side has no codec because its framing
+/// is derived from the function code and the CRC.
+/// </remarks>
+public sealed class MbapFrameCodec : ITcpFrameCodec
 {
     internal const int HeaderLength = 6;
     internal const int MaxBodyLength = 254;

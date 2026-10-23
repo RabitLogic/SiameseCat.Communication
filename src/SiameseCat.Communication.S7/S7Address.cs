@@ -1,12 +1,20 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 
 namespace SiameseCat.Communication.S7;
 
 /// <summary>
 /// A symbolic S7 address such as <c>DB1.DBX0.0</c>, <c>DB1.DBW2</c>, <c>M0.0</c> or <c>IW4</c>.
 /// </summary>
+/// <remarks>
+/// This is the protocol-native address type: <see cref="S7Client"/> and <see cref="S7Driver"/> build
+/// their requests from it. The protocol-neutral <see cref="DeviceAddress"/> is what
+/// <see cref="IDeviceDriver"/> exposes; <see cref="S7AddressParser"/> converts between the two so a
+/// caller can use either form.
+/// </remarks>
 public readonly partial struct S7Address : IEquatable<S7Address>
 {
 #if NET8_0_OR_GREATER

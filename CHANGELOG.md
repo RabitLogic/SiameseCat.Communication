@@ -3,7 +3,7 @@
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。`SiameseCat` 是组织名，本仓库对应产品包族
 `SiameseCat.Communication.*`；后续产品（例如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
 
-## [0.10.0] - 2026-10-23
+## [0.9.2] - 2026-10-24
 
 ### 破坏性变更
 
@@ -15,7 +15,16 @@
   - `SiameseCat.Communication.Simulation.Modbus` / `.Simulation.S7`：从站仿真器
   - `SiameseCat.Communication.Hosting`：DI、健康检查、日志适配、仿真器托管
   - `SiameseCat.Communication.All`：聚合包，等价于旧的单包
-  命名空间保持不变；只引用 `.S7` 时不会还原 Modbus、仿真器或 Hosting。
+  只引用 `.S7` 时不会还原 Modbus、仿真器或 Hosting。
+- 命名空间按概念重新分层（NuGet 包边界与包名不变）：
+  - `SiameseCat.Communication`：设备模型与协议中立契约（`DeviceAddress`、`DeviceValue`、`DeviceTag`、`IDeviceAddressParser`、`CommunicationOptions`、`RetryPolicy`）
+  - `SiameseCat.Communication.Drivers`：驱动契约与运行时（`IDeviceDriver`、`IDeviceDriverFactory`、能力接口、`DriverDescriptor`、`DriverState`、`DriverCapabilities`、`TransportKind`、`DriverBase`、`DriverConfiguration`、`DriverRegistry`、`RequestLock`、`IntervalTimer`）
+  - `SiameseCat.Communication.Diagnostics`：`ICommunicationLogger`、`CommunicationLogLevel`、`CommunicationMetrics`、`CommunicationDiagnostics`、`LoggingTransport`、`NullCommunicationLogger`
+  - `SiameseCat.Communication.Exceptions`：`CommunicationException`、`ProtocolException`、`ConnectionClosedException`、`CommunicationTimeoutException`
+  - `SiameseCat.Communication.Transport`：`ITransport`、`ITransportFactory`、`TransportReader`、`TransportExtensions`、`SharedTransportFactory`
+  - `SiameseCat.Communication.Transport.Tcp`：`TcpTransport`、`TcpFrameCodec`、`ITcpFrameCodec`、`TcpFrameConnection`、`CustomTcpClient`
+  - `SiameseCat.Communication.Transport.Udp` / `.Transport.Serial`：`UdpTransport`、`SerialPortTransport`、`SerialPortOptions`
+  - 包 `SiameseCat.Communication.Tcp` 内的分帧类型随之上移到 `SiameseCat.Communication.Transport.Tcp`，TCP 字节流与 TCP 分帧处于同一命名空间子树。
 - 仿真相关命名由 `Server` 改为 `Simulation` / `Simulator`：
   - 命名空间 `.Server.Modbus` / `.Server.S7` / `.Server.Tcp` → `.Simulation.Modbus` / `.Simulation.S7` / `.Simulation.Tcp`
   - `IModbusServer` / `IS7Server` → `IModbusSimulator` / `IS7Simulator`
@@ -24,11 +33,6 @@
   - 示例 id 由 `server/*` 改为 `simulation/*`
 - 驱动注册入口拆分：`AddModbusDriver()`（Modbus 包）、`AddS7Driver()`（S7 包）；
   `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 位于 `.All`；`Hosting.AddSiameseCat()` 仍注册内置驱动。
-
-## [0.9.2] - 2026-10-23
-
-### 破坏性变更
-
 - 公共 API 全面移除旧的处理器前缀，设备域统一为 `Device*`，通信诊断统一为 `Communication*`；
   类型、文件名、示例与文档均已同步，未保留旧名兼容别名。主要类型包括 `IDeviceDriver`、
   `IDeviceDriverFactory`、`IDeviceAddressParser`、`DeviceAddress`、`DeviceValue`、`DeviceValueCodec`、
@@ -38,6 +42,13 @@
 - `System.Diagnostics.Metrics` 仪器名统一为 `device.*`（`device.requests`、`device.failures`、
   `device.retries`、`device.bytes.*`、`device.latency`）；Meter 名仍为 `SiameseCat`。
   仪表盘、告警和 OpenTelemetry 视图需要同步更新。
+- `ModbusTcpFrameCodec` → `MbapFrameCodec`：名称明确表示它只实现 MBAP 头
+  （transaction id / protocol id / length / unit id），与通用分帧 `TcpFrameCodec` 区分。
+- `DriverConfiguration` 与 `CustomTcpClientOptions` 改为继承 `CommunicationOptions`：`Timeout`、`RetryCount`、
+  `RetryDelay`、`RetryWrites`、`LogFrames`、`Logger` 只在基类定义，`Validate()` 改为 `override`。
+  `CustomTcpClientOptions.RetryRequests` 现在是 `RetryWrites` 的别名。
+- `CustomTcpClientOptions.Logger` 与 `CustomTcpSimulatorOptions.Logger` 由 `Microsoft.Extensions.Logging.ILogger`
+  改为 `ICommunicationLogger`；`SiameseCat.Communication.Tcp` 不再依赖 `Microsoft.Extensions.Logging.Abstractions`。
 
 ### 新增
 
@@ -46,9 +57,28 @@
   `CustomTcpClient` 在其上提供请求/响应、超时、重试与帧日志。
 - 通用 TCP 服务端 `SiameseCat.Communication.Simulation.Tcp`：`CustomTcpSimulator` + `CustomTcpConnection`，
   每个连接一个处理器，并提供连接数、帧数与字节数统计。
-- Modbus TCP 复用同一分帧核心：新增 `ModbusTcpFrameCodec`（MBAP），`ModbusTcpClient` 改为通过
+- Modbus TCP 复用同一分帧核心：新增 `MbapFrameCodec`（原 `ModbusTcpFrameCodec`），`ModbusTcpClient` 改为通过
   `TcpFrameConnection` 收发；事务号、协议号与单元号校验仍留在 Modbus 层。
 - 示例 `transports/custom-protocol`，以及分帧、客户端/服务端与 MBAP codec 的单元/集成测试。
+
+### 修复
+
+- `ModbusRtuSimulator` 遇到未知 function code 时按 2 字节猜测帧长，导致后续帧全部错位；现在改为丢弃该请求的
+  剩余字节并从帧边界重新同步（`DiscardInput`），并补了回归测试。
+- `DriverBase.DisposeAsync` 在共享 `RequestLock` 已释放（`SharedTransportFactory` 先释放）时抛
+  `ObjectDisposedException`；现在跳过锁并记录警告，释放顺序颠倒不再抛出。
+- `DriverConfiguration.Validate` 在设置了 `TransportFactory` 时跳过 `Port` 范围校验；现在始终校验 `Port`。
+- `DriverBase.CreateTimeoutSource` 在 `netstandard2.0` 上把已交给调用方释放的 token source 存进字段；
+  现在由驱动持有并复用，不再留下已释放引用。
+
+### 内部
+
+- `ModbusSimulatorIdentifier` → `ModbusSimulatorDefaults`，`SimulatorBufferSizes` → `SimulatorLimits`（均为 internal）。
+- `ModbusDriver.Diagnostics.cs` 拆分为 `ModbusDriver.DeviceIdentification.cs` 与 `ModbusDriver.FileRecords.cs`，
+  与 `ModbusClientBase` 的分部保持一致；`MockDriver.cs` 拆出 `MockAddressParser` 与 `ConcurrencyProbe`。
+- `DisposeCoreAsync` 移入 `DriverBase.Lifecycle.cs`，与 `DisposeAsync` 同文件。
+- `S7SimulatorStatistics.RecordItemErrors(int)` 取代逐项 `Interlocked.Increment`；`S7Client` 的 PDU 开销魔数抽为具名常量。
+- 驱动工厂发现计数从 0 开始（`count discovered factories from zero`）。
 
 ## [0.9.1] - 2026-10-23
 

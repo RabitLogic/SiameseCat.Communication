@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Diagnostics;
 
 /// <summary>Logger that discards every entry.</summary>
 public sealed class NullCommunicationLogger : ICommunicationLogger

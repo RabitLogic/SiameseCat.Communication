@@ -1,7 +1,9 @@
 using System.Text;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Simulation.Tcp;
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Tests.Integration;
 

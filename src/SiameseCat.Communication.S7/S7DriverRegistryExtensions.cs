@@ -1,3 +1,5 @@
+using SiameseCat.Communication.Drivers;
+
 namespace SiameseCat.Communication.S7;
 
 /// <summary>Registers the generic S7 driver.</summary>

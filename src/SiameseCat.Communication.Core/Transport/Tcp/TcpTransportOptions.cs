@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication.Transport;
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>Options for a TCP client transport.</summary>
 public sealed class TcpTransportOptions

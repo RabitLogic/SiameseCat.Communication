@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.S7;

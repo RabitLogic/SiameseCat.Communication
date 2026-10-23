@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
 
 namespace SiameseCat.Communication.S7;
 

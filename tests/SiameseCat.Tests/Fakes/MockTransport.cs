@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Tests.Fakes;
 
@@ -24,6 +26,8 @@ internal sealed class MockTransport : ITransport
     public int OpenCount { get; private set; }
 
     public int CloseCount { get; private set; }
+
+    public int DiscardCount { get; private set; }
 
     public bool Disposed { get; private set; }
 
@@ -92,6 +96,10 @@ internal sealed class MockTransport : ITransport
 
     public void DiscardInput()
     {
+        DiscardCount++;
+
+        // Drop whatever is left of the current frame, like a real transport drops buffered bytes.
+        _offset = _current.Length;
     }
 
     public ValueTask DisposeAsync()

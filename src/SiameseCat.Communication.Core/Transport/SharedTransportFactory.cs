@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+
+namespace SiameseCat.Communication.Transport;
 
 /// <summary>
 /// Hands out one shared transport so several drivers (for example the stations of an RS-485 bus)
@@ -11,6 +13,13 @@ namespace SiameseCat.Communication;
 /// transport would let two drivers interleave their request/response frames.
 /// </para>
 /// <para>The transport is created on first use and disposed with this factory.</para>
+/// <para>
+/// Dispose this factory after every driver that uses it. Drivers never dispose a
+/// <see cref="RequestLock"/> they did not create, so a driver that is still running after
+/// <see cref="DisposeAsync"/> fails requests with <see cref="ObjectDisposedException"/> instead of
+/// silently using a released lock. Disposing the drivers first is always safe: they simply leave the
+/// lock and the transport to the factory.
+/// </para>
 /// </remarks>
 public sealed class SharedTransportFactory : ITransportFactory, IAsyncDisposable
 {
@@ -42,7 +51,10 @@ public sealed class SharedTransportFactory : ITransportFactory, IAsyncDisposable
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Disposes the shared transport and the shared <see cref="RequestLock"/>.
+    /// </summary>
+    /// <remarks>Dispose every driver that uses this factory before disposing the factory.</remarks>
     public async ValueTask DisposeAsync()
     {
         ITransport? transport;

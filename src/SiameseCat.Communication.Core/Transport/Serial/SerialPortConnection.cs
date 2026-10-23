@@ -1,7 +1,8 @@
 using SiameseCat.Communication;
+
 using SerialPortDevice = System.IO.Ports.SerialPort;
 
-namespace SiameseCat.Communication.Transport;
+namespace SiameseCat.Communication.Transport.Serial;
 
 /// <summary>
 /// <see cref="ISerialConnection"/> implementation that wraps <see cref="System.IO.Ports.SerialPort"/>.

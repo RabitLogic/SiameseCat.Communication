@@ -1,6 +1,8 @@
 using System.Diagnostics;
 
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+
+namespace SiameseCat.Communication.Diagnostics;
 
 /// <summary>Kind of operation a metric belongs to.</summary>
 public enum CommunicationOperation

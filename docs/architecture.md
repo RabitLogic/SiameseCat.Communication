@@ -9,13 +9,17 @@ needs the transport and frame abstractions, and the TCP framing layer itself has
 
 | Namespace | Package / project | Contents |
 | --- | --- | --- |
-| `SiameseCat.Communication` | `SiameseCat.Communication.Core` | driver contracts, address/value model, `DriverBase`, registry, options, metrics, exceptions |
-| `SiameseCat.Communication.Transport` | `SiameseCat.Communication.Core` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
-| `SiameseCat.Communication.Tcp` | `SiameseCat.Communication.Tcp` | `TcpFrameCodec` presets, `ITcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` |
-| `SiameseCat.Communication.Modbus` | `SiameseCat.Communication.Modbus` | Modbus frames/CRC/converters, `ModbusTcpFrameCodec`, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
+| `SiameseCat.Communication` | `SiameseCat.Communication.Core` | address/value model, `CommunicationOptions`, `RetryPolicy` |
+| `SiameseCat.Communication.Drivers` | `SiameseCat.Communication.Core` + `.All` | driver contracts, `DriverBase`, `DriverConfiguration`, `DriverRegistry`, `RequestLock`, `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
+| `SiameseCat.Communication.Diagnostics` | `SiameseCat.Communication.Core` | `ICommunicationLogger`, `CommunicationMetrics`, `CommunicationDiagnostics`, `LoggingTransport` |
+| `SiameseCat.Communication.Exceptions` | `SiameseCat.Communication.Core` | `CommunicationException`, `ProtocolException`, `ConnectionClosedException`, `CommunicationTimeoutException` |
+| `SiameseCat.Communication.Transport` | `SiameseCat.Communication.Core` | `ITransport`, `ITransportFactory`, `TransportReader`, `SharedTransportFactory` |
+| `SiameseCat.Communication.Transport.Tcp` | `SiameseCat.Communication.Core` + `.Tcp` | `TcpTransport`, `TcpFrameCodec` presets, `ITcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` |
+| `SiameseCat.Communication.Transport.Udp` | `SiameseCat.Communication.Core` | `UdpTransport` |
+| `SiameseCat.Communication.Transport.Serial` | `SiameseCat.Communication.Core` | `SerialPortTransport`, `SerialPortOptions` |
+| `SiameseCat.Communication.Modbus` | `SiameseCat.Communication.Modbus` | Modbus frames/CRC/converters, `MbapFrameCodec`, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
 | `SiameseCat.Communication.S7` | `SiameseCat.Communication.S7` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options`, `S7Driver` |
-| `SiameseCat.Communication.Drivers` | `SiameseCat.Communication.All` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
-| `SiameseCat.Communication.Simulation` | `src/SimulatorShared/` | `SimulatorBufferSizes` validation shared by the simulators |
+| `SiameseCat.Communication.Simulation` | `src/SimulatorShared/` | `SimulatorLimits` validation shared by the simulators |
 | `SiameseCat.Communication.Simulation.Modbus` | `SiameseCat.Communication.Simulation.Modbus` | `ModbusTcpSimulator`, `ModbusRtuSimulator`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusSimulatorStatistics` |
 | `SiameseCat.Communication.Simulation.S7` | `SiameseCat.Communication.Simulation.S7` | `S7Simulator`, `S7PduProcessor`, `S7DataStore`, `S7SimulatorStatistics` |
 | `SiameseCat.Communication.Simulation.Tcp` | `SiameseCat.Communication.Tcp` | `CustomTcpSimulator`, `CustomTcpConnection`, `CustomTcpSimulatorStatistics` |
@@ -25,20 +29,20 @@ needs the transport and frame abstractions, and the TCP framing layer itself has
 
 ```text
 src/
-├── SiameseCat.Communication.Core/          namespace SiameseCat.Communication, .Transport, .Drivers, .Addressing, .Diagnostics
+├── SiameseCat.Communication.Core/          namespace SiameseCat.Communication, .Drivers, .Diagnostics, .Exceptions, .Transport
 │   ├── CommunicationOptions.cs / RetryPolicy.cs
 │   ├── Addressing/                         DeviceAddress, DeviceValue, DeviceValueCodec, DeviceTag, IDeviceAddressParser
 │   ├── Diagnostics/                        ICommunicationLogger, CommunicationMetrics, CommunicationDiagnostics
 │   ├── Drivers/Abstractions/               IDeviceDriver + capability interfaces + descriptor + state
 │   ├── Drivers/Runtime/                    DriverBase (partials), DriverRegistry, DriverConfiguration
 │   ├── Exceptions/                         one file per exception type
-│   └── Transport/                          ITransport + TCP/UDP/serial implementations
-├── SiameseCat.Communication.Tcp/           namespace SiameseCat.Communication.Tcp, .Simulation.Tcp
+│   └── Transport/                          ITransport, TransportReader, SharedTransportFactory; Tcp/, Udp/, Serial/
+├── SiameseCat.Communication.Tcp/           namespace SiameseCat.Communication.Transport.Tcp, .Simulation.Tcp
 │   ├── Framing/                            ITcpFrameCodec, TcpFrameCodec, TcpFrameConnection
 │   ├── Clients/                            CustomTcpClient, CustomTcpClientOptions
 │   └── Simulator/                          CustomTcpSimulator, CustomTcpConnection, statistics
 ├── SiameseCat.Communication.Modbus/        namespace SiameseCat.Communication.Modbus
-│   ├── Clients/                            ModbusTcpClient, ModbusRtuClient, ModbusTcpFrameCodec
+│   ├── Clients/                            ModbusTcpClient, ModbusRtuClient, MbapFrameCodec
 │   └── Drivers/                            ModbusDriver, ModbusAddressParser, ModbusDriverFactory
 ├── SiameseCat.Communication.S7/            namespace SiameseCat.Communication.S7
 │   ├── Clients/                            S7Client, S7Options
@@ -51,7 +55,7 @@ src/
 │   ├── Storage/                            ModbusDataStore (+ .Registers, .Bits, .Files) / ModbusDataStoreSnapshot
 │   ├── Events/                             ModbusCoilWriteEventArgs / ModbusRegisterWriteEventArgs
 │   ├── Diagnostics/                        ModbusSimulatorStatistics
-│   └── Internal/                           ModbusSimulatorIdentifier
+│   └── Internal/                           ModbusSimulatorDefaults
 ├── SiameseCat.Communication.Simulation.S7/      namespace SiameseCat.Communication.Simulation.S7
 │   ├── IS7Simulator.cs
 │   ├── Options/                            S7SimulatorOptions
@@ -64,7 +68,7 @@ src/
 │   └── DI registration, health checks, simulator hosting, logger adapter
 ├── SiameseCat.Communication.All/           aggregator package (CreateDefaultRegistry / AddSiameseCatDrivers)
 ├── Shared/                                 Guard.cs, included per assembly
-└── SimulatorShared/                        SimulatorBufferSizes.cs, linked into both simulator projects
+└── SimulatorShared/                        SimulatorLimits.cs, linked into both simulator projects
 ```
 
 ### TCP framing and reuse
@@ -75,13 +79,13 @@ the protocol-specific parts small:
 
 | Concern | Owner |
 | --- | --- |
-| Byte-stream connection, open/close | `TcpTransport` (`SiameseCat.Communication.Transport`) |
+| Byte-stream connection, open/close | `TcpTransport` (`SiameseCat.Communication.Transport.Tcp`) |
 | Frame boundaries (raw, length prefix, delimiter, fixed length) | `TcpFrameCodec` / `ITcpFrameCodec` |
 | Write + read one frame, optional trace logging | `TcpFrameConnection` |
 | Request serialization, timeout, retries, reconnect | `CustomTcpClient` (or `ModbusClientBase` for Modbus) |
 | Protocol payloads and validation | caller (`CustomTcpClient` users) or `ModbusTcpClient` |
 
-Modbus TCP is the first consumer of the shared core: `ModbusTcpFrameCodec` supplies MBAP framing to
+Modbus TCP is the first consumer of the shared core: `MbapFrameCodec` supplies MBAP framing to
 `TcpFrameConnection`, while `ModbusTcpClient` keeps the transaction-id, protocol-id, unit-id and PDU
 validation. A vendor protocol can follow the same split without touching the Modbus code.
 

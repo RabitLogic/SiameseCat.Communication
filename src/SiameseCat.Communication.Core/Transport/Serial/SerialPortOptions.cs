@@ -1,6 +1,6 @@
 using System.IO.Ports;
 
-namespace SiameseCat.Communication.Transport;
+namespace SiameseCat.Communication.Transport.Serial;
 
 /// <summary>Options for a serial port transport.</summary>
 public sealed class SerialPortOptions

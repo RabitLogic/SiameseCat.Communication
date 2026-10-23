@@ -1,6 +1,9 @@
 using System.Diagnostics;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Samples.Infrastructure;
 

@@ -2,10 +2,12 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
 
 // Proves that the package is not capped at a single .NET version: every supported runtime loads the
 // nearest asset at or below its own version and can complete a real Modbus round trip.

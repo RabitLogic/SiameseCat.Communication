@@ -1,5 +1,7 @@
 using SiameseCat.Communication;
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;

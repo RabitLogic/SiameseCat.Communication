@@ -1,3 +1,5 @@
+using SiameseCat.Communication.Drivers;
+
 namespace SiameseCat.Communication;
 
 /// <summary>Protocol-neutral value exchanged with a device.</summary>

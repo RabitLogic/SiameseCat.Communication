@@ -1,5 +1,7 @@
 using System.Buffers;
 
+using SiameseCat.Communication.Transport;
+
 namespace SiameseCat.Communication.Simulation.Tcp;
 
 /// <summary>

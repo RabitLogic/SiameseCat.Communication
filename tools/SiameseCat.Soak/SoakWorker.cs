@@ -1,4 +1,6 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Modbus;
 
 namespace SiameseCat.Soak;

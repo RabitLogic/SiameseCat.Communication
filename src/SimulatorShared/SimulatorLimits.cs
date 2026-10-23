@@ -1,7 +1,7 @@
 namespace SiameseCat.Communication.Simulation;
 
-/// <summary>Shared validation for the buffer sizes exposed by the slaves.</summary>
-internal static class SimulatorBufferSizes
+/// <summary>Shared limits and validation for the sizes exposed by the slaves.</summary>
+internal static class SimulatorLimits
 {
     public const int Min = 1;
 

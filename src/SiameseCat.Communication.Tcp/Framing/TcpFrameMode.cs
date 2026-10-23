@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication.Tcp;
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>How a custom TCP protocol delimits frames on the byte stream.</summary>
 public enum TcpFrameMode

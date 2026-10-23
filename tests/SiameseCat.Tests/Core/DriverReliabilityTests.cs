@@ -1,4 +1,7 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;
@@ -69,6 +72,19 @@ public class RetryBackoffTests
 
         Assert.Throws<ArgumentOutOfRangeException>(configuration.Validate);
     }
+
+    [Fact]
+    public void Validate_RejectsOutOfRangePortEvenWithTransportFactory()
+    {
+        var configuration = new DriverConfiguration
+        {
+            Transport = TransportKind.Custom,
+            TransportFactory = new SharedTransportFactory(() => new MockTransport()),
+            Port = 70000,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(configuration.Validate);
+    }
 }
 
 public class DriverReliabilityTests
@@ -107,6 +123,28 @@ public class DriverReliabilityTests
 
         Assert.Equal(2, driver.ConnectCount);
         Assert.Equal(DriverState.Faulted, driver.State);
+
+        await driver.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ConnectAsync_RecoversFromFaultedState()
+    {
+        var driver = new MockDriver(new DriverConfiguration
+        {
+            RetryCount = 0,
+            RetryDelay = TimeSpan.FromMilliseconds(1),
+            RetryJitter = false,
+        });
+        driver.ConnectFailuresRemaining = 1;
+
+        await Assert.ThrowsAsync<CommunicationTimeoutException>(() => driver.ConnectAsync());
+        Assert.Equal(DriverState.Faulted, driver.State);
+
+        await driver.ConnectAsync();
+
+        Assert.Equal(DriverState.Connected, driver.State);
+        Assert.Equal(2, driver.ConnectCount);
 
         await driver.DisposeAsync();
     }

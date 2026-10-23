@@ -1,9 +1,16 @@
 using System.Globalization;
 
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Connection settings shared by all drivers, independent of any protocol package.</summary>
-public sealed class DriverConfiguration
+/// <remarks>
+/// Timeout, retry, frame-logging and logger settings come from <see cref="CommunicationOptions"/> so a
+/// driver and a protocol client are configured the same way. Drivers add the transport, keep-alive,
+/// subscription and protocol-option settings on top.
+/// </remarks>
+public sealed class DriverConfiguration : CommunicationOptions
 {
     private static readonly Random JitterRandom = new();
 
@@ -39,32 +46,14 @@ public sealed class DriverConfiguration
     /// </summary>
     public bool StampReadTimestamps { get; set; }
 
-    /// <summary>
-    /// Gets or sets whether every transport frame is written to <see cref="ICommunicationLogger"/>
-    /// at <see cref="CommunicationLogLevel.Trace"/>. Useful for field diagnostics; keep it off on hot paths.
-    /// </summary>
-    public bool LogFrames { get; set; }
-
-    /// <summary>Gets or sets the per-request timeout. Defaults to 3 seconds.</summary>
-    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(3);
-
     /// <summary>Gets or sets the connection timeout. Defaults to 5 seconds.</summary>
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
-
-    /// <summary>Gets or sets the number of additional attempts for transient failures. Defaults to 0.</summary>
-    public int RetryCount { get; set; }
-
-    /// <summary>Gets or sets the delay between retries. Defaults to 200 milliseconds.</summary>
-    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(200);
 
     /// <summary>Gets or sets the upper bound of the exponential retry backoff. Defaults to 30 seconds.</summary>
     public TimeSpan MaxRetryDelay { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Gets or sets whether retry delays are randomized (50–100 % of the backoff). Defaults to <see langword="true"/>.</summary>
     public bool RetryJitter { get; set; } = true;
-
-    /// <summary>Gets or sets whether write operations may be retried. Defaults to <see langword="false"/>.</summary>
-    public bool RetryWrites { get; set; }
 
     /// <summary>
     /// Gets or sets the protocol-native address used by <see cref="IHealthCheckable.PingAsync"/> and the
@@ -202,9 +191,12 @@ public sealed class DriverConfiguration
         }
     }
 
-    /// <summary>Validates the configuration.</summary>
-    public void Validate()
+    /// <inheritdoc/>
+    /// <remarks>Validates the shared client options first, then the driver-specific settings.</remarks>
+    public override void Validate()
     {
+        base.Validate();
+
         if (Transport == TransportKind.None)
         {
             throw new ArgumentException("A transport kind must be specified.", nameof(Transport));
@@ -217,24 +209,9 @@ public sealed class DriverConfiguration
                 nameof(TransportFactory));
         }
 
-        if (Timeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(Timeout), Timeout, "Timeout must be greater than zero.");
-        }
-
         if (ConnectTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(ConnectTimeout), ConnectTimeout, "ConnectTimeout must be greater than zero.");
-        }
-
-        if (RetryCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(RetryCount), RetryCount, "RetryCount cannot be negative.");
-        }
-
-        if (RetryDelay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(RetryDelay), RetryDelay, "RetryDelay cannot be negative.");
         }
 
         if (MaxRetryDelay < TimeSpan.Zero)
@@ -273,6 +250,12 @@ public sealed class DriverConfiguration
                 "SubscriptionMaxBackoff cannot be negative.");
         }
 
+        // Port is a plain range check, so it stays in force even when a factory supplies the transport.
+        if (Port is < 0 or > 65535)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Port), Port, "Port must be between 0 and 65535.");
+        }
+
         if (TransportFactory is not null)
         {
             return;
@@ -283,11 +266,6 @@ public sealed class DriverConfiguration
             if (string.IsNullOrWhiteSpace(Host))
             {
                 throw new ArgumentException("Host must be specified for TCP/UDP transports.", nameof(Host));
-            }
-
-            if (Port is < 0 or > 65535)
-            {
-                throw new ArgumentOutOfRangeException(nameof(Port), Port, "Port must be between 0 and 65535.");
             }
         }
 

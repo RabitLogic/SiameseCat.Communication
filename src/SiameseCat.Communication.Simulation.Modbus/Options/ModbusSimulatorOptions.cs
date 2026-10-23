@@ -1,4 +1,5 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 
 namespace SiameseCat.Communication.Simulation.Modbus;
 
@@ -35,7 +36,7 @@ public sealed class ModbusSimulatorOptions
     /// 0x05 model name, 0x06 user application name, plus vendor specific ids from 0x80.
     /// </summary>
     public IDictionary<byte, string> DeviceIdentification { get; } =
-        ModbusSimulatorIdentifier.CreateDefaultDeviceIdentification();
+        ModbusSimulatorDefaults.CreateDefaultDeviceIdentification();
 
     /// <summary>Gets or sets the logger used for connection and protocol diagnostics. Defaults to no logging.</summary>
     public ICommunicationLogger? Logger { get; set; }
@@ -57,9 +58,9 @@ public sealed class ModbusSimulatorOptions
         ValidateSize(InputRegisters, nameof(InputRegisters));
         ValidateSize(Coils, nameof(Coils));
         ValidateSize(DiscreteInputs, nameof(DiscreteInputs));
-        ModbusSimulatorIdentifier.Validate(ServerIdentifier);
-        ModbusSimulatorIdentifier.ValidateDeviceIdentification(DeviceIdentification);
+        ModbusSimulatorDefaults.Validate(ServerIdentifier);
+        ModbusSimulatorDefaults.ValidateDeviceIdentification(DeviceIdentification);
     }
 
-    private static void ValidateSize(int size, string name) => SimulatorBufferSizes.Validate(size, name);
+    private static void ValidateSize(int size, string name) => SimulatorLimits.Validate(size, name);
 }

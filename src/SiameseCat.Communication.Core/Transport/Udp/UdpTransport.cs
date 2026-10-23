@@ -1,9 +1,13 @@
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using SiameseCat.Communication;
 
-namespace SiameseCat.Communication.Transport;
+using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
+
+namespace SiameseCat.Communication.Transport.Udp;
 
 /// <summary>
 /// Connected UDP socket transport.

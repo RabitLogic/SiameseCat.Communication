@@ -1,8 +1,11 @@
 using System.IO.Ports;
 
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 namespace SiameseCat.Communication.Simulation.Modbus;
 
@@ -15,12 +18,19 @@ namespace SiameseCat.Communication.Simulation.Modbus;
 /// <para>Unit id 0 is treated as a broadcast: writes are applied and no response is sent.</para>
 /// <para>Frames with an invalid CRC are ignored, as required by the Modbus specification.</para>
 /// <para>
+/// Requests whose function code is unknown have no derivable length. Their remaining bytes are
+/// discarded from the transport so that the next request is parsed from a frame boundary again.
+/// </para>
+/// <para>
 /// An <see cref="ITransport"/> can be injected instead of a serial port, which allows the slave to be
 /// used over a tunnel or in tests.
 /// </para>
 /// </remarks>
 public sealed class ModbusRtuSimulator : IModbusSimulator
 {
+    /// <summary>Signals that the frame length cannot be derived, so the caller drains the input.</summary>
+    private const int UndecodableFrame = -1;
+
     private readonly ModbusRtuSimulatorOptions _options;
     private readonly ModbusPduProcessor _processor;
     private readonly ITransport _transport;
@@ -156,6 +166,17 @@ public sealed class ModbusRtuSimulator : IModbusSimulator
                 return;
             }
 
+            if (length == UndecodableFrame)
+            {
+                // An unknown function code carries no length information. Guessing a short frame would
+                // leave the tail of the request buffered and shift every following frame, so the
+                // remainder is dropped instead.
+                Statistics.RecordDiscardedFrame();
+                _transport.DiscardInput();
+                _options.Logger?.Warning("Modbus RTU slave dropped a frame with an unknown function code.");
+                continue;
+            }
+
             if (length < 4)
             {
                 Statistics.RecordDiscardedFrame();
@@ -215,47 +236,9 @@ public sealed class ModbusRtuSimulator : IModbusSimulator
         }
 
         var function = buffer[1];
-        int headerLength;
-
-        switch (function)
+        if (!TryGetHeaderLength(function, out var headerLength))
         {
-            case 0x0F:
-            case 0x10:
-                headerLength = 7;
-                break;
-
-            case 0x17:
-                headerLength = 11;
-                break;
-
-            case 0x14:
-            case 0x15:
-                // Variable-length requests: the byte count follows the function code.
-                headerLength = 3;
-                break;
-
-            case 0x07:
-            case 0x0B:
-            case 0x11:
-                // Fixed two-byte requests (function code + padding) plus the CRC.
-                headerLength = 4;
-                break;
-
-            case 0x2B:
-                // Read device identification: MEI type, read code and object id plus the CRC.
-                headerLength = 7;
-                break;
-
-            case 0x16:
-                // Mask write register: address, AND mask, OR mask, CRC.
-                headerLength = 10;
-                break;
-
-            default:
-                // Fixed-length requests (FC01..FC06) and unknown functions, which are answered
-                // with an illegal-function exception as soon as the header is available.
-                headerLength = function is >= 0x01 and <= 0x06 ? 8 : 2;
-                break;
+            return UndecodableFrame;
         }
 
         if (headerLength > 2
@@ -284,6 +267,55 @@ public sealed class ModbusRtuSimulator : IModbusSimulator
         }
 
         return expected;
+    }
+
+    /// <summary>
+    /// Returns how many bytes must be buffered before the request length can be computed.
+    /// Returns <see langword="false"/> for function codes whose request length is unknown.
+    /// </summary>
+    private static bool TryGetHeaderLength(byte function, out int headerLength)
+    {
+        switch (function)
+        {
+            case 0x0F:
+            case 0x10:
+                // Write multiple coils/registers: address, quantity and byte count plus the CRC.
+                headerLength = 7;
+                return true;
+
+            case 0x17:
+                // Read/write multiple registers: both addresses and quantities, then the byte count.
+                headerLength = 11;
+                return true;
+
+            case 0x14:
+            case 0x15:
+                // Variable-length requests: the byte count follows the function code.
+                headerLength = 3;
+                return true;
+
+            case 0x07:
+            case 0x0B:
+            case 0x11:
+                // Fixed two-byte requests (function code + padding) plus the CRC.
+                headerLength = 4;
+                return true;
+
+            case 0x2B:
+                // Read device identification: MEI type, read code and object id plus the CRC.
+                headerLength = 7;
+                return true;
+
+            case 0x16:
+                // Mask write register: address, AND mask, OR mask, CRC.
+                headerLength = 10;
+                return true;
+
+            default:
+                // Fixed-length requests FC01..FC06; every other function code has an unknown length.
+                headerLength = function is >= 0x01 and <= 0x06 ? 8 : 0;
+                return headerLength != 0;
+        }
     }
 
     private async Task<bool> TryReadAsync(byte[] buffer, int offset, int count, CancellationToken token)

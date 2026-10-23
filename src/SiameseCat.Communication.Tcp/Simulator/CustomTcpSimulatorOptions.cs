@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Logging;
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Simulation.Tcp;
 
@@ -25,7 +25,7 @@ public sealed class CustomTcpSimulatorOptions
     public int MaxConnections { get; set; } = 64;
 
     /// <summary>Gets or sets the logger used for connection and frame diagnostics. Defaults to no logging.</summary>
-    public ILogger? Logger { get; set; }
+    public ICommunicationLogger? Logger { get; set; }
 
     /// <summary>Gets or sets whether every frame is logged at trace level. Defaults to <see langword="false"/>.</summary>
     public bool LogFrames { get; set; }

@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Text;
+
 using SiameseCat.Communication.Simulation.Tcp;
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Transport.Tcp;
 using SiameseCat.Samples.Infrastructure;
 
 namespace SiameseCat.Samples.Transports;
@@ -121,7 +122,7 @@ public sealed class CustomTcpProtocolSample : ISample
         SampleConsole.Value("Frames sent", server.Statistics.FramesSent);
         SampleConsole.Value("Handler faults", server.Statistics.HandlerFaults);
 
-        SampleConsole.Note("See ModbusTcpFrameCodec for the same core used by Modbus TCP with MBAP framing.");
+        SampleConsole.Note("See MbapFrameCodec for the same core used by Modbus TCP with MBAP framing.");
     }
 
     private static async Task ServeAsync(

@@ -1,5 +1,8 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.S7;
 

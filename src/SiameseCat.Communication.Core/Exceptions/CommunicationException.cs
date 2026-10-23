@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Exceptions;
 
 /// <summary>Base exception for communication failures.</summary>
 public class CommunicationException : Exception

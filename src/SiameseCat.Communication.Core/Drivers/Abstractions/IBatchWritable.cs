@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Capability: writing several addresses in one request when the protocol allows it.</summary>
 public interface IBatchWritable
@@ -10,7 +10,7 @@ public interface IBatchWritable
         IReadOnlyList<DeviceWriteRequest> requests,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Writes several values with a per-call timeout that overrides <see cref="DriverConfiguration.Timeout"/>.</summary>
+    /// <summary>Writes several values with a per-call timeout that overrides <see cref="CommunicationOptions.Timeout"/>.</summary>
     /// <param name="requests">Address/value pairs to write.</param>
     /// <param name="timeout">Timeout for this call.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

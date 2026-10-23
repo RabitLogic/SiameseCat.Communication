@@ -1,3 +1,5 @@
+using SiameseCat.Communication.Drivers;
+
 namespace SiameseCat.Communication.Modbus;
 
 /// <summary>Registers the generic Modbus driver.</summary>

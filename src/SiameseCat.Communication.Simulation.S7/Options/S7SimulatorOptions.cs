@@ -1,4 +1,5 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 
 namespace SiameseCat.Communication.Simulation.S7;
 
@@ -59,5 +60,5 @@ public sealed class S7SimulatorOptions
         }
     }
 
-    private static void ValidateSize(int size, string name) => SimulatorBufferSizes.Validate(size, name);
+    private static void ValidateSize(int size, string name) => SimulatorLimits.Validate(size, name);
 }

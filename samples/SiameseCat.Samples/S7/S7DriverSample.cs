@@ -1,6 +1,7 @@
 using SiameseCat.Communication;
-using SiameseCat.Communication.Simulation.S7;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.S7;
+using SiameseCat.Communication.Simulation.S7;
 using SiameseCat.Samples.Infrastructure;
 
 namespace SiameseCat.Samples.S7;

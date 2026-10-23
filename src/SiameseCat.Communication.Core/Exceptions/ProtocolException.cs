@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Exceptions;
 
 /// <summary>Raised when a peer returns a malformed or unexpected protocol response.</summary>
 public class ProtocolException : CommunicationException

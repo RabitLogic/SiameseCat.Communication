@@ -224,7 +224,7 @@ Protocol-agnostic framing and request/response plumbing. This namespace does not
 - `TcpFrameConnection` writes and reads whole frames over any `ITransport` and can log TX/RX at trace
   level; timeouts, retries and serialization stay with the owner of the connection.
 - `CustomTcpClient` adds those semantics for a client (`RequestAsync`, `SendAsync`, `ReadFrameAsync`).
-- `ModbusTcpFrameCodec` applies MBAP framing (length 2..254) and returns the complete frame so
+- `MbapFrameCodec` applies MBAP framing (length 2..254) and returns the complete frame so
   `ModbusTcpClient` validates transaction id, protocol id and unit id before parsing the PDU.
 - `CustomTcpSimulator` accepts connections and hands one `CustomTcpConnection` to a handler per client.
 

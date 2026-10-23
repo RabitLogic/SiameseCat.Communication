@@ -1,4 +1,5 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 using SiameseCat.Communication.S7;
 
 namespace SiameseCat.Communication.Simulation.S7;
@@ -133,14 +134,7 @@ internal sealed class S7PduProcessor
             }
         }
 
-        if (errors > 0)
-        {
-            for (var i = 0; i < errors; i++)
-            {
-                _statistics.RecordItemError();
-            }
-        }
-
+        _statistics.RecordItemErrors(errors);
         WriteAckHeader(destination, pduReference, 2, offset - dataStart);
         var responseParameter = destination.Slice(AckDataHeaderLength, 2);
         responseParameter[0] = FunctionReadVar;
@@ -258,14 +252,17 @@ internal sealed class S7PduProcessor
         }
 
         _statistics.RecordWrite(count);
+
+        var failed = 0;
         foreach (var code in codes)
         {
             if (code != ReturnSuccess)
             {
-                _statistics.RecordItemError();
+                failed++;
             }
         }
 
+        _statistics.RecordItemErrors(failed);
         WriteAckHeader(destination, pduReference, 2, count);
         var responseParameter = destination.Slice(AckDataHeaderLength, 2);
         responseParameter[0] = FunctionWriteVar;

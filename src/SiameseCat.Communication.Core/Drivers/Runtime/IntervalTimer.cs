@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>
 /// Minimal periodic timer with the same usage pattern as <c>System.Threading.PeriodicTimer</c>,

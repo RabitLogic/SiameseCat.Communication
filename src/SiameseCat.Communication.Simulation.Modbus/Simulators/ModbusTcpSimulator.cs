@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 
 namespace SiameseCat.Communication.Simulation.Modbus;
 

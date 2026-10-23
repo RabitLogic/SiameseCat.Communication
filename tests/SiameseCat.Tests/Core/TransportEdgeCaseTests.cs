@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Sockets;
+
 using SiameseCat.Communication;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
+using SiameseCat.Communication.Transport.Udp;
 
 namespace SiameseCat.Tests.Core;
 

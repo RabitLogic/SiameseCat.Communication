@@ -1,4 +1,5 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;

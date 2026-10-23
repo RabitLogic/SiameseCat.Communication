@@ -1,4 +1,6 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Communication.S7;
 
@@ -20,6 +22,18 @@ public sealed partial class S7Client
     private const int JobHeaderLength = 10;
     private const int AckDataHeaderLength = 12;
     private const int TpktMaxLength = 4096;
+
+    /// <summary>
+    /// Protocol bytes reserved per read exchange: the TPKT/COTP header, the S7 Ack-Data header and
+    /// the variable specification plus data item headers.
+    /// </summary>
+    private const int ReadRequestOverhead = 32;
+
+    /// <summary>
+    /// Protocol bytes reserved per write exchange: the TPKT/COTP header, the S7 job header and the
+    /// variable specification plus data item headers, rounded up for odd-byte padding.
+    /// </summary>
+    private const int WriteRequestOverhead = 35;
 
     private async Task<S7Response> ExecuteJobAsync(
         byte[] parameter,
@@ -512,9 +526,9 @@ public sealed partial class S7Client
         }
     }
 
-    private int GetReadChunkSize() => AlignToWord(Math.Max(1, _pduSize - 32));
+    private int GetReadChunkSize() => AlignToWord(Math.Max(1, _pduSize - ReadRequestOverhead));
 
-    private int GetWriteChunkSize() => AlignToWord(Math.Max(1, _pduSize - 35));
+    private int GetWriteChunkSize() => AlignToWord(Math.Max(1, _pduSize - WriteRequestOverhead));
 
     private static int AlignToWord(int size) => size > 1 && (size & 1) != 0 ? size - 1 : size;
 

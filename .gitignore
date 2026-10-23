@@ -27,3 +27,6 @@ Thumbs.db
 # Local-only notes (architecture drafts, personal docs)
 *.local.md
 *.local.png
+
+# Local study notes (7-week plan, kept out of the repository)
+tutorial/

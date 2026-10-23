@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Capability: checking that the link to the device is still usable.</summary>
 /// <remarks>

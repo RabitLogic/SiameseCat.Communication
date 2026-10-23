@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+
 using SiameseCat.Communication;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Serial;
 
 namespace SiameseCat.Tests.Core;
 

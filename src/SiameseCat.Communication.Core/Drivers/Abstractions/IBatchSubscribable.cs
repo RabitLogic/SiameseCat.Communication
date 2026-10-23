@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>
 /// Capability: change notifications for several addresses that share one polling cycle.

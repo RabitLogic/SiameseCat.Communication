@@ -1,5 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Samples.Infrastructure;
 

@@ -1,4 +1,7 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Communication.Modbus;
 

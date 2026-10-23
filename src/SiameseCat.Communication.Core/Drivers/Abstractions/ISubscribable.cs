@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>Capability: change notifications, implemented by polling or native subscriptions.</summary>
 public interface ISubscribable

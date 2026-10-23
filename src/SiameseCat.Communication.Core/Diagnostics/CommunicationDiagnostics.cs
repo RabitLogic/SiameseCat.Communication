@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace SiameseCat.Communication;
+namespace SiameseCat.Communication.Diagnostics;
 
 /// <summary>
 /// OpenTelemetry-compatible instruments published under the <c>SiameseCat</c> meter.

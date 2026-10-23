@@ -171,5 +171,5 @@ public sealed partial class ModbusDataStore
 
     private static int BitBufferLength(int count) => (count + 31) / 32;
 
-    private static int ValidateSize(int size, string name) => SimulatorBufferSizes.Validate(size, name);
+    private static int ValidateSize(int size, string name) => SimulatorLimits.Validate(size, name);
 }

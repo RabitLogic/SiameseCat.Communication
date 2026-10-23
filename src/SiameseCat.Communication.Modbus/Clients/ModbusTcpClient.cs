@@ -1,8 +1,9 @@
 using System.Buffers;
 
 using SiameseCat.Communication;
-using SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Exceptions;
 using SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Modbus;
 
@@ -30,7 +31,7 @@ public sealed class ModbusTcpClient : ModbusClientBase
     {
         Guard.NotNull(options, nameof(options));
         options.Tcp.Validate();
-        _connection = new TcpFrameConnection(Transport, new ModbusTcpFrameCodec());
+        _connection = new TcpFrameConnection(Transport, new MbapFrameCodec());
     }
 
     /// <inheritdoc/>

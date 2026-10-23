@@ -1,4 +1,8 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Drivers;
 
 public abstract partial class DriverBase
 {
@@ -85,6 +89,11 @@ public abstract partial class DriverBase
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Dispose waits for an in-flight request to finish before the transport is closed, so a hanging
+    /// transport makes dispose hang as well. Rely on the configured request timeout rather than on a
+    /// bounded dispose.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -96,7 +105,20 @@ public abstract partial class DriverBase
         _disposeCts.Cancel();
         var keepAlive = StopKeepAlive().Task;
 
-        await _gate.WaitAsync().ConfigureAwait(false);
+        var gateHeld = false;
+        try
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            gateHeld = true;
+        }
+        catch (ObjectDisposedException)
+        {
+            // A shared RequestLock disposed with its SharedTransportFactory; the driver still disconnects
+            // so that disposing the factory first cannot throw from DisposeAsync.
+            Logger.Warning(
+                $"{Descriptor.Id} disconnects without its shared request lock because the lock was already disposed.");
+        }
+
         try
         {
             try
@@ -112,7 +134,10 @@ public abstract partial class DriverBase
         }
         finally
         {
-            _gate.Release();
+            if (gateHeld)
+            {
+                _gate.Release();
+            }
         }
 
         await AwaitKeepAliveAsync(keepAlive).ConfigureAwait(false);
@@ -141,6 +166,9 @@ public abstract partial class DriverBase
         _state = state;
         StateChanged?.Invoke(this, new DriverStateChangedEventArgs(previous, state));
     }
+
+    /// <summary>Releases resources owned by the derived driver. Called by <see cref="DisposeAsync"/>.</summary>
+    protected virtual ValueTask DisposeCoreAsync() => ValueTask.CompletedTask;
 
     /// <summary>Verifies that the driver declares a capability before the request is sent.</summary>
     /// <param name="capability">Required capability.</param>

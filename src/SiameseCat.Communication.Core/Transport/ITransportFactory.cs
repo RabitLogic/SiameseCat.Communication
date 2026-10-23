@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Drivers;
+
+namespace SiameseCat.Communication.Transport;
 
 /// <summary>Creates the transport that a driver talks through.</summary>
 /// <remarks>

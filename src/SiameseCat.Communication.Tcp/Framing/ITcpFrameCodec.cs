@@ -1,4 +1,7 @@
-namespace SiameseCat.Communication.Tcp;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>
 /// Turns payloads into wire frames and back. Implement it to support a framing scheme the built-in

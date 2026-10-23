@@ -1,4 +1,5 @@
 using System.Text;
+
 using SiameseCat.Communication.Modbus;
 
 namespace SiameseCat.Tests.Modbus;

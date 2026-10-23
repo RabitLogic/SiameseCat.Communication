@@ -29,10 +29,10 @@ public sealed class S7DataStore
         int defaultDataBlockSize = 1024,
         bool autoCreateDataBlocks = true)
     {
-        _merkers = new byte[SimulatorBufferSizes.Validate(memorySize, nameof(memorySize))];
-        _inputs = new byte[SimulatorBufferSizes.Validate(inputSize, nameof(inputSize))];
-        _outputs = new byte[SimulatorBufferSizes.Validate(outputSize, nameof(outputSize))];
-        _defaultDataBlockSize = SimulatorBufferSizes.Validate(defaultDataBlockSize, nameof(defaultDataBlockSize));
+        _merkers = new byte[SimulatorLimits.Validate(memorySize, nameof(memorySize))];
+        _inputs = new byte[SimulatorLimits.Validate(inputSize, nameof(inputSize))];
+        _outputs = new byte[SimulatorLimits.Validate(outputSize, nameof(outputSize))];
+        _defaultDataBlockSize = SimulatorLimits.Validate(defaultDataBlockSize, nameof(defaultDataBlockSize));
         _autoCreateDataBlocks = autoCreateDataBlocks;
     }
 
@@ -242,7 +242,10 @@ public sealed class S7DataStore
         return true;
     }
 
-    /// <summary>Clears every area and every data block.</summary>
+    /// <summary>
+    /// Clears every area and zero-fills every existing data block. Data blocks stay defined, so a
+    /// client that already used a block keeps its size.
+    /// </summary>
     public void Reset()
     {
         lock (_sync)

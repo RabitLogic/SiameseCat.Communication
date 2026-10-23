@@ -1,4 +1,6 @@
-namespace SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
+
+namespace SiameseCat.Communication.Drivers;
 
 /// <summary>
 /// Template-method base class for device drivers. It owns the lifecycle state machine, the transaction
@@ -314,7 +316,7 @@ public abstract partial class DriverBase : IDeviceDriver, IReadable, IWritable, 
     /// <typeparam name="T">Result type.</typeparam>
     /// <param name="operation">Operation kind reported in metrics.</param>
     /// <param name="isWrite">Whether the operation is a write, which controls retry behavior.</param>
-    /// <param name="timeout">Per-call timeout; <see langword="null"/> uses <see cref="DriverConfiguration.Timeout"/>.</param>
+    /// <param name="timeout">Per-call timeout; <see langword="null"/> uses <see cref="CommunicationOptions.Timeout"/>.</param>
     /// <param name="body">Protocol-specific work.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected Task<T> ExecuteProtocolAsync<T>(
@@ -328,7 +330,4 @@ public abstract partial class DriverBase : IDeviceDriver, IReadable, IWritable, 
 
         return ExecuteAsync(body, isWrite, address: null, timeout, operation, cancellationToken);
     }
-
-    /// <summary>Releases resources owned by the derived driver.</summary>
-    protected virtual ValueTask DisposeCoreAsync() => ValueTask.CompletedTask;
 }

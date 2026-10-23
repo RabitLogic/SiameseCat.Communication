@@ -1,4 +1,4 @@
-namespace SiameseCat.Communication.Transport;
+namespace SiameseCat.Communication.Transport.Serial;
 
 /// <summary>
 /// The subset of serial port behaviour that <see cref="SerialPortTransport"/> relies on.

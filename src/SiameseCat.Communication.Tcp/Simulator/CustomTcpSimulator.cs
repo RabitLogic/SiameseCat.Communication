@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
-using Microsoft.Extensions.Logging;
-using SiameseCat.Communication.Tcp;
+
+using SiameseCat.Communication.Diagnostics;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport.Tcp;
 
 namespace SiameseCat.Communication.Simulation.Tcp;
 
@@ -23,36 +25,6 @@ public delegate Task CustomTcpConnectionHandler(
 /// </remarks>
 public sealed class CustomTcpSimulator : IAsyncDisposable
 {
-    private static readonly Action<ILogger, EndPoint?, Exception?> LogConnected =
-        LoggerMessage.Define<EndPoint?>(
-            LogLevel.Debug,
-            new EventId(101, "TcpConnected"),
-            "Custom TCP client connected: {Endpoint}.");
-
-    private static readonly Action<ILogger, EndPoint?, int, Exception?> LogRejected =
-        LoggerMessage.Define<EndPoint?, int>(
-            LogLevel.Warning,
-            new EventId(102, "TcpRejected"),
-            "Custom TCP server rejected {Endpoint}: {MaxConnections} connections are already open.");
-
-    private static readonly Action<ILogger, string, Exception?> LogDisconnectedWithReason =
-        LoggerMessage.Define<string>(
-            LogLevel.Debug,
-            new EventId(103, "TcpDisconnected"),
-            "Custom TCP client disconnected: {Reason}.");
-
-    private static readonly Action<ILogger, Exception?> LogDisconnected =
-        LoggerMessage.Define(
-            LogLevel.Debug,
-            new EventId(104, "TcpDisconnected"),
-            "Custom TCP client disconnected.");
-
-    private static readonly Action<ILogger, Exception?> LogHandlerFault =
-        LoggerMessage.Define(
-            LogLevel.Error,
-            new EventId(105, "TcpHandlerFault"),
-            "The custom TCP connection handler failed.");
-
     private readonly CustomTcpSimulatorOptions _options;
     private readonly CustomTcpConnectionHandler _handler;
     private readonly ITcpFrameCodec _codec;
@@ -191,10 +163,8 @@ public sealed class CustomTcpSimulator : IAsyncDisposable
             {
                 if (_options.MaxConnections > 0 && _clients.Count >= _options.MaxConnections)
                 {
-                    if (_options.Logger is not null)
-                    {
-                        LogRejected(_options.Logger, client.Client.RemoteEndPoint, _options.MaxConnections, null);
-                    }
+                    _options.Logger?.Warning(
+                        $"Custom TCP server rejected {client.Client.RemoteEndPoint}: {_options.MaxConnections} connections are already open.");
 
                     client.Dispose();
                     continue;
@@ -204,10 +174,7 @@ public sealed class CustomTcpSimulator : IAsyncDisposable
             }
 
             Statistics.RecordConnectionAccepted();
-            if (_options.Logger is not null)
-            {
-                LogConnected(_options.Logger, client.Client.RemoteEndPoint, null);
-            }
+            _options.Logger?.Debug($"Custom TCP client connected: {client.Client.RemoteEndPoint}.");
 
             var connection = new CustomTcpConnection(
                 client.GetStream(),
@@ -236,18 +203,12 @@ public sealed class CustomTcpSimulator : IAsyncDisposable
         }
         catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or ConnectionClosedException)
         {
-            if (_options.Logger is not null)
-            {
-                LogDisconnectedWithReason(_options.Logger, ex.Message, null);
-            }
+            _options.Logger?.Debug($"Custom TCP client disconnected: {ex.Message}.");
         }
         catch (Exception ex)
         {
             Statistics.RecordHandlerFault();
-            if (_options.Logger is not null)
-            {
-                LogHandlerFault(_options.Logger, ex);
-            }
+            _options.Logger?.Error("The custom TCP connection handler failed.", ex);
         }
         finally
         {
@@ -256,10 +217,7 @@ public sealed class CustomTcpSimulator : IAsyncDisposable
                 _clients.Remove(client);
             }
 
-            if (_options.Logger is not null)
-            {
-                LogDisconnected(_options.Logger, null);
-            }
+            _options.Logger?.Debug("Custom TCP client disconnected.");
         }
     }
 

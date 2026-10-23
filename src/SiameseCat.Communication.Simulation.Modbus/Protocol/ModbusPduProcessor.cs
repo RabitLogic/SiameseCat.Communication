@@ -1,4 +1,5 @@
 using SiameseCat.Communication;
+using SiameseCat.Communication.Diagnostics;
 
 namespace SiameseCat.Communication.Simulation.Modbus;
 
@@ -30,7 +31,7 @@ internal sealed partial class ModbusPduProcessor
         _runIndicator = runIndicator;
         _logger = logger;
 
-        var objects = deviceIdentification ?? ModbusSimulatorIdentifier.CreateDefaultDeviceIdentification();
+        var objects = deviceIdentification ?? ModbusSimulatorDefaults.CreateDefaultDeviceIdentification();
         var list = new List<KeyValuePair<byte, byte[]>>(objects.Count);
         var level = (byte)1;
         foreach (var pair in objects)

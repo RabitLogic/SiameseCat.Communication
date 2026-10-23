@@ -1,6 +1,10 @@
 using System.Net.Sockets;
+
 using SiameseCat.Communication;
-namespace SiameseCat.Communication.Transport;
+using SiameseCat.Communication.Exceptions;
+using SiameseCat.Communication.Transport;
+
+namespace SiameseCat.Communication.Transport.Tcp;
 
 /// <summary>Raw TCP client transport.</summary>
 public sealed class TcpTransport : ITransport
