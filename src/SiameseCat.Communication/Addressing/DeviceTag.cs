@@ -1,10 +1,10 @@
 namespace SiameseCat.Communication;
 
 /// <summary>
-/// Describes a PLC tag: a named address plus optional engineering scaling.
+/// Describes a device tag: a named address plus optional engineering scaling.
 /// </summary>
 /// <remarks>Tags are deliberately simple: they carry metadata, not protocol knowledge.</remarks>
-public sealed class PlcTag
+public sealed class DeviceTag
 {
     /// <summary>Creates a tag.</summary>
     /// <param name="name">Unique tag name used by the application.</param>
@@ -13,10 +13,10 @@ public sealed class PlcTag
     /// <param name="scale">Multiplier applied by <see cref="ToEngineering"/>.</param>
     /// <param name="offset">Offset applied by <see cref="ToEngineering"/>.</param>
     /// <param name="unit">Optional engineering unit such as <c>°C</c>.</param>
-    public PlcTag(
+    public DeviceTag(
         string name,
         string address,
-        PlcDataType dataType,
+        DeviceDataType dataType,
         double scale = 1.0,
         double offset = 0.0,
         string? unit = null)
@@ -46,7 +46,7 @@ public sealed class PlcTag
     public string Address { get; }
 
     /// <summary>Gets the data type.</summary>
-    public PlcDataType DataType { get; }
+    public DeviceDataType DataType { get; }
 
     /// <summary>Gets the multiplier applied by <see cref="ToEngineering"/>.</summary>
     public double Scale { get; }
@@ -58,7 +58,7 @@ public sealed class PlcTag
     public string? Unit { get; }
 
     /// <summary>Converts a raw value to an engineering value: <c>raw * Scale + Offset</c>.</summary>
-    /// <param name="raw">Raw numeric value read from the PLC.</param>
+    /// <param name="raw">Raw numeric value read from the device.</param>
     public double ToEngineering(double raw) => raw * Scale + Offset;
 
     /// <summary>Converts an engineering value back to a raw value: <c>(value - Offset) / Scale</c>.</summary>

@@ -13,13 +13,13 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
     <PackageId>SiameseCat.Communication</PackageId>
-    <Version>0.9.1</Version>
+    <Version>0.9.2</Version>
     <Authors>RabitLogic</Authors>
-    <Description>Industrial communication library for .NET: Modbus RTU/TCP, S7, pluggable PLC drivers, TCP/UDP/serial transports, Modbus and S7 slaves, dependency injection, health checks and metrics.</Description>
+    <Description>Industrial communication library for .NET: Modbus RTU/TCP, S7, pluggable device drivers, TCP/UDP/serial transports, Modbus and S7 slaves, dependency injection, health checks and metrics.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/RabitLogic/SiameseCat.Communication</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>plc;modbus;modbus-tcp;modbus-rtu;s7;industrial;automation;serialport;scada</PackageTags>
+    <PackageTags>modbus;modbus-tcp;modbus-rtu;s7;industrial;automation;serialport;scada</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

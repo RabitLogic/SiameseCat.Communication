@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace SiameseCat.Communication;
 
 /// <summary>Kind of operation a metric belongs to.</summary>
-public enum PlcOperation
+public enum CommunicationOperation
 {
     /// <summary>Single read.</summary>
     Read,
@@ -29,7 +29,7 @@ public enum PlcOperation
 /// Latency percentiles come from a 64-bucket logarithmic histogram (four buckets per octave, so every
 /// bucket is at most ~19 % wide and the last one covers ~55 s), which keeps recording allocation-free.
 /// </remarks>
-public sealed class PlcMetrics
+public sealed class CommunicationMetrics
 {
     private const int BucketCount = 64;
     private const int OperationCount = 6;
@@ -51,13 +51,13 @@ public sealed class PlcMetrics
 
     /// <summary>Records a request attempt.</summary>
     /// <param name="operation">Operation kind.</param>
-    public void RecordRequest(PlcOperation operation) =>
+    public void RecordRequest(CommunicationOperation operation) =>
         Interlocked.Increment(ref _requests[(int)operation]);
 
     /// <summary>Records a failed attempt and classifies the error.</summary>
     /// <param name="operation">Operation kind.</param>
     /// <param name="error">Error that caused the failure, when available.</param>
-    public void RecordFailure(PlcOperation operation, Exception? error = null)
+    public void RecordFailure(CommunicationOperation operation, Exception? error = null)
     {
         Interlocked.Increment(ref _failures[(int)operation]);
         Interlocked.Increment(ref _failureTotal);
@@ -101,14 +101,14 @@ public sealed class PlcMetrics
     }
 
     /// <summary>Takes a consistent snapshot of the counters.</summary>
-    public PlcMetricsSnapshot Snapshot()
+    public CommunicationMetricsSnapshot Snapshot()
     {
         var requests = Sum(_requests);
         var ticks = Interlocked.Read(ref _latencyTicks);
         var averageMs = requests == 0 ? 0 : ticks * 1000.0 / Stopwatch.Frequency / requests;
         var maxMs = Interlocked.Read(ref _maxLatencyTicks) * 1000.0 / Stopwatch.Frequency;
 
-        return new PlcMetricsSnapshot(
+        return new CommunicationMetricsSnapshot(
             requests,
             Interlocked.Read(ref _failureTotal),
             Interlocked.Read(ref _retries),
@@ -118,14 +118,14 @@ public sealed class PlcMetrics
             Math.Min(Percentile(0.50, requests), maxMs),
             Math.Min(Percentile(0.95, requests), maxMs),
             maxMs,
-            new PlcOperationCounts(
-                Interlocked.Read(ref _requests[(int)PlcOperation.Read]),
-                Interlocked.Read(ref _requests[(int)PlcOperation.Write]),
-                Interlocked.Read(ref _requests[(int)PlcOperation.ReadBatch]),
-                Interlocked.Read(ref _requests[(int)PlcOperation.WriteBatch]),
-                Interlocked.Read(ref _requests[(int)PlcOperation.ReadWrite]),
-                Interlocked.Read(ref _requests[(int)PlcOperation.Ping])),
-            new PlcFailureCounts(
+            new CommunicationOperationCounts(
+                Interlocked.Read(ref _requests[(int)CommunicationOperation.Read]),
+                Interlocked.Read(ref _requests[(int)CommunicationOperation.Write]),
+                Interlocked.Read(ref _requests[(int)CommunicationOperation.ReadBatch]),
+                Interlocked.Read(ref _requests[(int)CommunicationOperation.WriteBatch]),
+                Interlocked.Read(ref _requests[(int)CommunicationOperation.ReadWrite]),
+                Interlocked.Read(ref _requests[(int)CommunicationOperation.Ping])),
+            new CommunicationFailureCounts(
                 Interlocked.Read(ref _timeouts),
                 Interlocked.Read(ref _connectionClosed),
                 Interlocked.Read(ref _protocol),
@@ -198,7 +198,7 @@ public sealed class PlcMetrics
 /// <param name="WriteBatch">Batch writes.</param>
 /// <param name="ReadWrite">Atomic read-write exchanges (Modbus function 23).</param>
 /// <param name="Ping">Health probes.</param>
-public readonly record struct PlcOperationCounts(
+public readonly record struct CommunicationOperationCounts(
     long Read,
     long Write,
     long ReadBatch,
@@ -211,13 +211,13 @@ public readonly record struct PlcOperationCounts(
 /// <param name="ConnectionClosed">Connections lost or refused.</param>
 /// <param name="Protocol">Protocol or device errors.</param>
 /// <param name="Other">Any other failure.</param>
-public readonly record struct PlcFailureCounts(
+public readonly record struct CommunicationFailureCounts(
     long Timeouts,
     long ConnectionClosed,
     long Protocol,
     long Other);
 
-/// <summary>Immutable snapshot of <see cref="PlcMetrics"/>.</summary>
+/// <summary>Immutable snapshot of <see cref="CommunicationMetrics"/>.</summary>
 /// <param name="Requests">Number of request attempts.</param>
 /// <param name="Failures">Number of failed attempts.</param>
 /// <param name="Retries">Number of retries.</param>
@@ -229,7 +229,7 @@ public readonly record struct PlcFailureCounts(
 /// <param name="MaxLatencyMs">Maximum observed latency in milliseconds.</param>
 /// <param name="Operations">Per-operation request counts.</param>
 /// <param name="FailureKinds">Failure counts grouped by error kind.</param>
-public readonly record struct PlcMetricsSnapshot(
+public readonly record struct CommunicationMetricsSnapshot(
     long Requests,
     long Failures,
     long Retries,
@@ -239,8 +239,8 @@ public readonly record struct PlcMetricsSnapshot(
     double P50LatencyMs,
     double P95LatencyMs,
     double MaxLatencyMs,
-    PlcOperationCounts Operations,
-    PlcFailureCounts FailureKinds)
+    CommunicationOperationCounts Operations,
+    CommunicationFailureCounts FailureKinds)
 {
     /// <inheritdoc/>
     public override string ToString() =>

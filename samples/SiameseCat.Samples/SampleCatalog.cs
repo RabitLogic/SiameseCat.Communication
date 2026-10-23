@@ -42,6 +42,7 @@ public static class SampleCatalog
         // Transport track
         new RawTcpTransportSample(),
         new CustomTransportSample(),
+        new CustomTcpProtocolSample(),
     };
 
     /// <summary>Gets the group (the part of the id before the slash) of a sample.</summary>

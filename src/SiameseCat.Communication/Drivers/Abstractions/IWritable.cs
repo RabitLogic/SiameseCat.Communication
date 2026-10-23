@@ -7,7 +7,7 @@ public interface IWritable
     /// <param name="address">Address to write.</param>
     /// <param name="value">Value to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task WriteAsync(PlcAddress address, PlcValue value, CancellationToken cancellationToken = default);
+    Task WriteAsync(DeviceAddress address, DeviceValue value, CancellationToken cancellationToken = default);
 
     /// <summary>Writes one value with a per-call timeout that overrides <see cref="DriverConfiguration.Timeout"/>.</summary>
     /// <param name="address">Address to write.</param>
@@ -15,8 +15,8 @@ public interface IWritable
     /// <param name="timeout">Timeout for this call.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task WriteAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         TimeSpan timeout,
         CancellationToken cancellationToken = default);
 }

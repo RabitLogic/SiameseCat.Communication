@@ -52,7 +52,7 @@ public sealed partial class S7Client : IAsyncDisposable
         {
             _transport = new LoggingTransport(
                 _transport,
-                options.Logger ?? NullPlcLogger.Instance,
+                options.Logger ?? NullCommunicationLogger.Instance,
                 "S7Client");
         }
     }
@@ -60,13 +60,13 @@ public sealed partial class S7Client : IAsyncDisposable
     /// <summary>Gets whether the underlying transport is currently connected.</summary>
     public bool IsConnected => _transport.IsOpen;
 
-    /// <summary>Gets the PDU size negotiated with the PLC during the last successful connection.</summary>
+    /// <summary>Gets the PDU size negotiated with the device during the last successful connection.</summary>
     public int PduSize => _pduSize;
 
-    /// <summary>Connects to the PLC, establishing the COTP connection and negotiating the S7 PDU size.</summary>
+    /// <summary>Connects to the device, establishing the COTP connection and negotiating the S7 PDU size.</summary>
     /// <exception cref="CommunicationTimeoutException">The connection or handshake timed out.</exception>
     /// <exception cref="CommunicationException">The endpoint could not be reached.</exception>
-    /// <exception cref="S7Exception">The PLC rejected the connection or returned an invalid handshake.</exception>
+    /// <exception cref="S7Exception">The device rejected the connection or returned an invalid handshake.</exception>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -84,7 +84,7 @@ public sealed partial class S7Client : IAsyncDisposable
 
             try
             {
-                await ConnectPlcAsync(cancellationToken).ConfigureAwait(false);
+                await ConnectDeviceAsync(cancellationToken).ConfigureAwait(false);
             }
             catch
             {
@@ -150,7 +150,7 @@ public sealed partial class S7Client : IAsyncDisposable
         });
     }
 
-    private async Task ConnectPlcAsync(CancellationToken cancellationToken)
+    private async Task ConnectDeviceAsync(CancellationToken cancellationToken)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(_options.ConnectTimeout);
@@ -163,7 +163,7 @@ public sealed partial class S7Client : IAsyncDisposable
 
             if (confirmLength < 11 || _receiveBuffer[5] != CotpConnectionConfirm)
             {
-                throw new S7Exception("The PLC rejected the ISO-on-TCP connection request.");
+                throw new S7Exception("The device rejected the ISO-on-TCP connection request.");
             }
 
             var response = await ExecuteJobAttemptAsync(
@@ -171,13 +171,13 @@ public sealed partial class S7Client : IAsyncDisposable
 
             if (response.Parameter.Length < 8 || response.Parameter[0] != SetupCommunicationFunction)
             {
-                throw new S7Exception("The PLC returned an unexpected setup communication response.");
+                throw new S7Exception("The device returned an unexpected setup communication response.");
             }
 
             var negotiatedPduSize = (response.Parameter[6] << 8) | response.Parameter[7];
             if (negotiatedPduSize < MinimumPduSize)
             {
-                throw new S7Exception($"The PLC negotiated an invalid PDU size ({negotiatedPduSize}).");
+                throw new S7Exception($"The device negotiated an invalid PDU size ({negotiatedPduSize}).");
             }
 
             _pduSize = Math.Min(negotiatedPduSize, MaximumPduSize);
@@ -195,7 +195,7 @@ public sealed partial class S7Client : IAsyncDisposable
         _pduReference = 0;
         _pduSize = 240;
         await _transport.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await ConnectPlcAsync(cancellationToken).ConfigureAwait(false);
+        await ConnectDeviceAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void EnsureConnected()

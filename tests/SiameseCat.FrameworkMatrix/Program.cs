@@ -103,8 +103,8 @@ static async Task<int> CheckModbusRoundTripAsync()
 
 static int CheckValueModel()
 {
-    var address = new PlcAddress("holding", 10, PlcDataType.UInt16, length: 4);
-    var array = PlcValue.FromUInt16Array(new ushort[] { 1, 2, 3, 4 });
+    var address = new DeviceAddress("holding", 10, DeviceDataType.UInt16, length: 4);
+    var array = DeviceValue.FromUInt16Array(new ushort[] { 1, 2, 3, 4 });
     var crc = ModbusCrc16.Compute(new byte[] { 1, 3, 0, 0, 0, 1 });
 
     var ok = address.ByteSize == 8

@@ -110,7 +110,7 @@ public class ModbusPduFunctionTests
         {
             o.DeviceIdentification.Clear();
             o.DeviceIdentification[0x00] = "ACME";
-            o.DeviceIdentification[0x01] = "PLC-1";
+            o.DeviceIdentification[0x01] = "DEV-1";
             o.DeviceIdentification[0x02] = "2.1";
         });
 
@@ -120,7 +120,7 @@ public class ModbusPduFunctionTests
         {
             0x2B, 0x0E, 0x01, 0x01, 0x00, 0x00, 0x03,
             0x00, 0x04, (byte)'A', (byte)'C', (byte)'M', (byte)'E',
-            0x01, 0x05, (byte)'P', (byte)'L', (byte)'C', (byte)'-', (byte)'1',
+            0x01, 0x05, (byte)'D', (byte)'E', (byte)'V', (byte)'-', (byte)'1',
             0x02, 0x03, (byte)'2', (byte)'.', (byte)'1',
         };
 

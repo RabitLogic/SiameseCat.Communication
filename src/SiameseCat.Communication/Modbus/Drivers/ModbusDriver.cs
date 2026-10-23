@@ -4,7 +4,7 @@ using SiameseCat.Communication;
 namespace SiameseCat.Communication.Modbus;
 
 /// <summary>
-/// Modbus driver implementing the pluggable <see cref="IPlcDriver"/> contract on top of the
+/// Modbus driver implementing the pluggable <see cref="IDeviceDriver"/> contract on top of the
 /// Modbus PDU client. TCP and RTU share all address and data conversion logic; only the client
 /// (framing) differs.
 /// </summary>
@@ -24,7 +24,7 @@ public partial class ModbusDriver : DriverBase
     /// <param name="client">Modbus client that performs the framed exchange.</param>
     /// <param name="configuration">Connection and retry settings.</param>
     /// <param name="unitId">Unit identifier used for requests.</param>
-    /// <param name="stringEncoding">Encoding used for <see cref="PlcDataType.String"/>; defaults to ASCII.</param>
+    /// <param name="stringEncoding">Encoding used for <see cref="DeviceDataType.String"/>; defaults to ASCII.</param>
     /// <param name="swapBytes">Swaps the two bytes inside every register for strings and raw data.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="metrics">Optional metrics collector.</param>
@@ -34,8 +34,8 @@ public partial class ModbusDriver : DriverBase
         byte unitId,
         Encoding? stringEncoding = null,
         bool swapBytes = false,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null)
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null)
         : this(
             client,
             configuration,
@@ -58,7 +58,7 @@ public partial class ModbusDriver : DriverBase
     /// <param name="unitId">Unit identifier used for requests.</param>
     /// <param name="descriptor">Descriptor reported by the driver.</param>
     /// <param name="addressParser">Parser that maps native addresses to Modbus regions; defaults to <see cref="ModbusAddressParser"/>.</param>
-    /// <param name="stringEncoding">Encoding used for <see cref="PlcDataType.String"/>; defaults to ASCII.</param>
+    /// <param name="stringEncoding">Encoding used for <see cref="DeviceDataType.String"/>; defaults to ASCII.</param>
     /// <param name="swapBytes">Swaps the two bytes inside every register for strings and raw data.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="metrics">Optional metrics collector.</param>
@@ -67,11 +67,11 @@ public partial class ModbusDriver : DriverBase
         DriverConfiguration configuration,
         byte unitId,
         DriverDescriptor descriptor,
-        IPlcAddressParser? addressParser,
+        IDeviceAddressParser? addressParser,
         Encoding? stringEncoding,
         bool swapBytes,
-        IPlcLogger? logger,
-        PlcMetrics? metrics)
+        ICommunicationLogger? logger,
+        CommunicationMetrics? metrics)
         : base(descriptor, addressParser ?? new ModbusAddressParser(), configuration, logger, metrics)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
@@ -99,9 +99,9 @@ public partial class ModbusDriver : DriverBase
     /// <returns>The registers read before the write is applied.</returns>
     /// <exception cref="ArgumentException">A region is not a holding register region.</exception>
     public Task<ushort[]> ReadWriteRegistersAsync(
-        PlcAddress writeAddress,
+        DeviceAddress writeAddress,
         IReadOnlyList<ushort> writeValues,
-        PlcAddress readAddress,
+        DeviceAddress readAddress,
         ushort readQuantity,
         TimeSpan? timeout = null,
         CancellationToken cancellationToken = default)
@@ -123,7 +123,7 @@ public partial class ModbusDriver : DriverBase
         }
 
         return ExecuteProtocolAsync(
-            PlcOperation.ReadWrite,
+            CommunicationOperation.ReadWrite,
             isWrite: true,
             timeout,
             token => _client.ReadWriteMultipleRegistersAsync(

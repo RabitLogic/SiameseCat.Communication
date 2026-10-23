@@ -8,7 +8,7 @@ namespace SiameseCat.Soak;
 /// </summary>
 /// <remarks>
 /// The supervisor part is the pattern an application should copy: when a cycle fails and the driver is
-/// <see cref="DriverState.Faulted"/>, the worker calls <see cref="IPlcDriver.ConnectAsync"/> again instead of
+/// <see cref="DriverState.Faulted"/>, the worker calls <see cref="IDeviceDriver.ConnectAsync"/> again instead of
 /// hammering requests at a dead link.
 /// </remarks>
 internal sealed class SoakWorker
@@ -66,7 +66,7 @@ internal sealed class SoakWorker
 
                 if (cycle % _options.WriteEvery == 0)
                 {
-                    await writer.WriteAsync(writeAddress, PlcValue.FromUInt16((ushort)(cycle & 0xFFFF)), token)
+                    await writer.WriteAsync(writeAddress, DeviceValue.FromUInt16((ushort)(cycle & 0xFFFF)), token)
                         .ConfigureAwait(false);
                 }
 
@@ -141,9 +141,9 @@ internal sealed class SoakWorker
         }
     }
 
-    private static PlcAddress[] BuildAddresses(SoakOptions options, IPlcDriver driver)
+    private static DeviceAddress[] BuildAddresses(SoakOptions options, IDeviceDriver driver)
     {
-        var addresses = new PlcAddress[options.RegisterCount];
+        var addresses = new DeviceAddress[options.RegisterCount];
         for (var i = 0; i < addresses.Length; i++)
         {
             addresses[i] = driver.AddressParser.Parse($"HR{i}");
@@ -152,7 +152,7 @@ internal sealed class SoakWorker
         return addresses;
     }
 
-    private static IPlcDriver CreateDriver(DriverRegistry registry, SoakOptions options, int port) =>
+    private static IDeviceDriver CreateDriver(DriverRegistry registry, SoakOptions options, int port) =>
         registry.Create("modbus", new DriverConfiguration
         {
             Transport = TransportKind.Tcp,

@@ -46,18 +46,18 @@ public class ModbusAddressParserTests
     [Fact]
     public void Parse_UsesRegionDefaultDataType()
     {
-        Assert.Equal(PlcDataType.Bool, _parser.Parse("00001").DataType);
-        Assert.Equal(PlcDataType.Bool, _parser.Parse("10001").DataType);
-        Assert.Equal(PlcDataType.UInt16, _parser.Parse("40001").DataType);
-        Assert.Equal(PlcDataType.UInt16, _parser.Parse("30001").DataType);
+        Assert.Equal(DeviceDataType.Bool, _parser.Parse("00001").DataType);
+        Assert.Equal(DeviceDataType.Bool, _parser.Parse("10001").DataType);
+        Assert.Equal(DeviceDataType.UInt16, _parser.Parse("40001").DataType);
+        Assert.Equal(DeviceDataType.UInt16, _parser.Parse("30001").DataType);
     }
 
     [Fact]
     public void Parse_OverridesDataType()
     {
-        var address = _parser.Parse("40001", PlcDataType.Float);
+        var address = _parser.Parse("40001", DeviceDataType.Float);
 
-        Assert.Equal(PlcDataType.Float, address.DataType);
+        Assert.Equal(DeviceDataType.Float, address.DataType);
         Assert.Equal(ModbusAddressParser.HoldingRegisterRegion, address.Region);
     }
 
@@ -85,7 +85,7 @@ public class ModbusDriverTests
 
         var value = await driver.ReadAsync(driver.AddressParser.Parse("40001"));
 
-        Assert.Equal(PlcValue.FromUInt16(42), value);
+        Assert.Equal(DeviceValue.FromUInt16(42), value);
     }
 
     [Fact]
@@ -98,19 +98,19 @@ public class ModbusDriverTests
 
         var value = await driver.ReadAsync(driver.AddressParser.Parse("00001"));
 
-        Assert.Equal(PlcValue.FromBool(true), value);
+        Assert.Equal(DeviceValue.FromBool(true), value);
     }
 
     [Fact]
     public async Task ReadFloat_UsesTwoRegisters()
     {
         var transport = new MockTransport();
-        var bytes = PlcValueCodec.ToBytes(PlcValue.FromFloat(1.5f));
+        var bytes = DeviceValueCodec.ToBytes(DeviceValue.FromFloat(1.5f));
         transport.EnqueueResponse(ProtocolFrames.Mbap(1, 1, 0x03, 0x04, bytes[0], bytes[1], bytes[2], bytes[3]));
         await using var driver = CreateDriver(transport);
         await driver.ConnectAsync();
 
-        var value = await driver.ReadAsync(driver.AddressParser.Parse("HR10", PlcDataType.Float));
+        var value = await driver.ReadAsync(driver.AddressParser.Parse("HR10", DeviceDataType.Float));
 
         Assert.Equal(1.5f, value.AsFloat());
         Assert.Equal(new byte[] { 0x00, 0x0A, 0x00, 0x02 }, transport.Writes[0][8..12]);
@@ -125,7 +125,7 @@ public class ModbusDriverTests
         await driver.ConnectAsync();
 
         var value = await driver.ReadAsync(
-            driver.AddressParser.Parse("HR20", PlcDataType.String).WithLength(4));
+            driver.AddressParser.Parse("HR20", DeviceDataType.String).WithLength(4));
 
         Assert.Equal("AB", value.AsString());
     }
@@ -139,7 +139,7 @@ public class ModbusDriverTests
         await driver.ConnectAsync();
 
         var value = await driver.ReadAsync(
-            driver.AddressParser.Parse("HR30", PlcDataType.Raw).WithLength(3));
+            driver.AddressParser.Parse("HR30", DeviceDataType.Raw).WithLength(3));
 
         Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, value.AsBytes());
     }
@@ -152,7 +152,7 @@ public class ModbusDriverTests
         await using var driver = CreateDriver(transport);
         await driver.ConnectAsync();
 
-        await driver.WriteAsync(driver.AddressParser.Parse("40002"), PlcValue.FromUInt16(7));
+        await driver.WriteAsync(driver.AddressParser.Parse("40002"), DeviceValue.FromUInt16(7));
 
         Assert.Equal(new byte[] { 0x06, 0x00, 0x01, 0x00, 0x07 }, transport.Writes[0][7..]);
     }
@@ -165,7 +165,7 @@ public class ModbusDriverTests
         await using var driver = CreateDriver(transport);
         await driver.ConnectAsync();
 
-        await driver.WriteAsync(driver.AddressParser.Parse("C3"), PlcValue.FromBool(true));
+        await driver.WriteAsync(driver.AddressParser.Parse("C3"), DeviceValue.FromBool(true));
 
         Assert.Equal(new byte[] { 0x05, 0x00, 0x03, 0xFF, 0x00 }, transport.Writes[0][7..]);
     }
@@ -178,7 +178,7 @@ public class ModbusDriverTests
         await driver.ConnectAsync();
 
         await Assert.ThrowsAsync<NotSupportedException>(
-            () => driver.WriteAsync(driver.AddressParser.Parse("30001"), PlcValue.FromUInt16(1)));
+            () => driver.WriteAsync(driver.AddressParser.Parse("30001"), DeviceValue.FromUInt16(1)));
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class ModbusDriverTests
             driver.AddressParser.Parse("HR1"),
         });
 
-        Assert.Equal(new[] { PlcValue.FromUInt16(10), PlcValue.FromUInt16(11) }, values);
+        Assert.Equal(new[] { DeviceValue.FromUInt16(10), DeviceValue.FromUInt16(11) }, values);
         Assert.Single(transport.Writes);
     }
 
@@ -214,8 +214,8 @@ public class ModbusDriverTests
             driver.AddressParser.Parse("HR0"),
         });
 
-        Assert.Equal(PlcValue.FromBool(true), values[0]);
-        Assert.Equal(PlcValue.FromUInt16(5), values[1]);
+        Assert.Equal(DeviceValue.FromBool(true), values[0]);
+        Assert.Equal(DeviceValue.FromUInt16(5), values[1]);
     }
 
     [Fact]
@@ -256,9 +256,9 @@ public class ModbusDriverTests
 
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(driver.AddressParser.Parse("HR0"), PlcValue.FromUInt16(10)),
-            new PlcWriteRequest(driver.AddressParser.Parse("HR1"), PlcValue.FromUInt16(11)),
-            new PlcWriteRequest(driver.AddressParser.Parse("HR2"), PlcValue.FromUInt16(12)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("HR0"), DeviceValue.FromUInt16(10)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("HR1"), DeviceValue.FromUInt16(11)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("HR2"), DeviceValue.FromUInt16(12)),
         });
 
         Assert.Single(transport.Writes);
@@ -278,8 +278,8 @@ public class ModbusDriverTests
 
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(driver.AddressParser.Parse("HR0"), PlcValue.FromUInt16(1)),
-            new PlcWriteRequest(driver.AddressParser.Parse("HR5"), PlcValue.FromUInt16(2)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("HR0"), DeviceValue.FromUInt16(1)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("HR5"), DeviceValue.FromUInt16(2)),
         });
 
         Assert.Equal(2, transport.Writes.Count);
@@ -296,9 +296,9 @@ public class ModbusDriverTests
 
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(driver.AddressParser.Parse("C0"), PlcValue.FromBool(true)),
-            new PlcWriteRequest(driver.AddressParser.Parse("C1"), PlcValue.FromBool(false)),
-            new PlcWriteRequest(driver.AddressParser.Parse("C2"), PlcValue.FromBool(true)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("C0"), DeviceValue.FromBool(true)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("C1"), DeviceValue.FromBool(false)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("C2"), DeviceValue.FromBool(true)),
         });
 
         Assert.Single(transport.Writes);
@@ -317,7 +317,7 @@ public class ModbusDriverTests
         await Assert.ThrowsAsync<NotSupportedException>(
             () => driver.WriteBatchAsync(new[]
             {
-                new PlcWriteRequest(driver.AddressParser.Parse("IR0"), PlcValue.FromUInt16(1)),
+                new DeviceWriteRequest(driver.AddressParser.Parse("IR0"), DeviceValue.FromUInt16(1)),
             }));
     }
 
@@ -339,7 +339,7 @@ public class ModbusDriverTests
         await using var driver = CreateDriver(transport, unitId: 0);
         await driver.ConnectAsync();
 
-        await driver.WriteAsync(driver.AddressParser.Parse("HR0"), PlcValue.FromUInt16(5));
+        await driver.WriteAsync(driver.AddressParser.Parse("HR0"), DeviceValue.FromUInt16(5));
 
         Assert.True(driver.IsBroadcast);
         Assert.Single(transport.Writes);
@@ -410,7 +410,7 @@ public class ModbusDriverTests
         await driver.ConnectAsync();
 
         var value = await driver.ReadAsync(
-            driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(3));
+            driver.AddressParser.Parse("HR0", DeviceDataType.UInt16).WithLength(3));
 
         Assert.True(value.IsArray);
         Assert.Equal(new ushort[] { 10, 20, 30 }, value.AsUInt16Array());
@@ -425,8 +425,8 @@ public class ModbusDriverTests
         await driver.ConnectAsync();
 
         await driver.WriteAsync(
-            driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(2),
-            PlcValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 }));
+            driver.AddressParser.Parse("HR0", DeviceDataType.UInt16).WithLength(2),
+            DeviceValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 }));
 
         var frame = transport.Writes[0];
         Assert.Equal(0x10, frame[7]);
@@ -442,8 +442,8 @@ public class ModbusDriverTests
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => driver.WriteAsync(
-                driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(2),
-                PlcValue.FromUInt16Array(new ushort[] { 1, 2, 3 })));
+                driver.AddressParser.Parse("HR0", DeviceDataType.UInt16).WithLength(2),
+                DeviceValue.FromUInt16Array(new ushort[] { 1, 2, 3 })));
     }
 
     private static ModbusDriver CreateDriver(MockTransport transport, byte unitId = 1)

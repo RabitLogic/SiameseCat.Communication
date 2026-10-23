@@ -1,15 +1,15 @@
 namespace SiameseCat.Communication;
 
-/// <summary>Reads tags through an <see cref="IPlcDriver"/>.</summary>
-public static class PlcTagExtensions
+/// <summary>Reads tags through an <see cref="IDeviceDriver"/>.</summary>
+public static class DeviceTagExtensions
 {
     /// <summary>Reads the value of a tag using the driver's address parser.</summary>
     /// <param name="driver">Connected driver.</param>
     /// <param name="tag">Tag to read.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static Task<PlcValue> ReadTagAsync(
-        this IPlcDriver driver,
-        PlcTag tag,
+    public static Task<DeviceValue> ReadTagAsync(
+        this IDeviceDriver driver,
+        DeviceTag tag,
         CancellationToken cancellationToken = default)
     {
         Guard.NotNull(driver, nameof(driver));
@@ -27,15 +27,15 @@ public static class PlcTagExtensions
     /// <param name="driver">Connected driver.</param>
     /// <param name="tags">Tags to read.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task<PlcValue[]> ReadTagsAsync(
-        this IPlcDriver driver,
-        IReadOnlyList<PlcTag> tags,
+    public static async Task<DeviceValue[]> ReadTagsAsync(
+        this IDeviceDriver driver,
+        IReadOnlyList<DeviceTag> tags,
         CancellationToken cancellationToken = default)
     {
         Guard.NotNull(driver, nameof(driver));
         Guard.NotNull(tags, nameof(tags));
 
-        var addresses = new PlcAddress[tags.Count];
+        var addresses = new DeviceAddress[tags.Count];
         for (var i = 0; i < tags.Count; i++)
         {
             addresses[i] = driver.AddressParser.Parse(tags[i].Address, tags[i].DataType);
@@ -51,7 +51,7 @@ public static class PlcTagExtensions
             throw new NotSupportedException($"Driver '{driver.Descriptor.Id}' does not support reading.");
         }
 
-        var values = new PlcValue[addresses.Length];
+        var values = new DeviceValue[addresses.Length];
         for (var i = 0; i < addresses.Length; i++)
         {
             values[i] = await readable.ReadAsync(addresses[i], cancellationToken).ConfigureAwait(false);

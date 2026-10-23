@@ -9,7 +9,7 @@ public sealed partial class S7Client
     /// <param name="address">Start address inside a DB, M, I or Q area.</param>
     /// <param name="count">Number of bytes to read. Large reads are split according to the negotiated PDU size.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The bytes returned by the PLC.</returns>
+    /// <returns>The bytes returned by the device.</returns>
     /// <exception cref="ArgumentException">The address is a bit address; use <see cref="ReadBoolAsync"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The requested range exceeds the S7 address space.</exception>
     public async Task<byte[]> ReadBytesAsync(
@@ -50,7 +50,7 @@ public sealed partial class S7Client
                 if (data.Length < chunk)
                 {
                     throw new ProtocolException(
-                        $"The PLC returned {data.Length} bytes but {chunk} were requested.");
+                        $"The device returned {data.Length} bytes but {chunk} were requested.");
                 }
 
                 Array.Copy(data, 0, result, offset, chunk);
@@ -169,7 +169,7 @@ public sealed partial class S7Client
         var currentLength = bytes[1];
         if (currentLength > maxLength || currentLength > bytes.Length - 2)
         {
-            throw new ProtocolException($"The PLC returned an invalid S7 string length ({currentLength}).");
+            throw new ProtocolException($"The device returned an invalid S7 string length ({currentLength}).");
         }
 
         return _options.StringEncoding.GetString(bytes, 2, currentLength);
@@ -222,7 +222,7 @@ public sealed partial class S7Client
                 if (raw[i].Length < expected)
                 {
                     throw new ProtocolException(
-                        $"The PLC returned {raw[i].Length} bytes for item {i} but {expected} were requested.");
+                        $"The device returned {raw[i].Length} bytes for item {i} but {expected} were requested.");
                 }
 
                 result[i] = raw[i].AsSpan(0, expected).ToArray();

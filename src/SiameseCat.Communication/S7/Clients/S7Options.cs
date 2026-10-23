@@ -7,22 +7,22 @@ namespace SiameseCat.Communication.S7;
 /// <summary>Options for an S7 client.</summary>
 public sealed class S7Options : CommunicationOptions
 {
-    /// <summary>PLC host name or IP address.</summary>
+    /// <summary>device host name or IP address.</summary>
     public string Host { get; set; } = "127.0.0.1";
 
     /// <summary>ISO-on-TCP port. Defaults to 102.</summary>
     public int Port { get; set; } = 102;
 
-    /// <summary>PLC rack. Defaults to 0.</summary>
+    /// <summary>device rack. Defaults to 0.</summary>
     public int Rack { get; set; }
 
-    /// <summary>PLC slot. Use 1 for S7-1200/1500 and 2 for S7-300/400. Defaults to 1.</summary>
+    /// <summary>device slot. Use 1 for S7-1200/1500 and 2 for S7-300/400. Defaults to 1.</summary>
     public int Slot { get; set; } = 1;
 
     /// <summary>Maximum time allowed for establishing the connection. Defaults to 5 seconds.</summary>
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
-    /// <summary>Disables Nagle's algorithm. Defaults to <see langword="true"/>, which is desirable for PLC traffic.</summary>
+    /// <summary>Disables Nagle's algorithm. Defaults to <see langword="true"/>, which is desirable for device traffic.</summary>
     public bool NoDelay { get; set; } = true;
 
     /// <summary>Enables TCP keep-alive probes.</summary>

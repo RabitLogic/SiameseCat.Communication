@@ -7,8 +7,8 @@ public interface IBatchReadable
     /// <param name="addresses">Addresses to read.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>One value per address, in the same order.</returns>
-    Task<PlcValue[]> ReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    Task<DeviceValue[]> ReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken = default);
 
     /// <summary>Reads several values with a per-call timeout that overrides <see cref="DriverConfiguration.Timeout"/>.</summary>
@@ -16,8 +16,8 @@ public interface IBatchReadable
     /// <param name="timeout">Timeout for this call.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>One value per address, in the same order.</returns>
-    Task<PlcValue[]> ReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    Task<DeviceValue[]> ReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         TimeSpan timeout,
         CancellationToken cancellationToken = default);
 }

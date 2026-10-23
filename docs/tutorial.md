@@ -19,7 +19,7 @@ dotnet run --project samples/SiameseCat.Samples -- selftest      # every offline
 | S7 | `samples/SiameseCat.Samples/S7/` | `S7Client` and the `s7` driver |
 | Drivers | `samples/SiameseCat.Samples/Drivers/` | registry, tags, batching, subscriptions, resilience, DI |
 | Slaves | `samples/SiameseCat.Samples/Server/` | Modbus TCP/RTU and S7 simulators |
-| Transports | `samples/SiameseCat.Samples/Transports/` | raw frames and custom `ITransport` injection |
+| Transports | `samples/SiameseCat.Samples/Transports/` | raw frames, custom `ITransport` injection and custom TCP protocols |
 
 Install one package:
 
@@ -31,12 +31,13 @@ It contains every layer; pick the namespace you need:
 
 | Namespace | Use it for |
 | --- | --- |
-| `SiameseCat.Communication` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `DriverBase`, metrics, transport contracts |
+| `SiameseCat.Communication` | `DeviceAddress`, `DeviceValue`, `IDeviceDriver`, `DriverBase`, metrics, transport contracts |
 | `SiameseCat.Communication.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport` |
+| `SiameseCat.Communication.Tcp` | `TcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` (no device-driver types) |
 | `SiameseCat.Communication.Modbus` | `ModbusTcpClient`, `ModbusRtuClient`, the `modbus` driver |
 | `SiameseCat.Communication.S7` | `S7Client`, `S7Address`, the `s7` driver |
 | `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
-| `SiameseCat.Communication.Server.*` | Modbus TCP/RTU and S7 slaves |
+| `SiameseCat.Communication.Server.*` | Modbus TCP/RTU, S7 and custom TCP servers |
 | `SiameseCat.Communication.Hosting` | dependency injection, slave hosting, health checks, logging bridge |
 
 ## 1. Modbus: first read and write (`modbus/tcp`)
@@ -193,7 +194,7 @@ var values = await client.ReadMultipleAsync(new[]
 
 * `PduSize` reports the value negotiated by the Setup Communication exchange; batch helpers chunk to it.
 * The driver layers addresses on top: `DB1.DBW2`, `M0.0`, `IW4`, `QW0`.
-* `S7AddressParser.ToS7Address` maps a `PlcAddress` back to the S7 wire form.
+* `S7AddressParser.ToS7Address` maps a `DeviceAddress` back to the S7 wire form.
 
 The `s7` driver adds everything protocol-neutral — capability flags, batch requests, subscriptions,
 metrics, retries, keep-alive:
@@ -216,12 +217,12 @@ await driver.ConnectAsync();
 
 var reader = (IReadable)driver;
 var writer = (IWritable)driver;
-await writer.WriteAsync(driver.AddressParser.Parse("DB1.DBW2"), PlcValue.FromUInt16(1234));
+await writer.WriteAsync(driver.AddressParser.Parse("DB1.DBW2"), DeviceValue.FromUInt16(1234));
 ```
 
 ## 6. The driver contract (`drivers/*`)
 
-`IPlcDriver` is small on purpose (connect, state, metrics, `AddressParser`); the operations live in
+`IDeviceDriver` is small on purpose (connect, state, metrics, `AddressParser`); the operations live in
 capability interfaces, and `Descriptor.Capabilities` says which ones a driver implements:
 
 | Interface | Capability flag |
@@ -254,17 +255,17 @@ register factories explicitly there.
 ```csharp
 var tags = new[]
 {
-    new PlcTag("Temperature", "HR0", PlcDataType.UInt16, scale: 0.1, offset: -40, unit: "degC"),
-    new PlcTag("Running", "C0", PlcDataType.Bool),
+    new DeviceTag("Temperature", "HR0", DeviceDataType.UInt16, scale: 0.1, offset: -40, unit: "degC"),
+    new DeviceTag("Running", "C0", DeviceDataType.Bool),
 };
 
 var values = await driver.ReadTagsAsync(tags);
 var temperature = tags[0].ToEngineering(values[0].AsDouble());
 ```
 
-`PlcValue` is a typed union: `AsUInt16()`, `AsDouble()`, `AsString()`, `AsBytes()`, `AsUInt16Array()`,
+`DeviceValue` is a typed union: `AsUInt16()`, `AsDouble()`, `AsString()`, `AsBytes()`, `AsUInt16Array()`,
 plus `IsArray`, `Length`, `Quality` and `Timestamp`. Numeric arrays travel as one request:
-`address.WithLength(4)` + `PlcValue.FromUInt16Array(...)`.
+`address.WithLength(4)` + `DeviceValue.FromUInt16Array(...)`.
 
 ### Batching (`drivers/batch`)
 
@@ -292,7 +293,7 @@ await using var group = await driver.SubscribeBatchAsync(addresses, interval, va
 ```
 
 Group subscriptions read the whole set with one request per cycle. Two options keep several drivers from
-hammering one PLC:
+hammering one device:
 
 * `SubscriptionJitter = true` spreads poll phases.
 * `SubscriptionMaxBackoff` grows the interval after failures (up to the value) and resets on success.
@@ -311,14 +312,14 @@ it uses the same lock as your own calls, so a slow cycle simply slips.
 | `KeepAliveInterval` / `KeepAliveFailureThreshold` | background probe and automatic reconnect |
 | `RequestLock` | share one physical port between several drivers |
 
-Failures are counted by kind in `PlcMetrics` (`Timeouts`, `ConnectionClosed`, `Protocol`, `Other`) together
+Failures are counted by kind in `CommunicationMetrics` (`Timeouts`, `ConnectionClosed`, `Protocol`, `Other`) together
 with latency percentiles, so alerts do not need log scraping.
 
 ### Dependency injection (`drivers/hosting`)
 
 ```csharp
-services.AddLogging();                                    // optional: IPlcLogger bridges to ILogger
-services.AddSiameseCat();                                 // registry + IPlcLogger
+services.AddLogging();                                    // optional: ICommunicationLogger bridges to ILogger
+services.AddSiameseCat();                                 // registry + ICommunicationLogger
 services.AddSiameseCatDriver("modbus", configuration =>   // keyed transient driver
 {
     configuration.Transport = TransportKind.Tcp;
@@ -328,7 +329,7 @@ services.AddModbusServer(new ModbusServerOptions { Port = 502 });
 services.AddS7Server(new S7ServerOptions { Port = 102 });
 
 await using var provider = services.BuildServiceProvider();
-await using var driver = provider.GetRequiredKeyedService<IPlcDriver>("modbus");
+await using var driver = provider.GetRequiredKeyedService<IDeviceDriver>("modbus");
 ```
 
 The slaves are registered as singletons plus an `IHostedService`, so a generic host starts and stops them.
@@ -354,7 +355,7 @@ services.AddHealthChecks()
 
 The report carries `driver`, `state`, `requests`, `failures`, `retries`, failure kinds and latency
 percentiles. To watch a driver the application already owns, pass an accessor instead:
-`.AddSiameseCatDriverCheck("plc-main", sp => sp.GetRequiredKeyedService<IPlcDriver>("modbus"))`.
+`.AddSiameseCatDriverCheck("device-main", sp => sp.GetRequiredKeyedService<IDeviceDriver>("modbus"))`.
 
 ## 7. Slaves (`server/*`)
 
@@ -442,18 +443,41 @@ public sealed class MyTransport : ITransport
 }
 ```
 
-`transport/raw-tcp` also shows how to send hand-built MBAP frames (FC07 Read Exception Status, FC0B Comm
+### Custom TCP protocols (`transports/custom-protocol`)
+
+Keep the framing separate from the payload so a vendor protocol never reaches into the device layer:
+
+```csharp
+var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };   // CR LF
+
+await using var server = new CustomTcpServer(handler, new CustomTcpServerOptions { Port = 0, Framing = framing });
+await using var client = new CustomTcpClient(new CustomTcpClientOptions
+{
+    Tcp = { Host = "127.0.0.1", Port = server.Port },
+    Framing = framing,
+});
+
+await client.ConnectAsync();
+var reply = await client.RequestAsync(Encoding.ASCII.GetBytes("READ temperature"));
+```
+
+`TcpFrameOptions` covers raw, length-prefixed, delimited and fixed-size frames; implement
+`ITcpFrameCodec` when the wire format needs escaping or a checksum. `TcpFrameConnection` is the shared
+core, and `ModbusTcpFrameCodec` feeds MBAP frames into it, which is how Modbus TCP reuses the same
+reader without depending on the device model.
+
+`transports/raw-tcp` also shows how to send hand-built MBAP frames (FC07 Read Exception Status, FC0B Comm
 Event Counter, FC17 Report Server ID) — the same pattern works for vendor-specific frames.
 
 ## 9. Production checklist
 
-1. **One driver per device, one `PlcMetrics`**, exposed through OpenTelemetry or your monitoring.
+1. **One driver per device, one `CommunicationMetrics`**, exposed through OpenTelemetry or your monitoring.
 2. **Set `ProbeAddress`** so `PingAsync`, keep-alive and the health check have something harmless to read.
 3. **Configure retries** (`RetryCount`, `RetryDelay`, `MaxRetryDelay`) and leave `RetryWrites` off unless
    the device tolerates repeats.
 4. **Never call `ConnectAsync` per request.** Connect once and let the driver reconnect; when a cycle fails
    and the state is `Faulted`, call `ConnectAsync` again instead of retrying requests.
-5. **Batch adjacent tags** instead of looping single reads; publish the batch interval that the PLC tolerates.
+5. **Batch adjacent tags** instead of looping single reads; publish the batch interval that the device tolerates.
 6. **Size the slave buffers** you simulate to the real device (a 256-register slave hides address bugs that
    a real 32-register device would expose).
 7. **Log frames only while diagnosing** (`LogFrames = true`), then turn it off.

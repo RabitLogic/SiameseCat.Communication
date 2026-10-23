@@ -24,7 +24,7 @@ You can start with the protocol clients and move to drivers later: both expose t
 The built-in driver ids are `modbus` and `s7`. There is no brand driver: S7 is provided by the generic
 `s7` driver (`S7Driver` / `S7AddressParser` / `S7DriverFactory` in `SiameseCat.Communication.S7`), and
 brand-specific address mappings (for example vendor register names) belong in a third-party
-`IPlcDriverFactory` plugin.
+`IDeviceDriverFactory` plugin.
 
 ## Coming from NModbus / Sharp7
 
@@ -33,8 +33,8 @@ brand-specific address mappings (for example vendor register names) belong in a 
 | `IModbusMaster.ReadHoldingRegisters(slave, start, count)` | `client.ReadHoldingRegistersAsync(start, count)` (unit id is a client option) |
 | `master.WriteSingleRegister(...)` | `client.WriteSingleRegisterAsync(address, value)` |
 | `ushort[]` batches assembled by hand | `IBatchReadable.ReadBatchAsync(addresses)` merges contiguous addresses |
-| `Plc.Read("DB1.DBD0")` / `S7.ReadArea(...)` | `client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"))` |
-| Manual conversions (`BitConverter`) | `ModbusRegisterConverter` / `PlcValueCodec` |
+| Legacy `Read("DB1.DBD0")` / `S7.ReadArea(...)` | `client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"))` |
+| Manual conversions (`BitConverter`) | `ModbusRegisterConverter` / `DeviceValueCodec` |
 | Socket/`SerialPort` plumbing per device | `DriverConfiguration` + `ITransport` (TCP, UDP, serial, custom) |
 
 Behavioural differences to be aware of:
@@ -48,12 +48,12 @@ Behavioural differences to be aware of:
 ## Integrating a device step by step
 
 1. `dotnet add package SiameseCat.Communication`.
-2. Pick a driver: `modbus` for any Modbus RTU/TCP device, `s7` for S7comm devices, or implement `IPlcDriver`
+2. Pick a driver: `modbus` for any Modbus RTU/TCP device, `s7` for S7comm devices, or implement `IDeviceDriver`
    (usually by deriving from `DriverBase`) for a new protocol or brand.
 3. Configure `DriverConfiguration` (`Transport`, `Host`/`Port` or `Serial`, `Timeout`, retries) and set
    `ProbeAddress` so health checks and keep-alive have a harmless address to read.
 4. Map addresses with `driver.AddressParser.Parse("40001" | "HR10" | "DB1.DBW2")`, or describe them once
-   as `PlcTag` objects.
+   as `DeviceTag` objects.
 5. Run a sample against a device (`dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
    --host ...`) or against the in-process slave, then run `tools/SiameseCat.Soak` for a longer session.
 

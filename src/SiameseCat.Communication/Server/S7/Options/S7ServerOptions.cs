@@ -33,7 +33,7 @@ public sealed class S7ServerOptions
     public int PduSize { get; set; } = 960;
 
     /// <summary>Gets or sets the logger used for connection and protocol diagnostics. Defaults to no logging.</summary>
-    public IPlcLogger? Logger { get; set; }
+    public ICommunicationLogger? Logger { get; set; }
 
     /// <summary>Validates the options and throws when a value is out of range.</summary>
     public void Validate()

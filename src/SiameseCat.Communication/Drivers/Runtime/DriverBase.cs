@@ -1,11 +1,11 @@
 namespace SiameseCat.Communication;
 
 /// <summary>
-/// Template-method base class for PLC drivers. It owns the lifecycle state machine, the transaction
+/// Template-method base class for device drivers. It owns the lifecycle state machine, the transaction
 /// lock, timeouts, retries with reconnect, logging and metrics; derived drivers only implement the
 /// protocol-specific hooks.
 /// </summary>
-public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBatchReadable, IBatchWritable, ISubscribable, IBatchSubscribable, IHealthCheckable
+public abstract partial class DriverBase : IDeviceDriver, IReadable, IWritable, IBatchReadable, IBatchWritable, ISubscribable, IBatchSubscribable, IHealthCheckable
 {
     private readonly RequestLock _gate;
     private readonly bool _ownsGate;
@@ -26,17 +26,17 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// <param name="metrics">Optional metrics collector.</param>
     protected DriverBase(
         DriverDescriptor descriptor,
-        IPlcAddressParser addressParser,
+        IDeviceAddressParser addressParser,
         DriverConfiguration configuration,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null)
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         AddressParser = addressParser ?? throw new ArgumentNullException(nameof(addressParser));
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         Configuration.Validate();
-        Logger = logger ?? NullPlcLogger.Instance;
-        Metrics = metrics ?? new PlcMetrics();
+        Logger = logger ?? NullCommunicationLogger.Instance;
+        Metrics = metrics ?? new CommunicationMetrics();
         _gate = configuration.RequestLock ?? new RequestLock();
         _ownsGate = configuration.RequestLock is null;
 
@@ -52,7 +52,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     public DriverDescriptor Descriptor { get; }
 
     /// <inheritdoc/>
-    public IPlcAddressParser AddressParser { get; }
+    public IDeviceAddressParser AddressParser { get; }
 
     /// <inheritdoc/>
     public DriverState State => _state;
@@ -64,24 +64,24 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     protected DriverConfiguration Configuration { get; }
 
     /// <summary>Gets the logger.</summary>
-    protected IPlcLogger Logger { get; }
+    protected ICommunicationLogger Logger { get; }
 
     /// <summary>Gets the metrics collector.</summary>
-    public PlcMetrics Metrics { get; }
+    public CommunicationMetrics Metrics { get; }
 
     /// <inheritdoc/>
-    public Task<PlcValue> ReadAsync(PlcAddress address, CancellationToken cancellationToken = default) =>
+    public Task<DeviceValue> ReadAsync(DeviceAddress address, CancellationToken cancellationToken = default) =>
         ReadCoreAsync(address, timeout: null, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<PlcValue> ReadAsync(
-        PlcAddress address,
+    public Task<DeviceValue> ReadAsync(
+        DeviceAddress address,
         TimeSpan timeout,
         CancellationToken cancellationToken = default) =>
         ReadCoreAsync(address, ValidateTimeout(timeout), cancellationToken);
 
-    private async Task<PlcValue> ReadCoreAsync(
-        PlcAddress address,
+    private async Task<DeviceValue> ReadCoreAsync(
+        DeviceAddress address,
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
@@ -92,11 +92,11 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
             isWrite: false,
             address,
             timeout,
-            PlcOperation.Read,
+            CommunicationOperation.Read,
             cancellationToken).ConfigureAwait(false);
 
         Metrics.RecordBytesRead(address.ByteSize);
-        PlcDiagnostics.RecordBytesRead(Descriptor.Id, address.ByteSize);
+        CommunicationDiagnostics.RecordBytesRead(Descriptor.Id, address.ByteSize);
 
         return Configuration.StampReadTimestamps
             ? value.WithTimestamp(DateTimeOffset.UtcNow)
@@ -105,22 +105,22 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
 
     /// <inheritdoc/>
     public Task WriteAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         CancellationToken cancellationToken = default) =>
         WriteCoreAsync(address, value, timeout: null, cancellationToken);
 
     /// <inheritdoc/>
     public Task WriteAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         TimeSpan timeout,
         CancellationToken cancellationToken = default) =>
         WriteCoreAsync(address, value, ValidateTimeout(timeout), cancellationToken);
 
     private async Task WriteCoreAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
@@ -135,35 +135,35 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
             isWrite: true,
             address,
             timeout,
-            PlcOperation.Write,
+            CommunicationOperation.Write,
             cancellationToken).ConfigureAwait(false);
 
         Metrics.RecordBytesWritten(address.ByteSize);
-        PlcDiagnostics.RecordBytesWritten(Descriptor.Id, address.ByteSize);
+        CommunicationDiagnostics.RecordBytesWritten(Descriptor.Id, address.ByteSize);
     }
 
     /// <inheritdoc/>
-    public Task<PlcValue[]> ReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    public Task<DeviceValue[]> ReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken = default) =>
         ReadBatchCoreAsync(addresses, timeout: null, cancellationToken);
 
     /// <inheritdoc/>
-    public Task<PlcValue[]> ReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    public Task<DeviceValue[]> ReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         TimeSpan timeout,
         CancellationToken cancellationToken = default) =>
         ReadBatchCoreAsync(addresses, ValidateTimeout(timeout), cancellationToken);
 
-    private async Task<PlcValue[]> ReadBatchCoreAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    private async Task<DeviceValue[]> ReadBatchCoreAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
         Guard.NotNull(addresses, nameof(addresses));
         if (addresses.Count == 0)
         {
-            return Array.Empty<PlcValue>();
+            return Array.Empty<DeviceValue>();
         }
 
         EnsureCapability(DriverCapabilities.BatchRead);
@@ -173,13 +173,13 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
             isWrite: false,
             address: null,
             timeout,
-            PlcOperation.ReadBatch,
+            CommunicationOperation.ReadBatch,
             cancellationToken).ConfigureAwait(false);
 
         foreach (var address in addresses)
         {
             Metrics.RecordBytesRead(address.ByteSize);
-            PlcDiagnostics.RecordBytesRead(Descriptor.Id, address.ByteSize);
+            CommunicationDiagnostics.RecordBytesRead(Descriptor.Id, address.ByteSize);
         }
 
         if (Configuration.StampReadTimestamps)
@@ -196,19 +196,19 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
 
     /// <inheritdoc/>
     public Task WriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         CancellationToken cancellationToken = default) =>
         WriteBatchCoreAsync(requests, timeout: null, cancellationToken);
 
     /// <inheritdoc/>
     public Task WriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         TimeSpan timeout,
         CancellationToken cancellationToken = default) =>
         WriteBatchCoreAsync(requests, ValidateTimeout(timeout), cancellationToken);
 
     private async Task WriteBatchCoreAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         TimeSpan? timeout,
         CancellationToken cancellationToken)
     {
@@ -234,13 +234,13 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
             isWrite: true,
             address: null,
             timeout,
-            PlcOperation.WriteBatch,
+            CommunicationOperation.WriteBatch,
             cancellationToken).ConfigureAwait(false);
 
         foreach (var request in requests)
         {
             Metrics.RecordBytesWritten(request.Address.ByteSize);
-            PlcDiagnostics.RecordBytesWritten(Descriptor.Id, request.Address.ByteSize);
+            CommunicationDiagnostics.RecordBytesWritten(Descriptor.Id, request.Address.ByteSize);
         }
     }
 
@@ -258,7 +258,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// The driver does not read. Override the method, or declare <see cref="DriverCapabilities.Read"/>
     /// in the descriptor and implement it.
     /// </exception>
-    protected virtual Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken) =>
+    protected virtual Task<DeviceValue> DoReadAsync(DeviceAddress address, CancellationToken cancellationToken) =>
         throw new NotSupportedException($"Driver '{Descriptor.Id}' does not support reads.");
 
     /// <summary>Writes one value.</summary>
@@ -269,7 +269,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// The driver does not write. Override the method, or declare <see cref="DriverCapabilities.Write"/>
     /// in the descriptor and implement it.
     /// </exception>
-    protected virtual Task DoWriteAsync(PlcAddress address, PlcValue value, CancellationToken cancellationToken) =>
+    protected virtual Task DoWriteAsync(DeviceAddress address, DeviceValue value, CancellationToken cancellationToken) =>
         throw new NotSupportedException($"Driver '{Descriptor.Id}' does not support writes.");
 
     /// <summary>
@@ -278,11 +278,11 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// </summary>
     /// <param name="addresses">Addresses to read.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected virtual async Task<PlcValue[]> DoReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    protected virtual async Task<DeviceValue[]> DoReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken)
     {
-        var values = new PlcValue[addresses.Count];
+        var values = new DeviceValue[addresses.Count];
         for (var i = 0; i < addresses.Count; i++)
         {
             values[i] = await DoReadAsync(addresses[i], cancellationToken).ConfigureAwait(false);
@@ -298,7 +298,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// <param name="requests">Address/value pairs to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected virtual async Task DoWriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         CancellationToken cancellationToken)
     {
         foreach (var request in requests)
@@ -318,7 +318,7 @@ public abstract partial class DriverBase : IPlcDriver, IReadable, IWritable, IBa
     /// <param name="body">Protocol-specific work.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     protected Task<T> ExecuteProtocolAsync<T>(
-        PlcOperation operation,
+        CommunicationOperation operation,
         bool isWrite,
         TimeSpan? timeout,
         Func<CancellationToken, Task<T>> body,

@@ -6,7 +6,7 @@ namespace SiameseCat.Communication.Modbus;
 /// Creates Modbus drivers over TCP or a serial port. Both variants share the same PDU and
 /// data-conversion logic inside <see cref="ModbusDriver"/>.
 /// </summary>
-public sealed class ModbusDriverFactory : IPlcDriverFactory
+public sealed class ModbusDriverFactory : IDeviceDriverFactory
 {
     /// <summary>Gets the descriptor shared by all Modbus drivers.</summary>
     public static DriverDescriptor DefaultDescriptor { get; } = new(
@@ -21,10 +21,10 @@ public sealed class ModbusDriverFactory : IPlcDriverFactory
     public DriverDescriptor Descriptor => DefaultDescriptor;
 
     /// <inheritdoc/>
-    public IPlcDriver Create(
+    public IDeviceDriver Create(
         DriverConfiguration configuration,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null)
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null)
     {
         Guard.NotNull(configuration, nameof(configuration));
         configuration.Validate();

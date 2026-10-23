@@ -54,7 +54,7 @@ public sealed class DriverSubscriptionSample : ISample
 
         SampleConsole.Step("1. Single-address subscription");
         var changes = 0;
-        var lastValue = PlcValue.Null;
+        var lastValue = DeviceValue.Null;
         using var single = new CancellationTokenSource();
         await using (await subscriber.SubscribeAsync(
                 driver.AddressParser.Parse("HR0"),
@@ -82,7 +82,7 @@ public sealed class DriverSubscriptionSample : ISample
 
         SampleConsole.Step("2. Group subscription: one read per cycle");
         var batchChanges = 0;
-        var lastBatch = Array.Empty<PlcValue>();
+        var lastBatch = Array.Empty<DeviceValue>();
         var groupAddresses = new[]
         {
             driver.AddressParser.Parse("HR10"),
@@ -124,7 +124,7 @@ public sealed class DriverSubscriptionSample : ISample
             "400 ms at a 40 ms interval stays near the cycle count even though four addresses are watched");
 
         SampleConsole.Step("3. What the options do");
-        SampleConsole.Detail("SubscriptionJitter: spreads poll phases so several drivers do not hit the PLC together.");
+        SampleConsole.Detail("SubscriptionJitter: spreads poll phases so several drivers do not hit the device together.");
         SampleConsole.Detail("SubscriptionMaxBackoff: after a failed read the interval grows up to this value, then resets.");
         SampleConsole.Detail("The returned handle is IAsyncDisposable; disposing it (or cancelling the token) stops polling.");
         SampleConsole.Note("Next: 'run drivers/resilience' for retries, keep-alive and failure isolation.");

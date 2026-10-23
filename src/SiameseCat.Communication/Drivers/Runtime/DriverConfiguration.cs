@@ -34,14 +34,14 @@ public sealed class DriverConfiguration
     public RequestLock? RequestLock { get; set; }
 
     /// <summary>
-    /// Gets or sets whether every successful read is stamped with <see cref="PlcValue.Timestamp"/>
+    /// Gets or sets whether every successful read is stamped with <see cref="DeviceValue.Timestamp"/>
     /// (<see cref="DateTimeOffset.UtcNow"/>). Defaults to <see langword="false"/>.
     /// </summary>
     public bool StampReadTimestamps { get; set; }
 
     /// <summary>
-    /// Gets or sets whether every transport frame is written to <see cref="IPlcLogger"/>
-    /// at <see cref="PlcLogLevel.Trace"/>. Useful for field diagnostics; keep it off on hot paths.
+    /// Gets or sets whether every transport frame is written to <see cref="ICommunicationLogger"/>
+    /// at <see cref="CommunicationLogLevel.Trace"/>. Useful for field diagnostics; keep it off on hot paths.
     /// </summary>
     public bool LogFrames { get; set; }
 
@@ -80,7 +80,7 @@ public sealed class DriverConfiguration
 
     /// <summary>
     /// Gets or sets whether polling subscriptions randomize each interval by ±20 %. Defaults to
-    /// <see langword="true"/> so several drivers do not poll a PLC in lockstep.
+    /// <see langword="true"/> so several drivers do not poll a device in lockstep.
     /// </summary>
     public bool SubscriptionJitter { get; set; } = true;
 

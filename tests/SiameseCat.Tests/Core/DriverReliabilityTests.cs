@@ -223,7 +223,7 @@ public class DriverReliabilityTests
             driver.AddressParser.Parse("R0"),
             TimeSpan.FromSeconds(2));
 
-        Assert.Equal(PlcValue.Null, value);
+        Assert.Equal(DeviceValue.Null, value);
 
         await driver.DisposeAsync();
     }

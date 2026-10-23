@@ -17,8 +17,8 @@ public interface IBatchSubscribable
     /// <param name="cancellationToken">Cancellation token that also ends the subscription.</param>
     /// <returns>A handle that stops the subscription when disposed.</returns>
     Task<IAsyncDisposable> SubscribeBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+        IReadOnlyList<DeviceAddress> addresses,
         TimeSpan interval,
-        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        Func<IReadOnlyList<DeviceValue>, Task> onChanged,
         CancellationToken cancellationToken = default);
 }

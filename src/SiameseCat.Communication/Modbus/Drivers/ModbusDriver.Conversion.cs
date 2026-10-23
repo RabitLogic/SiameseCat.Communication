@@ -4,27 +4,27 @@ namespace SiameseCat.Communication.Modbus;
 
 public partial class ModbusDriver
 {
-    private static void EnsureBool(PlcAddress address)
+    private static void EnsureBool(DeviceAddress address)
     {
-        if (address.DataType != PlcDataType.Bool)
+        if (address.DataType != DeviceDataType.Bool)
         {
             throw new NotSupportedException(
                 $"Modbus region '{address.Region}' only supports Bool values.");
         }
     }
 
-    private static int GetRegisterCount(PlcAddress address)
+    private static int GetRegisterCount(DeviceAddress address)
     {
-        if (address.DataType is PlcDataType.String or PlcDataType.Raw)
+        if (address.DataType is DeviceDataType.String or DeviceDataType.Raw)
         {
             return (address.Length + 1) / 2;
         }
 
         var elementRegisters = address.DataType switch
         {
-            PlcDataType.Byte or PlcDataType.Int16 or PlcDataType.UInt16 => 1,
-            PlcDataType.Int32 or PlcDataType.UInt32 or PlcDataType.Float => 2,
-            PlcDataType.Int64 or PlcDataType.UInt64 or PlcDataType.Double => 4,
+            DeviceDataType.Byte or DeviceDataType.Int16 or DeviceDataType.UInt16 => 1,
+            DeviceDataType.Int32 or DeviceDataType.UInt32 or DeviceDataType.Float => 2,
+            DeviceDataType.Int64 or DeviceDataType.UInt64 or DeviceDataType.Double => 4,
             _ => throw new NotSupportedException($"Unsupported data type {address.DataType}."),
         };
 
@@ -41,60 +41,60 @@ public partial class ModbusDriver
         return (ushort)value;
     }
 
-    private PlcValue FromRegisters(PlcAddress address, ReadOnlySpan<ushort> registers)
+    private DeviceValue FromRegisters(DeviceAddress address, ReadOnlySpan<ushort> registers)
     {
-        if (address.DataType == PlcDataType.Bool)
+        if (address.DataType == DeviceDataType.Bool)
         {
             throw new NotSupportedException(
                 $"Region '{address.Region}' cannot be accessed as Bool; use coils or discrete inputs.");
         }
 
-        if (address.Length > 1 && address.DataType is not (PlcDataType.String or PlcDataType.Raw))
+        if (address.Length > 1 && address.DataType is not (DeviceDataType.String or DeviceDataType.Raw))
         {
             return FromRegisterArray(address, registers);
         }
 
         switch (address.DataType)
         {
-            case PlcDataType.Byte:
-                return PlcValue.FromByte((byte)registers[0]);
+            case DeviceDataType.Byte:
+                return DeviceValue.FromByte((byte)registers[0]);
 
-            case PlcDataType.Int16:
-                return PlcValue.FromInt16(ModbusRegisterConverter.ReadInt16(registers, 0));
+            case DeviceDataType.Int16:
+                return DeviceValue.FromInt16(ModbusRegisterConverter.ReadInt16(registers, 0));
 
-            case PlcDataType.UInt16:
-                return PlcValue.FromUInt16(ModbusRegisterConverter.ReadUInt16(registers, 0));
+            case DeviceDataType.UInt16:
+                return DeviceValue.FromUInt16(ModbusRegisterConverter.ReadUInt16(registers, 0));
 
-            case PlcDataType.Int32:
-                return PlcValue.FromInt32(ModbusRegisterConverter.ReadInt32(registers, 0));
+            case DeviceDataType.Int32:
+                return DeviceValue.FromInt32(ModbusRegisterConverter.ReadInt32(registers, 0));
 
-            case PlcDataType.UInt32:
-                return PlcValue.FromUInt32(ModbusRegisterConverter.ReadUInt32(registers, 0));
+            case DeviceDataType.UInt32:
+                return DeviceValue.FromUInt32(ModbusRegisterConverter.ReadUInt32(registers, 0));
 
-            case PlcDataType.Int64:
-                return PlcValue.FromInt64(ModbusRegisterConverter.ReadInt64(registers, 0));
+            case DeviceDataType.Int64:
+                return DeviceValue.FromInt64(ModbusRegisterConverter.ReadInt64(registers, 0));
 
-            case PlcDataType.UInt64:
-                return PlcValue.FromUInt64(ModbusRegisterConverter.ReadUInt64(registers, 0));
+            case DeviceDataType.UInt64:
+                return DeviceValue.FromUInt64(ModbusRegisterConverter.ReadUInt64(registers, 0));
 
-            case PlcDataType.Float:
-                return PlcValue.FromFloat(ModbusRegisterConverter.ReadSingle(registers, 0));
+            case DeviceDataType.Float:
+                return DeviceValue.FromFloat(ModbusRegisterConverter.ReadSingle(registers, 0));
 
-            case PlcDataType.Double:
-                return PlcValue.FromDouble(ModbusRegisterConverter.ReadDouble(registers, 0));
+            case DeviceDataType.Double:
+                return DeviceValue.FromDouble(ModbusRegisterConverter.ReadDouble(registers, 0));
 
-            case PlcDataType.String:
-                return PlcValue.FromString(ModbusRegisterConverter.ReadString(
+            case DeviceDataType.String:
+                return DeviceValue.FromString(ModbusRegisterConverter.ReadString(
                     registers,
                     0,
                     registers.Length,
                     _stringEncoding,
                     _swapBytes));
 
-            case PlcDataType.Raw:
+            case DeviceDataType.Raw:
                 {
                     var bytes = ModbusRegisterConverter.ReadBytes(registers, 0, registers.Length, _swapBytes);
-                    return PlcValue.FromBytes(bytes.Length > address.Length ? bytes.AsSpan(0, address.Length) : bytes);
+                    return DeviceValue.FromBytes(bytes.Length > address.Length ? bytes.AsSpan(0, address.Length) : bytes);
                 }
 
             default:
@@ -102,7 +102,7 @@ public partial class ModbusDriver
         }
     }
 
-    private ushort[] ToRegisters(PlcAddress address, PlcValue value)
+    private ushort[] ToRegisters(DeviceAddress address, DeviceValue value)
     {
         var count = GetRegisterCount(address);
         var registers = new ushort[count];
@@ -115,38 +115,38 @@ public partial class ModbusDriver
 
         switch (address.DataType)
         {
-            case PlcDataType.Byte:
+            case DeviceDataType.Byte:
                 registers[0] = value.AsByte();
                 break;
-            case PlcDataType.Int16:
+            case DeviceDataType.Int16:
                 ModbusRegisterConverter.WriteInt16(registers, 0, value.AsInt16());
                 break;
-            case PlcDataType.UInt16:
+            case DeviceDataType.UInt16:
                 ModbusRegisterConverter.WriteUInt16(registers, 0, value.AsUInt16());
                 break;
-            case PlcDataType.Int32:
+            case DeviceDataType.Int32:
                 ModbusRegisterConverter.WriteInt32(registers, 0, value.AsInt32());
                 break;
-            case PlcDataType.UInt32:
+            case DeviceDataType.UInt32:
                 ModbusRegisterConverter.WriteUInt32(registers, 0, value.AsUInt32());
                 break;
-            case PlcDataType.Int64:
+            case DeviceDataType.Int64:
                 ModbusRegisterConverter.WriteInt64(registers, 0, value.AsInt64());
                 break;
-            case PlcDataType.UInt64:
+            case DeviceDataType.UInt64:
                 ModbusRegisterConverter.WriteUInt64(registers, 0, value.AsUInt64());
                 break;
-            case PlcDataType.Float:
+            case DeviceDataType.Float:
                 ModbusRegisterConverter.WriteSingle(registers, 0, value.AsFloat());
                 break;
-            case PlcDataType.Double:
+            case DeviceDataType.Double:
                 ModbusRegisterConverter.WriteDouble(registers, 0, value.AsDouble());
                 break;
-            case PlcDataType.String:
+            case DeviceDataType.String:
                 ModbusRegisterConverter.WriteString(
                     registers, 0, count, value.AsString(), _stringEncoding, _swapBytes);
                 break;
-            case PlcDataType.Raw:
+            case DeviceDataType.Raw:
                 ModbusRegisterConverter.WriteBytes(registers, 0, count, value.AsBytes(), _swapBytes);
                 break;
             default:
@@ -156,13 +156,13 @@ public partial class ModbusDriver
         return registers;
     }
 
-    private static PlcValue FromRegisterArray(PlcAddress address, ReadOnlySpan<ushort> registers)
+    private static DeviceValue FromRegisterArray(DeviceAddress address, ReadOnlySpan<ushort> registers)
     {
         var count = address.Length;
 
         switch (address.DataType)
         {
-            case PlcDataType.Byte:
+            case DeviceDataType.Byte:
                 {
                     var values = new byte[count];
                     for (var i = 0; i < count; i++)
@@ -170,10 +170,10 @@ public partial class ModbusDriver
                         values[i] = (byte)registers[i];
                     }
 
-                    return PlcValue.FromBytes(values);
+                    return DeviceValue.FromBytes(values);
                 }
 
-            case PlcDataType.Int16:
+            case DeviceDataType.Int16:
                 {
                     var values = new short[count];
                     for (var i = 0; i < count; i++)
@@ -181,10 +181,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadInt16(registers, i);
                     }
 
-                    return PlcValue.FromInt16Array(values);
+                    return DeviceValue.FromInt16Array(values);
                 }
 
-            case PlcDataType.UInt16:
+            case DeviceDataType.UInt16:
                 {
                     var values = new ushort[count];
                     for (var i = 0; i < count; i++)
@@ -192,10 +192,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadUInt16(registers, i);
                     }
 
-                    return PlcValue.FromUInt16Array(values);
+                    return DeviceValue.FromUInt16Array(values);
                 }
 
-            case PlcDataType.Int32:
+            case DeviceDataType.Int32:
                 {
                     var values = new int[count];
                     for (var i = 0; i < count; i++)
@@ -203,10 +203,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadInt32(registers, i * 2);
                     }
 
-                    return PlcValue.FromInt32Array(values);
+                    return DeviceValue.FromInt32Array(values);
                 }
 
-            case PlcDataType.UInt32:
+            case DeviceDataType.UInt32:
                 {
                     var values = new uint[count];
                     for (var i = 0; i < count; i++)
@@ -214,10 +214,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadUInt32(registers, i * 2);
                     }
 
-                    return PlcValue.FromUInt32Array(values);
+                    return DeviceValue.FromUInt32Array(values);
                 }
 
-            case PlcDataType.Int64:
+            case DeviceDataType.Int64:
                 {
                     var values = new long[count];
                     for (var i = 0; i < count; i++)
@@ -225,10 +225,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadInt64(registers, i * 4);
                     }
 
-                    return PlcValue.FromInt64Array(values);
+                    return DeviceValue.FromInt64Array(values);
                 }
 
-            case PlcDataType.UInt64:
+            case DeviceDataType.UInt64:
                 {
                     var values = new ulong[count];
                     for (var i = 0; i < count; i++)
@@ -236,10 +236,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadUInt64(registers, i * 4);
                     }
 
-                    return PlcValue.FromUInt64Array(values);
+                    return DeviceValue.FromUInt64Array(values);
                 }
 
-            case PlcDataType.Float:
+            case DeviceDataType.Float:
                 {
                     var values = new float[count];
                     for (var i = 0; i < count; i++)
@@ -247,10 +247,10 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadSingle(registers, i * 2);
                     }
 
-                    return PlcValue.FromFloatArray(values);
+                    return DeviceValue.FromFloatArray(values);
                 }
 
-            case PlcDataType.Double:
+            case DeviceDataType.Double:
                 {
                     var values = new double[count];
                     for (var i = 0; i < count; i++)
@@ -258,7 +258,7 @@ public partial class ModbusDriver
                         values[i] = ModbusRegisterConverter.ReadDouble(registers, i * 4);
                     }
 
-                    return PlcValue.FromDoubleArray(values);
+                    return DeviceValue.FromDoubleArray(values);
                 }
 
             default:
@@ -266,7 +266,7 @@ public partial class ModbusDriver
         }
     }
 
-    private static void WriteArrayRegisters(PlcAddress address, PlcValue value, ushort[] registers)
+    private static void WriteArrayRegisters(DeviceAddress address, DeviceValue value, ushort[] registers)
     {
         if (value.Length != address.Length)
         {
@@ -284,7 +284,7 @@ public partial class ModbusDriver
 
         switch (address.DataType)
         {
-            case PlcDataType.Int16:
+            case DeviceDataType.Int16:
                 {
                     var values = value.AsInt16Array();
                     for (var i = 0; i < values.Length; i++)
@@ -295,7 +295,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.UInt16:
+            case DeviceDataType.UInt16:
                 {
                     var values = value.AsUInt16Array();
                     for (var i = 0; i < values.Length; i++)
@@ -306,7 +306,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.Int32:
+            case DeviceDataType.Int32:
                 {
                     var values = value.AsInt32Array();
                     for (var i = 0; i < values.Length; i++)
@@ -317,7 +317,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.UInt32:
+            case DeviceDataType.UInt32:
                 {
                     var values = value.AsUInt32Array();
                     for (var i = 0; i < values.Length; i++)
@@ -328,7 +328,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.Int64:
+            case DeviceDataType.Int64:
                 {
                     var values = value.AsInt64Array();
                     for (var i = 0; i < values.Length; i++)
@@ -339,7 +339,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.UInt64:
+            case DeviceDataType.UInt64:
                 {
                     var values = value.AsUInt64Array();
                     for (var i = 0; i < values.Length; i++)
@@ -350,7 +350,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.Float:
+            case DeviceDataType.Float:
                 {
                     var values = value.AsFloatArray();
                     for (var i = 0; i < values.Length; i++)
@@ -361,7 +361,7 @@ public partial class ModbusDriver
                     break;
                 }
 
-            case PlcDataType.Double:
+            case DeviceDataType.Double:
                 {
                     var values = value.AsDoubleArray();
                     for (var i = 0; i < values.Length; i++)

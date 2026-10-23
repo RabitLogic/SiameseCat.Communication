@@ -1,17 +1,17 @@
 namespace SiameseCat.Communication;
 
-/// <summary>Data type of a PLC value.</summary>
+/// <summary>Data type of a device value.</summary>
 /// <remarks>
 /// Numeric types and <see cref="Bool"/> describe a single element. <see cref="String"/> and
-/// <see cref="Raw"/> use <see cref="PlcAddress.Length"/> to describe their size.
+/// <see cref="Raw"/> use <see cref="DeviceAddress.Length"/> to describe their size.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Naming",
     "CA1720:Identifier contains type name",
-    Justification = "PLC data types are conventionally named after the CLR/PLC primitive they represent.")]
-public enum PlcDataType
+    Justification = "Device data types are named after the CLR primitive they represent.")]
+public enum DeviceDataType
 {
-    /// <summary>No value. This is the default of <see cref="PlcValue"/>.</summary>
+    /// <summary>No value. This is the default of <see cref="DeviceValue"/>.</summary>
     Null,
 
     /// <summary>Single bit.</summary>
@@ -44,9 +44,9 @@ public enum PlcDataType
     /// <summary>IEEE 754 double-precision value.</summary>
     Double,
 
-    /// <summary>Text. <see cref="PlcAddress.Length"/> is the maximum character count.</summary>
+    /// <summary>Text. <see cref="DeviceAddress.Length"/> is the maximum character count.</summary>
     String,
 
-    /// <summary>Raw bytes. <see cref="PlcAddress.Length"/> is the byte count.</summary>
+    /// <summary>Raw bytes. <see cref="DeviceAddress.Length"/> is the byte count.</summary>
     Raw,
 }

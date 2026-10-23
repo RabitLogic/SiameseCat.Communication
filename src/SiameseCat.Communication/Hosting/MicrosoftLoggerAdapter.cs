@@ -4,9 +4,9 @@ using SiameseCat.Communication;
 
 namespace SiameseCat.Communication.Hosting;
 
-/// <summary>Adapts <see cref="IPlcLogger"/> onto <see cref="ILogger"/>.</summary>
+/// <summary>Adapts <see cref="ICommunicationLogger"/> onto <see cref="ILogger"/>.</summary>
 /// <remarks>The message is pre-formatted by the driver, so it is forwarded as a single parameter.</remarks>
-public sealed class MicrosoftLoggerAdapter : IPlcLogger
+public sealed class MicrosoftLoggerAdapter : ICommunicationLogger
 {
     private static readonly Action<ILogger, string, Exception?> TraceLog =
         LoggerMessage.Define<string>(LogLevel.Trace, default, "{Message}");
@@ -33,27 +33,27 @@ public sealed class MicrosoftLoggerAdapter : IPlcLogger
     }
 
     /// <inheritdoc/>
-    public void Log(PlcLogLevel level, string message, Exception? exception = null) =>
+    public void Log(CommunicationLogLevel level, string message, Exception? exception = null) =>
         Resolve(level)(_logger, message, exception);
 
-    /// <summary>Maps a <see cref="PlcLogLevel"/> onto <see cref="LogLevel"/>.</summary>
+    /// <summary>Maps a <see cref="CommunicationLogLevel"/> onto <see cref="LogLevel"/>.</summary>
     /// <param name="level">Level to map.</param>
-    public static LogLevel ToLogLevel(PlcLogLevel level) => level switch
+    public static LogLevel ToLogLevel(CommunicationLogLevel level) => level switch
     {
-        PlcLogLevel.Trace => LogLevel.Trace,
-        PlcLogLevel.Debug => LogLevel.Debug,
-        PlcLogLevel.Information => LogLevel.Information,
-        PlcLogLevel.Warning => LogLevel.Warning,
-        PlcLogLevel.Error => LogLevel.Error,
+        CommunicationLogLevel.Trace => LogLevel.Trace,
+        CommunicationLogLevel.Debug => LogLevel.Debug,
+        CommunicationLogLevel.Information => LogLevel.Information,
+        CommunicationLogLevel.Warning => LogLevel.Warning,
+        CommunicationLogLevel.Error => LogLevel.Error,
         _ => LogLevel.None,
     };
 
-    private static Action<ILogger, string, Exception?> Resolve(PlcLogLevel level) => level switch
+    private static Action<ILogger, string, Exception?> Resolve(CommunicationLogLevel level) => level switch
     {
-        PlcLogLevel.Trace => TraceLog,
-        PlcLogLevel.Debug => DebugLog,
-        PlcLogLevel.Information => InformationLog,
-        PlcLogLevel.Warning => WarningLog,
+        CommunicationLogLevel.Trace => TraceLog,
+        CommunicationLogLevel.Debug => DebugLog,
+        CommunicationLogLevel.Information => InformationLog,
+        CommunicationLogLevel.Warning => WarningLog,
         _ => ErrorLog,
     };
 }

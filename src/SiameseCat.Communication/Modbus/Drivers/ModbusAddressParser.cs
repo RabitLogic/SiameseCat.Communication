@@ -24,7 +24,7 @@ namespace SiameseCat.Communication.Modbus;
 /// <see cref="SiameseCat.Communication.S7.S7AddressParser"/> for it.
 /// </para>
 /// </remarks>
-public sealed partial class ModbusAddressParser : IPlcAddressParser
+public sealed partial class ModbusAddressParser : IDeviceAddressParser
 {
     /// <summary>Region key for coils (function code 01/05).</summary>
     public const string CoilRegion = "coil";
@@ -55,17 +55,17 @@ public sealed partial class ModbusAddressParser : IPlcAddressParser
     public string ProtocolName => "Modbus";
 
     /// <inheritdoc/>
-    public PlcAddress Parse(string address) => ParseCore(address, null);
+    public DeviceAddress Parse(string address) => ParseCore(address, null);
 
     /// <inheritdoc/>
-    public PlcAddress Parse(string address, PlcDataType dataType) => ParseCore(address, dataType);
+    public DeviceAddress Parse(string address, DeviceDataType dataType) => ParseCore(address, dataType);
 
     /// <summary>Gets the default data type of a region.</summary>
     /// <param name="region">Region key.</param>
-    public static PlcDataType GetDefaultDataType(string region) =>
-        region is CoilRegion or DiscreteInputRegion ? PlcDataType.Bool : PlcDataType.UInt16;
+    public static DeviceDataType GetDefaultDataType(string region) =>
+        region is CoilRegion or DiscreteInputRegion ? DeviceDataType.Bool : DeviceDataType.UInt16;
 
-    private static PlcAddress ParseCore(string address, PlcDataType? dataType)
+    private static DeviceAddress ParseCore(string address, DeviceDataType? dataType)
     {
         if (string.IsNullOrWhiteSpace(address))
         {
@@ -117,14 +117,14 @@ public sealed partial class ModbusAddressParser : IPlcAddressParser
             $"Invalid Modbus address '{address}'. Examples: 40001, HR10, IR0, C0, DI0.");
     }
 
-    private static PlcAddress Build(string region, int offset, PlcDataType? dataType)
+    private static DeviceAddress Build(string region, int offset, DeviceDataType? dataType)
     {
         if (offset is < 0 or > ushort.MaxValue)
         {
             throw new FormatException($"The Modbus offset {offset} is outside the range 0..65535.");
         }
 
-        return new PlcAddress(region, offset, dataType ?? GetDefaultDataType(region));
+        return new DeviceAddress(region, offset, dataType ?? GetDefaultDataType(region));
     }
 
     private static int ParseOffset(string value, string address)

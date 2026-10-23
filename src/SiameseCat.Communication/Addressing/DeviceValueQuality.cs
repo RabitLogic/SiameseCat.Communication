@@ -1,7 +1,7 @@
 namespace SiameseCat.Communication;
 
 /// <summary>Quality of a value returned by a driver.</summary>
-public enum PlcValueQuality
+public enum DeviceValueQuality
 {
     /// <summary>The value was read successfully and is usable.</summary>
     Good = 0,

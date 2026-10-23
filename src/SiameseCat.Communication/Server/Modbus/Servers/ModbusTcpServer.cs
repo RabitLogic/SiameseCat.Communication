@@ -6,7 +6,7 @@ namespace SiameseCat.Communication.Server.Modbus;
 
 /// <summary>
 /// Modbus TCP slave that exposes an in-process <see cref="ModbusDataStore"/>.
-/// Use it for integration tests, demos and offline development when no real PLC is available.
+/// Use it for integration tests, demos and offline development when no real device is available.
 /// </summary>
 /// <remarks>
 /// <para>All requests are served concurrently, one task per client connection.</para>
@@ -165,7 +165,7 @@ public sealed class ModbusTcpServer : IModbusServer
                 _clients.Add(client);
             }
 
-            _options.Logger?.Log(PlcLogLevel.Debug, $"Modbus TCP client connected: {client.Client.RemoteEndPoint}.");
+            _options.Logger?.Log(CommunicationLogLevel.Debug, $"Modbus TCP client connected: {client.Client.RemoteEndPoint}.");
             _ = Task.Run(() => ServeAsync(client, token), CancellationToken.None);
         }
     }
@@ -236,7 +236,7 @@ public sealed class ModbusTcpServer : IModbusServer
                 _clients.Remove(client);
             }
 
-            _options.Logger?.Log(PlcLogLevel.Debug, "Modbus TCP client disconnected.");
+            _options.Logger?.Log(CommunicationLogLevel.Debug, "Modbus TCP client disconnected.");
         }
     }
 

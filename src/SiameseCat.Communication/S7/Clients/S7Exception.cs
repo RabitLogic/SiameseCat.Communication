@@ -2,7 +2,7 @@ using SiameseCat.Communication;
 
 namespace SiameseCat.Communication.S7;
 
-/// <summary>Raised when the PLC returns an S7 protocol error.</summary>
+/// <summary>Raised when the device returns an S7 protocol error.</summary>
 public class S7Exception : ProtocolException
 {
     /// <summary>Creates an exception with a message.</summary>
@@ -50,7 +50,7 @@ public class S7Exception : ProtocolException
     };
 }
 
-/// <summary>Raised when one item in a read or write request is rejected by the PLC.</summary>
+/// <summary>Raised when one item in a read or write request is rejected by the device.</summary>
 public sealed class S7ItemException : S7Exception
 {
     /// <summary>Creates an exception from the per-item return code.</summary>

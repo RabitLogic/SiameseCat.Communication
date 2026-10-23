@@ -33,9 +33,9 @@ internal sealed class S7PduProcessor
     private readonly S7DataStore _data;
     private readonly S7ServerStatistics _statistics;
     private readonly int _pduSize;
-    private readonly IPlcLogger? _logger;
+    private readonly ICommunicationLogger? _logger;
 
-    public S7PduProcessor(S7DataStore data, S7ServerStatistics statistics, int pduSize, IPlcLogger? logger)
+    public S7PduProcessor(S7DataStore data, S7ServerStatistics statistics, int pduSize, ICommunicationLogger? logger)
     {
         _data = data ?? throw new ArgumentNullException(nameof(data));
         _statistics = statistics ?? throw new ArgumentNullException(nameof(statistics));

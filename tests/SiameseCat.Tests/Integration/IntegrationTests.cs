@@ -24,7 +24,7 @@ public class IntegrationTests
     {
         var provider = new ServiceCollection().AddSiameseCat().BuildServiceProvider();
 
-        Assert.Same(NullPlcLogger.Instance, provider.GetRequiredService<IPlcLogger>());
+        Assert.Same(NullCommunicationLogger.Instance, provider.GetRequiredService<ICommunicationLogger>());
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class IntegrationTests
             })
             .BuildServiceProvider();
 
-        var driver = provider.GetRequiredKeyedService<IPlcDriver>("modbus");
+        var driver = provider.GetRequiredKeyedService<IDeviceDriver>("modbus");
 
         Assert.Equal("modbus", driver.Descriptor.Id);
         Assert.Equal(502, driver.Descriptor.DefaultPort);
@@ -47,11 +47,11 @@ public class IntegrationTests
     [Fact]
     public void MicrosoftLoggerAdapter_MapsLevels()
     {
-        Assert.Equal(LogLevel.Trace, MicrosoftLoggerAdapter.ToLogLevel(PlcLogLevel.Trace));
-        Assert.Equal(LogLevel.Debug, MicrosoftLoggerAdapter.ToLogLevel(PlcLogLevel.Debug));
-        Assert.Equal(LogLevel.Information, MicrosoftLoggerAdapter.ToLogLevel(PlcLogLevel.Information));
-        Assert.Equal(LogLevel.Warning, MicrosoftLoggerAdapter.ToLogLevel(PlcLogLevel.Warning));
-        Assert.Equal(LogLevel.Error, MicrosoftLoggerAdapter.ToLogLevel(PlcLogLevel.Error));
+        Assert.Equal(LogLevel.Trace, MicrosoftLoggerAdapter.ToLogLevel(CommunicationLogLevel.Trace));
+        Assert.Equal(LogLevel.Debug, MicrosoftLoggerAdapter.ToLogLevel(CommunicationLogLevel.Debug));
+        Assert.Equal(LogLevel.Information, MicrosoftLoggerAdapter.ToLogLevel(CommunicationLogLevel.Information));
+        Assert.Equal(LogLevel.Warning, MicrosoftLoggerAdapter.ToLogLevel(CommunicationLogLevel.Warning));
+        Assert.Equal(LogLevel.Error, MicrosoftLoggerAdapter.ToLogLevel(CommunicationLogLevel.Error));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class IntegrationTests
         var logger = new RecordingLoggerWrapper();
         var adapter = new MicrosoftLoggerAdapter(logger);
 
-        adapter.Log(PlcLogLevel.Warning, "connection lost", new InvalidOperationException("boom"));
+        adapter.Log(CommunicationLogLevel.Warning, "connection lost", new InvalidOperationException("boom"));
 
         Assert.True(logger.SawWarning);
         Assert.Contains("connection lost", logger.LastMessage, StringComparison.Ordinal);

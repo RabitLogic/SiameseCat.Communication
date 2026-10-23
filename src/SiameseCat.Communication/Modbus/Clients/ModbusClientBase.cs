@@ -29,7 +29,7 @@ public abstract partial class ModbusClientBase : IAsyncDisposable
         {
             Transport = new LoggingTransport(
                 Transport,
-                options.Logger ?? NullPlcLogger.Instance,
+                options.Logger ?? NullCommunicationLogger.Instance,
                 $"{GetType().Name}/{options.UnitId}");
         }
     }

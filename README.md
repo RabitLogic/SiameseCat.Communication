@@ -2,15 +2,20 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-A lightweight .NET communication library for PLCs and industrial devices. It ships assets for
+A lightweight .NET communication library for industrial devices. It ships assets for
 **.NET 8 (LTS)**, **.NET 10 (LTS)** and **.NET Standard 2.0** — the two modern targets are floors, not
 ceilings: .NET 9, .NET 11 and later resolve the nearest lower asset automatically, so the package is
 never pinned to a single runtime version.
 
-- **Pluggable drivers** — one contract (`IPlcDriver` / `DriverBase`) with capability flags, batch
+> Build-it-yourself tutorial (Chinese): [tutorial/](tutorial/README.md)
+
+- **Pluggable drivers** — one contract (`IDeviceDriver` / `DriverBase`) with capability flags, batch
   read/write, polling or native subscriptions, health probes and metrics.
 - **Protocols built in-house** — Modbus RTU/TCP and S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
   TCP, UDP and serial transports (device identification and file records included). No NModbus/Sharp7 dependency.
+- **Custom TCP protocols** — protocol-agnostic framing (raw, length prefix, delimiter, fixed length),
+  a `CustomTcpClient`/`CustomTcpServer` pair and a pluggable `ITcpFrameCodec`; the same
+  `TcpFrameConnection` core also carries Modbus TCP (MBAP).
 - **Simulation included** — the same package ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
   with thread-safe data stores, write events, snapshots and per-request statistics.
 - **One package** — `SiameseCat.Communication` contains the contracts, transports, protocols, drivers,
@@ -38,7 +43,7 @@ Every step that targets a device also starts an in-process slave, so the whole t
 | `S7/` | `s7/client`, `s7/driver` |
 | `Drivers/` | `drivers/registry`, `drivers/tags`, `drivers/batch`, `drivers/subscription`, `drivers/resilience`, `drivers/hosting` |
 | `Server/` | `server/modbus-tcp`, `server/modbus-rtu`, `server/s7` |
-| `Transports/` | `transports/raw-tcp`, `transports/custom` |
+| `Transports/` | `transports/raw-tcp`, `transports/custom`, `transports/custom-protocol` |
 
 ```powershell
 dotnet run --project samples/SiameseCat.Samples -- list
@@ -54,11 +59,12 @@ Other products (for example `SiameseCat.Mes.Template`) are separate repositories
 
 | Namespace | Responsibility |
 | --- | --- |
-| `SiameseCat.Communication` | Driver contracts, `DriverBase`, registry, `PlcAddress`/`PlcValue`/`PlcTag`, options, exceptions, metrics, `ITransport` |
+| `SiameseCat.Communication` | Driver contracts, `DriverBase`, registry, `DeviceAddress`/`DeviceValue`/`DeviceTag`, options, exceptions, metrics, `ITransport` |
 | `SiameseCat.Communication.Transport` | TCP, UDP and serial port transports |
-| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames, clients, address parser and generic Modbus driver |
+| `SiameseCat.Communication.Tcp` | Protocol-agnostic framing (`TcpFrameCodec`), `TcpFrameConnection`, `CustomTcpClient` |
+| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames (`ModbusTcpFrameCodec`), clients, address parser and generic Modbus driver |
 | `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client, addresses, options and driver |
-| `SiameseCat.Communication.Server` | Modbus TCP/RTU and S7 slaves (`.Server.Modbus`, `.Server.S7`) |
+| `SiameseCat.Communication.Server` | Modbus TCP/RTU, S7 and custom TCP servers (`.Server.Modbus`, `.Server.S7`, `.Server.Tcp`) |
 | `SiameseCat.Communication.Hosting` | `AddSiameseCat()`, keyed drivers, slave hosting, logging adapter, health checks |
 
 ## Install
@@ -101,12 +107,12 @@ var batch = (IBatchReadable)driver;
 var batchWrite = (IBatchWritable)driver;
 
 // Protocol-native text is parsed into a protocol-independent address.
-var speed = driver.AddressParser.Parse("40001", PlcDataType.Int16);
+var speed = driver.AddressParser.Parse("40001", DeviceDataType.Int16);
 ushort raw = (await readable.ReadAsync(speed)).AsUInt16();
 
 await writable.WriteAsync(
-    driver.AddressParser.Parse("HR10", PlcDataType.Float),
-    PlcValue.FromFloat(12.5f));
+    driver.AddressParser.Parse("HR10", DeviceDataType.Float),
+    DeviceValue.FromFloat(12.5f));
 
 // Batch read: Modbus merges contiguous registers, S7 uses one multi-variable request.
 var values = await batch.ReadBatchAsync(new[]
@@ -119,12 +125,12 @@ var values = await batch.ReadBatchAsync(new[]
 // Batch write: FC16 for contiguous registers, FC15 for coils, multi-variable write for S7.
 await batchWrite.WriteBatchAsync(new[]
 {
-    new PlcWriteRequest(driver.AddressParser.Parse("HR0"), PlcValue.FromUInt16(10)),
-    new PlcWriteRequest(driver.AddressParser.Parse("HR1"), PlcValue.FromUInt16(11)),
+    new DeviceWriteRequest(driver.AddressParser.Parse("HR0"), DeviceValue.FromUInt16(10)),
+    new DeviceWriteRequest(driver.AddressParser.Parse("HR1"), DeviceValue.FromUInt16(11)),
 });
 
 // Named tags with engineering scaling.
-var tag = new PlcTag("temperature", "40001", PlcDataType.Int16, scale: 0.1, offset: -40, unit: "°C");
+var tag = new DeviceTag("temperature", "40001", DeviceDataType.Int16, scale: 0.1, offset: -40, unit: "°C");
 var engineering = tag.ToEngineering((await driver.ReadTagAsync(tag)).AsDouble());
 
 // Polling subscription (jitter + failure back-off by default).
@@ -272,7 +278,7 @@ bool motorOn = await client.ReadBoolAsync(S7Address.Parse("M0.0"));
 await client.WriteBoolAsync(S7Address.Parse("M0.0"), true);
 ```
 
-The PDU size is negotiated during `ConnectAsync` (Setup Communication requests 960 bytes and the PLC's
+The PDU size is negotiated during `ConnectAsync` (Setup Communication requests 960 bytes and the device's
 answer is capped at 960); multi-variable requests are split automatically for larger batches.
 
 ### Raw TCP / UDP / serial
@@ -289,6 +295,52 @@ await using var udp = new UdpTransport(new UdpTransportOptions { Host = "127.0.0
 await using var serial = new SerialPortTransport(new SerialPortOptions { PortName = "COM3", BaudRate = 115200 });
 ```
 
+### Custom TCP protocol
+
+`SiameseCat.Communication.Tcp` adds framing and request/response handling without any device-model coupling:
+
+```csharp
+using SiameseCat.Communication.Tcp;
+
+var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };   // CR LF
+
+await using var client = new CustomTcpClient(new CustomTcpClientOptions
+{
+    Tcp = { Host = "127.0.0.1", Port = 5000 },
+    Framing = framing,
+    Timeout = TimeSpan.FromSeconds(2),
+});
+
+await client.ConnectAsync();
+var answer = await client.RequestAsync(Encoding.ASCII.GetBytes("READ temperature"));
+```
+
+`TcpFrameOptions.Mode` selects `Raw`, `LengthPrefix` (1/2/4-byte field, either byte order, optional
+header-inclusive length), `Delimiter` (keeps or strips the separator) or `FixedLength`. Implement
+`ITcpFrameCodec` when a vendor protocol needs escaping or checksums.
+
+The same codebase provides the server side and the shared connection core:
+
+```csharp
+using SiameseCat.Communication.Server.Tcp;
+
+await using var server = new CustomTcpServer(
+    async (connection, token) =>
+    {
+        var request = await connection.ReadFrameAsync(token);
+        if (request is not null)
+        {
+            await connection.SendAsync(request, token);
+        }
+    },
+    new CustomTcpServerOptions { Port = 5000, Framing = framing });
+```
+
+`TcpFrameConnection` is the reusable core: it writes and reads whole frames over any `ITransport` and
+adds optional trace logging, while timeouts, retries and serialization stay with the owner. Modbus TCP
+uses the same core through `ModbusTcpFrameCodec`, which supplies MBAP framing and leaves transaction-id
+and unit-id validation to `ModbusTcpClient`.
+
 ## Address and value model
 
 | Syntax | Example | Meaning |
@@ -301,19 +353,19 @@ A plain number is classified by digit count, not by intent: `1000` is holding re
 `01000` is coil 999. Use `holding:1000` when an offset must be unambiguous. Each parser owns its own
 notation — the Modbus parser rejects S7 addresses and the S7 parser rejects Modbus ones.
 
-`PlcAddress` carries `Region`, `Offset`, `BitOffset`, `DataType`, `Length` and an optional `Symbol` for
-symbol-addressed protocols. `PlcValue` carries the payload plus optional `Quality` and `Timestamp`;
+`DeviceAddress` carries `Region`, `Offset`, `BitOffset`, `DataType`, `Length` and an optional `Symbol` for
+symbol-addressed protocols. `DeviceValue` carries the payload plus optional `Quality` and `Timestamp`;
 neither participates in equality (so change detection is unchanged).
 
 Numeric arrays use `Length` as the **number of elements**:
 
 ```csharp
-var address = new PlcAddress("holding", 0, PlcDataType.UInt16, length: 10);   // 10 registers
-var values = PlcValue.FromUInt16Array(new ushort[10]);
+var address = new DeviceAddress("holding", 0, DeviceDataType.UInt16, length: 10);   // 10 registers
+var values = DeviceValue.FromUInt16Array(new ushort[10]);
 ushort[] readBack = values.AsUInt16Array();                                    // clone
 
 var batchValue = await ((IReadable)driver).ReadAsync(
-    driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(10));
+    driver.AddressParser.Parse("HR0", DeviceDataType.UInt16).WithLength(10));
 ```
 
 Supported array element types: `Int16`, `UInt16`, `Int32`, `UInt32`, `Int64`, `UInt64`, `Float`,
@@ -401,7 +453,7 @@ foreach (var station in new byte[] { 1, 2, 3 })
 }
 ```
 
-`LogFrames = true` writes each frame as hex through `IPlcLogger`, for example
+`LogFrames = true` writes each frame as hex through `ICommunicationLogger`, for example
 `modbus/1 TX 01 03 00 00 00 02 C4 0B` / `RX 01 03 04 00 64 00 C8 ...`.
 
 ## Capabilities and optional hooks
@@ -434,7 +486,7 @@ using SiameseCat.Communication.Hosting;
 
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole());
-services.AddSiameseCat();                       // DriverRegistry + IPlcLogger adapter
+services.AddSiameseCat();                       // DriverRegistry + ICommunicationLogger adapter
 
 services.AddSiameseCatDriver("modbus", configuration =>
 {
@@ -444,18 +496,18 @@ services.AddSiameseCatDriver("modbus", configuration =>
 });
 
 var provider = services.BuildServiceProvider();
-var driver = provider.GetRequiredKeyedService<IPlcDriver>("modbus");
+var driver = provider.GetRequiredKeyedService<IDeviceDriver>("modbus");
 await driver.ConnectAsync();
 ```
 
 - Keyed drivers are transient and disposed when their scope ends.
-- Without a registered logger the library falls back to `NullPlcLogger`.
+- Without a registered logger the library falls back to `NullCommunicationLogger`.
 - Programmatic integration: `new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`.
 
 ### Health checks
 
 `SiameseCat.Communication.Hosting` registers a health check per driver, so ASP.NET Core endpoints, Kubernetes probes
-and any `HealthCheckService` consumer can watch the PLC like any other dependency:
+and any `HealthCheckService` consumer can watch the device like any other dependency:
 
 ```csharp
 services.AddHealthChecks()
@@ -477,7 +529,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c
 - The report carries `driver`, `state`, `requests`, `failures`, `retries`, failure kinds and the latency
   percentiles, so dashboards need no extra plumbing.
 - To monitor a driver the application already owns, use the overload with an accessor:
-  `.AddSiameseCatDriverCheck("plc-main", sp => sp.GetRequiredKeyedService<IPlcDriver>("modbus"))`.
+  `.AddSiameseCatDriverCheck("device-main", sp => sp.GetRequiredKeyedService<IDeviceDriver>("modbus"))`.
 
 Slaves can be hosted as well (`IModbusServer` / `IS7Server` singletons, started and stopped with the host):
 
@@ -554,7 +606,7 @@ roughly a third less than before (see the performance notes for measured numbers
 using var server = new ModbusTcpServer(new ModbusServerOptions
 {
     Port = 0,
-    Logger = myPlcLogger,          // any IPlcLogger implementation
+    Logger = myCommunicationLogger, // any ICommunicationLogger implementation
     ServerIdentifier = "SIM-1",
 });
 
@@ -628,7 +680,7 @@ using SiameseCat.Communication.Server.S7;
 await using var s7 = new S7Server(new S7ServerOptions
 {
     Host = "127.0.0.1",
-    Port = 0,                    // 0 = OS-assigned; 102 is the real PLC port
+    Port = 0,                    // 0 = OS-assigned; 102 is the real S7 port
     MemorySize = 512,            // M area
     InputSize = 512,             // I area
     OutputSize = 512,            // Q area
@@ -678,8 +730,8 @@ float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
   behind a TCP proxy that drops the link on a schedule, then asserts recovery, success rate, managed-heap,
   handle and thread growth. CI runs it for one minute on every push.
 - **Metrics**: `driver.Metrics.Snapshot()` returns per-operation counters and latency percentiles
-  (P50/P95/max); `PlcDiagnostics` publishes `plc.requests`, `plc.failures`, `plc.retries`, `plc.bytes.*`
-  and `plc.latency` through `System.Diagnostics.Metrics`, ready for OpenTelemetry.
+  (P50/P95/max); `CommunicationDiagnostics` publishes `device.requests`, `device.failures`, `device.retries`, `device.bytes.*`
+  and `device.latency` through `System.Diagnostics.Metrics`, ready for OpenTelemetry.
 - **Exceptions**: `CommunicationException`, `CommunicationTimeoutException`,
   `ConnectionClosedException`, `ProtocolException` / `S7Exception`; messages include the unit id,
   function code and address whenever they are known.
@@ -710,7 +762,7 @@ dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
 dotnet run --project samples/SiameseCat.Samples -- run drivers/batch
 dotnet run --project samples/SiameseCat.Samples -- run server/s7
 
-# Run every sample that has a built-in simulator (17 steps, ~10 s, exit code 1 on failure)
+# Run every sample that has a built-in simulator (18 steps, ~10 s, exit code 1 on failure)
 dotnet run --project samples/SiameseCat.Samples -- selftest
 
 # Soak test with fault injection: recovery, success rate, memory/handle/thread growth
@@ -749,11 +801,11 @@ for the vulnerability reporting process.
 - The Modbus slaves cover TCP and RTU; S7 only supports S7comm variable read/write (no upload/download or
   diagnostic buffer services).
 - Two drivers ship in the box (generic Modbus and generic S7). Brand-specific address mappings live in
-  third-party packages that implement `IPlcDriverFactory`, because each brand needs its own address
+  third-party packages that implement `IDeviceDriverFactory`, because each brand needs its own address
   mapping and validation against real hardware.
 - S7 currently supports TCP only; Modbus supports TCP and RTU.
 - Numeric arrays cover `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`; `Bool` is a single bit.
-- There is no cross-protocol semantic address mapping in v1; `PlcTag` covers configuration-driven tags.
+- There is no cross-protocol semantic address mapping in v1; `DeviceTag` covers configuration-driven tags.
 - Serial I/O has no cancellable async API: cancelling a read/write closes the port and requires a new
   `ConnectAsync`.
 - Keep `SerialPortOptions.ReadTimeout` below the protocol timeout, otherwise timeout detection is delayed.

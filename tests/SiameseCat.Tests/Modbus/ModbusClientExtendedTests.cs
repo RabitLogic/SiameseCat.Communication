@@ -43,7 +43,7 @@ public class ModbusClientExtendedTests
             1,
             0x2B, 0x0E, 0x02, 0x02, 0xFF, 0x04, 0x02,
             0x03, 0x04, (byte)'h', (byte)'t', (byte)'t', (byte)'p',
-            0x04, 0x03, (byte)'P', (byte)'L', (byte)'C'));
+            0x04, 0x03, (byte)'D', (byte)'E', (byte)'V'));
         transport.EnqueueResponse(Mbap(
             2,
             1,
@@ -56,7 +56,7 @@ public class ModbusClientExtendedTests
         var identification = await client.ReadDeviceIdentificationAsync(1, ModbusDeviceIdCode.Regular);
 
         Assert.Equal("http", identification.GetObjectText(0x03));
-        Assert.Equal("PLC", identification.GetObjectText(0x04));
+        Assert.Equal("DEV", identification.GetObjectText(0x04));
         Assert.Equal("M10", identification.GetObjectText(0x05));
         Assert.False(identification.MoreFollows);
         Assert.Equal(2, transport.Writes.Count);

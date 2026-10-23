@@ -121,10 +121,10 @@ echoes writes and the client validates the echo; `unitId = 0` broadcasts a write
 
 ### Address syntax
 
-`ModbusAddressParser` turns the notations used in PLC documentation into a protocol-neutral
-`PlcAddress`. The protocol itself has no textual address format: the clients take a zero-based numeric
+`ModbusAddressParser` turns the notations used in device documentation into a protocol-neutral
+`DeviceAddress`. The protocol itself has no textual address format: the clients take a zero-based numeric
 offset only, so this notation lives in the driver layer and can be replaced through
-`IPlcAddressParser`.
+`IDeviceAddressParser`.
 
 | Notation | Example | Area | Zero-based offset |
 | --- | --- | --- | --- |
@@ -154,7 +154,7 @@ them in the vendor driver or write `holding:100`.
 
 ### Data types and register usage
 
-| `PlcDataType` | Registers | Notes |
+| `DeviceDataType` | Registers | Notes |
 | --- | --- | --- |
 | `Bool` | — (bit) | Coils/discrete inputs only; a single bit per address |
 | `Byte` | 1 | Low byte of the register (server side) |
@@ -207,6 +207,27 @@ them in the vendor driver or write `holding:100`.
   written, item errors and discarded frames.
 - `S7DataStore` exposes byte and bit access plus a `Written` event with previous values, and `Reset()`.
 
+## Custom TCP (`SiameseCat.Communication.Tcp`)
+
+Protocol-agnostic framing and request/response plumbing. This namespace does not use `DeviceAddress` or
+`DeviceValue`, so it also works outside the driver layer.
+
+| `TcpFrameMode` | Wire format | Options |
+| --- | --- | --- |
+| `Raw` | every transport read is one frame | none |
+| `LengthPrefix` | length field + payload | `PrefixLength` (1/2/4), `BigEndian`, `LengthIncludesPrefix` |
+| `Delimiter` | payload + delimiter | `Delimiter` (default CR LF), `IncludeDelimiter` |
+| `FixedLength` | constant frame size | `FixedLength` |
+
+- `MaxFrameLength` (default 64 KiB) bounds every mode; an oversized frame raises `ProtocolException`.
+- Implement `ITcpFrameCodec` for escaping, checksums or a non-standard header.
+- `TcpFrameConnection` writes and reads whole frames over any `ITransport` and can log TX/RX at trace
+  level; timeouts, retries and serialization stay with the owner of the connection.
+- `CustomTcpClient` adds those semantics for a client (`RequestAsync`, `SendAsync`, `ReadFrameAsync`).
+- `ModbusTcpFrameCodec` applies MBAP framing (length 2..254) and returns the complete frame so
+  `ModbusTcpClient` validates transaction id, protocol id and unit id before parsing the PDU.
+- `CustomTcpServer` accepts connections and hands one `CustomTcpConnection` to a handler per client.
+
 ## Transports
 
 | Transport | Type | Highlights |
@@ -216,6 +237,7 @@ them in the vendor driver or write `holding:100`.
 | `SerialPortTransport` | stream | baud rate, parity, data bits, stop bits, handshake; cancellation closes the port |
 | `SharedTransportFactory` | wrapper | one physical link shared by several drivers, with a shared `RequestLock` |
 | `LoggingTransport` | decorator | enabled by `LogFrames`, writes `TX`/`RX` hex at `Trace` |
+| `TcpFrameConnection` | framing wrapper | adds `ITcpFrameCodec` framing over any transport; optionally logs `TX`/`RX` |
 
 ## Version and asset selection
 

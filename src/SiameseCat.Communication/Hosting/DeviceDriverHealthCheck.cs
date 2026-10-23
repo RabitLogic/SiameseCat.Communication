@@ -5,22 +5,22 @@ using SiameseCat.Communication;
 namespace SiameseCat.Communication.Hosting;
 
 /// <summary>
-/// Health check that probes one PLC driver with <see cref="IHealthCheckable.PingAsync"/>.
+/// Health check that probes one device driver with <see cref="IHealthCheckable.PingAsync"/>.
 /// </summary>
 /// <remarks>
 /// The check never throws: every failure becomes <see cref="HealthStatus.Unhealthy"/> (or the failure status
 /// configured in the registration) with the exception attached, so ASP.NET Core health endpoints,
 /// Kubernetes probes and dashboards get a usable answer instead of a 500.
 /// </remarks>
-internal sealed class PlcDriverHealthCheck : IHealthCheck
+internal sealed class DeviceDriverHealthCheck : IHealthCheck
 {
     private readonly IServiceProvider _provider;
-    private readonly Func<IServiceProvider, IPlcDriver> _driverAccessor;
+    private readonly Func<IServiceProvider, IDeviceDriver> _driverAccessor;
 
     /// <summary>Creates the check.</summary>
     /// <param name="provider">Provider used to resolve the driver on every probe.</param>
     /// <param name="driverAccessor">Resolves the driver to probe.</param>
-    public PlcDriverHealthCheck(IServiceProvider provider, Func<IServiceProvider, IPlcDriver> driverAccessor)
+    public DeviceDriverHealthCheck(IServiceProvider provider, Func<IServiceProvider, IDeviceDriver> driverAccessor)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _driverAccessor = driverAccessor ?? throw new ArgumentNullException(nameof(driverAccessor));
@@ -33,7 +33,7 @@ internal sealed class PlcDriverHealthCheck : IHealthCheck
     {
         Guard.NotNull(context, nameof(context));
 
-        IPlcDriver driver;
+        IDeviceDriver driver;
         try
         {
             driver = _driverAccessor(_provider);
@@ -42,7 +42,7 @@ internal sealed class PlcDriverHealthCheck : IHealthCheck
         {
             return new HealthCheckResult(
                 context.Registration.FailureStatus,
-                "The PLC driver could not be resolved.",
+                "The device driver could not be resolved.",
                 ex);
         }
 
@@ -105,14 +105,14 @@ internal sealed class PlcDriverHealthCheck : IHealthCheck
         }
     }
 
-    private static string DescribeSuccess(IPlcDriver driver)
+    private static string DescribeSuccess(IDeviceDriver driver)
     {
         var snapshot = driver.Metrics.Snapshot();
         return $"Driver '{driver.Descriptor.Id}' is {driver.State}; "
             + $"{snapshot.Requests} requests, {snapshot.Failures} failures, p95 {snapshot.P95LatencyMs:0.###} ms.";
     }
 
-    private static Dictionary<string, object> Describe(IPlcDriver driver)
+    private static Dictionary<string, object> Describe(IDeviceDriver driver)
     {
         var snapshot = driver.Metrics.Snapshot();
 

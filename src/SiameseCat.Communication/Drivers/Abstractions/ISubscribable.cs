@@ -10,8 +10,8 @@ public interface ISubscribable
     /// <param name="cancellationToken">Cancellation token that also ends the subscription.</param>
     /// <returns>A handle that stops the subscription when disposed.</returns>
     Task<IAsyncDisposable> SubscribeAsync(
-        PlcAddress address,
+        DeviceAddress address,
         TimeSpan interval,
-        Func<PlcValue, Task> onChanged,
+        Func<DeviceValue, Task> onChanged,
         CancellationToken cancellationToken = default);
 }

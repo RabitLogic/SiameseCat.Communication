@@ -53,7 +53,7 @@ public static class ModbusClientFactory
         DriverConfiguration configuration,
         byte unitId,
         int defaultPort = DefaultTcpPort,
-        IPlcLogger? logger = null)
+        ICommunicationLogger? logger = null)
     {
         Guard.NotNull(configuration, nameof(configuration));
 
@@ -81,7 +81,7 @@ public static class ModbusClientFactory
         DriverConfiguration configuration,
         byte unitId,
         int defaultPort,
-        IPlcLogger? logger)
+        ICommunicationLogger? logger)
     {
         var options = CreateTcpOptions(configuration, unitId, defaultPort, logger);
         var transport = configuration.TransportFactory?.Create(configuration);
@@ -94,7 +94,7 @@ public static class ModbusClientFactory
     private static ModbusRtuClient CreateRtu(
         DriverConfiguration configuration,
         byte unitId,
-        IPlcLogger? logger)
+        ICommunicationLogger? logger)
     {
         var options = CreateRtuOptions(configuration, unitId, logger);
         var transport = configuration.TransportFactory?.Create(configuration);
@@ -112,7 +112,7 @@ public static class ModbusClientFactory
         DriverConfiguration configuration,
         byte unitId,
         int defaultPort,
-        IPlcLogger? logger)
+        ICommunicationLogger? logger)
     {
         if (configuration.TransportFactory is null)
         {
@@ -135,7 +135,7 @@ public static class ModbusClientFactory
         DriverConfiguration configuration,
         byte unitId,
         int defaultPort,
-        IPlcLogger? logger) => new()
+        ICommunicationLogger? logger) => new()
         {
             UnitId = unitId,
             Timeout = configuration.Timeout,
@@ -154,7 +154,7 @@ public static class ModbusClientFactory
     private static ModbusRtuOptions CreateRtuOptions(
         DriverConfiguration configuration,
         byte unitId,
-        IPlcLogger? logger)
+        ICommunicationLogger? logger)
     {
         var serial = configuration.Serial;
         var interFrameDelayMs = configuration.GetOption("interFrameDelayMs", 0, 0, 60_000);

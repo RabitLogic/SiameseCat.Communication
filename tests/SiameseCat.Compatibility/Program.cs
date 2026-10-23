@@ -69,8 +69,8 @@ internal static class Program
         var holding = parser.Parse("40001");
         Ensure(holding.Region == ModbusAddressParser.HoldingRegisterRegion && holding.Offset == 0, "40001 did not parse.");
 
-        var named = parser.Parse("HR10", PlcDataType.Float);
-        Ensure(named.Offset == 10 && named.DataType == PlcDataType.Float, "HR10 did not parse.");
+        var named = parser.Parse("HR10", DeviceDataType.Float);
+        Ensure(named.Offset == 10 && named.DataType == DeviceDataType.Float, "HR10 did not parse.");
 
         return Task.CompletedTask;
     }
@@ -86,21 +86,21 @@ internal static class Program
 
     private static Task CheckValueModelAsync()
     {
-        var value = PlcValue.FromDouble(1.5).WithTimestamp(DateTimeOffset.UtcNow);
+        var value = DeviceValue.FromDouble(1.5).WithTimestamp(DateTimeOffset.UtcNow);
         Ensure(Math.Abs(value.AsDouble() - 1.5) < 1e-9, "Double conversion failed.");
         Ensure(value.IsGood && value.Timestamp.HasValue, "Value metadata is missing.");
-        Ensure(PlcValue.FromUInt16(7) == PlcValue.FromUInt16(7), "Value equality failed.");
+        Ensure(DeviceValue.FromUInt16(7) == DeviceValue.FromUInt16(7), "Value equality failed.");
 
-        var symbol = PlcAddress.FromSymbol("ns=2", "s=Speed", PlcDataType.Int16);
+        var symbol = DeviceAddress.FromSymbol("ns=2", "s=Speed", DeviceDataType.Int16);
         Ensure(symbol.Symbol == "s=Speed" && symbol.ToString() == "ns=2:s=Speed[Int16]", "Symbolic address failed.");
 
-        var array = PlcValue.FromUInt16Array(new ushort[] { 10, 20, 30 });
+        var array = DeviceValue.FromUInt16Array(new ushort[] { 10, 20, 30 });
         Ensure(array.IsArray && array.Length == 3 && array.AsUInt16Array()[2] == 30, "Numeric arrays failed.");
         Ensure(
-            new PlcAddress("holding", 0, PlcDataType.UInt16, length: 3).ByteSize == 6,
+            new DeviceAddress("holding", 0, DeviceDataType.UInt16, length: 3).ByteSize == 6,
             "Array address size failed.");
 
-        var tag = new PlcTag("temperature", "40001", PlcDataType.Int16, scale: 0.1, offset: -40);
+        var tag = new DeviceTag("temperature", "40001", DeviceDataType.Int16, scale: 0.1, offset: -40);
         Ensure(Math.Abs(tag.ToEngineering(100) - (-30)) < 1e-9, "Tag scaling failed.");
 
         return Task.CompletedTask;
@@ -108,13 +108,13 @@ internal static class Program
 
     private static Task CheckArgumentChecksAsync()
     {
-        EnsureThrows<ArgumentException>(() => new PlcTag(" ", "40001", PlcDataType.UInt16));
+        EnsureThrows<ArgumentException>(() => new DeviceTag(" ", "40001", DeviceDataType.UInt16));
 
-        var tag = new PlcTag("speed", "40001", PlcDataType.UInt16);
-        EnsureThrows<ArgumentNullException>(() => PlcTagExtensions.ReadTagAsync(null!, tag));
-        EnsureThrows<ArgumentException>(() => new PlcAddress(string.Empty, 0, PlcDataType.UInt16));
-        EnsureThrows<ArgumentOutOfRangeException>(() => new PlcAddress("coil", 0, PlcDataType.Bool, 2));
-        EnsureThrows<ArgumentOutOfRangeException>(() => new PlcAddress("holding", 0, PlcDataType.UInt16, 0));
+        var tag = new DeviceTag("speed", "40001", DeviceDataType.UInt16);
+        EnsureThrows<ArgumentNullException>(() => DeviceTagExtensions.ReadTagAsync(null!, tag));
+        EnsureThrows<ArgumentException>(() => new DeviceAddress(string.Empty, 0, DeviceDataType.UInt16));
+        EnsureThrows<ArgumentOutOfRangeException>(() => new DeviceAddress("coil", 0, DeviceDataType.Bool, 2));
+        EnsureThrows<ArgumentOutOfRangeException>(() => new DeviceAddress("holding", 0, DeviceDataType.UInt16, 0));
 
         var configuration = new DriverConfiguration { Transport = TransportKind.Custom };
         EnsureThrows<ArgumentException>(() =>
@@ -238,7 +238,7 @@ internal static class Program
                 var value = await readable.ReadAsync(driver.AddressParser.Parse("40001")).ConfigureAwait(false);
                 Ensure(value.AsUInt16() == 100, "Driver read failed.");
 
-                await writable.WriteAsync(driver.AddressParser.Parse("40005"), PlcValue.FromUInt16(42))
+                await writable.WriteAsync(driver.AddressParser.Parse("40005"), DeviceValue.FromUInt16(42))
                     .ConfigureAwait(false);
                 var written = await readable.ReadAsync(driver.AddressParser.Parse("40005")).ConfigureAwait(false);
                 Ensure(written.AsUInt16() == 42, "Driver write failed.");
@@ -274,8 +274,8 @@ internal static class Program
                 await client.ReadHoldingRegistersAsync(1, 0, 1).ConfigureAwait(false);
             }
 
-            Ensure(logger.Contains(PlcLogLevel.Trace, "TX"), "TX frame was not logged.");
-            Ensure(logger.Contains(PlcLogLevel.Trace, "RX"), "RX frame was not logged.");
+            Ensure(logger.Contains(CommunicationLogLevel.Trace, "TX"), "TX frame was not logged.");
+            Ensure(logger.Contains(CommunicationLogLevel.Trace, "RX"), "RX frame was not logged.");
         }
     }
 
@@ -302,14 +302,14 @@ internal static class Program
         throw new InvalidOperationException($"Expected {typeof(TException).Name} was not thrown.");
     }
 
-    private sealed class RecordingLogger : IPlcLogger
+    private sealed class RecordingLogger : ICommunicationLogger
     {
         private readonly List<string> _messages = new List<string>();
 
-        public void Log(PlcLogLevel level, string message, Exception? exception = null) =>
+        public void Log(CommunicationLogLevel level, string message, Exception? exception = null) =>
             _messages.Add(level + ":" + message);
 
-        public bool Contains(PlcLogLevel level, string text)
+        public bool Contains(CommunicationLogLevel level, string text)
         {
             var prefix = level + ":";
             foreach (var message in _messages)

@@ -7,9 +7,9 @@ public abstract partial class DriverBase
     private async Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         bool isWrite,
-        PlcAddress? address,
+        DeviceAddress? address,
         TimeSpan? timeout,
-        PlcOperation operationKind,
+        CommunicationOperation operationKind,
         CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -25,7 +25,7 @@ public abstract partial class DriverBase
             for (var attempt = 1; ; attempt++)
             {
                 Metrics.RecordRequest(operationKind);
-                PlcDiagnostics.RecordRequest(Descriptor.Id, operationKind);
+                CommunicationDiagnostics.RecordRequest(Descriptor.Id, operationKind);
                 var started = Stopwatch.GetTimestamp();
 
                 var ownedTimeoutSource = CreateTimeoutSource(effectiveTimeout, cancellationToken, out var token);
@@ -34,7 +34,7 @@ public abstract partial class DriverBase
                     var result = await operation(token).ConfigureAwait(false);
                     var elapsed = GetElapsedTime(started);
                     Metrics.RecordLatency(elapsed);
-                    PlcDiagnostics.RecordLatency(Descriptor.Id, operationKind, elapsed);
+                    CommunicationDiagnostics.RecordLatency(Descriptor.Id, operationKind, elapsed);
                     return result;
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -43,7 +43,7 @@ public abstract partial class DriverBase
                         $"{Descriptor.Id} request{BuildAddressSuffix(address)} timed out after {effectiveTimeout}.");
 
                     Metrics.RecordFailure(operationKind, timeoutException);
-                    PlcDiagnostics.RecordFailure(Descriptor.Id, operationKind, timeoutException);
+                    CommunicationDiagnostics.RecordFailure(Descriptor.Id, operationKind, timeoutException);
 
                     if (attempt >= attempts)
                     {
@@ -59,8 +59,8 @@ public abstract partial class DriverBase
                 {
                     Metrics.RecordFailure(operationKind, ex);
                     Metrics.RecordRetry();
-                    PlcDiagnostics.RecordFailure(Descriptor.Id, operationKind, ex);
-                    PlcDiagnostics.RecordRetry(Descriptor.Id);
+                    CommunicationDiagnostics.RecordFailure(Descriptor.Id, operationKind, ex);
+                    CommunicationDiagnostics.RecordRetry(Descriptor.Id);
                     Logger.Warning(
                         $"{Descriptor.Id} request{BuildAddressSuffix(address)} failed, retrying ({attempt}/{attempts - 1}).",
                         ex);
@@ -70,7 +70,7 @@ public abstract partial class DriverBase
                 catch (Exception ex)
                 {
                     Metrics.RecordFailure(operationKind, ex);
-                    PlcDiagnostics.RecordFailure(Descriptor.Id, operationKind, ex);
+                    CommunicationDiagnostics.RecordFailure(Descriptor.Id, operationKind, ex);
                     if (ex is ConnectionClosedException)
                     {
                         SetState(DriverState.Faulted);
@@ -141,7 +141,7 @@ public abstract partial class DriverBase
     }
 
     /// <summary>Formats the address suffix only when a failure message is actually built.</summary>
-    private static string BuildAddressSuffix(PlcAddress? address) =>
+    private static string BuildAddressSuffix(DeviceAddress? address) =>
         address is null ? string.Empty : $" for {address.Value}";
 
     /// <summary>Elapsed time since <paramref name="started"/> without allocating a <see cref="Stopwatch"/>.</summary>
@@ -155,7 +155,7 @@ public abstract partial class DriverBase
 #endif
     }
 
-    private async Task ReconnectAsync(PlcAddress? address, CancellationToken cancellationToken)
+    private async Task ReconnectAsync(DeviceAddress? address, CancellationToken cancellationToken)
     {
         if (address is null)
         {
@@ -204,7 +204,7 @@ public abstract partial class DriverBase
         }
     }
 
-    private static void ValidateAddress(PlcAddress address)
+    private static void ValidateAddress(DeviceAddress address)
     {
         if (string.IsNullOrWhiteSpace(address.Region))
         {

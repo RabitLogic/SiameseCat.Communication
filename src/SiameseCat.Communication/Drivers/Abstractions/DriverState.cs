@@ -1,6 +1,6 @@
 namespace SiameseCat.Communication;
 
-/// <summary>Lifecycle state of a PLC driver.</summary>
+/// <summary>Lifecycle state of a device driver.</summary>
 public enum DriverState
 {
     /// <summary>Not connected.</summary>

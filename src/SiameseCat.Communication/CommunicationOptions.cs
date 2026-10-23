@@ -19,13 +19,13 @@ public class CommunicationOptions
     public bool RetryWrites { get; set; }
 
     /// <summary>
-    /// Gets or sets whether every transport frame is logged at <see cref="PlcLogLevel.Trace"/>.
+    /// Gets or sets whether every transport frame is logged at <see cref="CommunicationLogLevel.Trace"/>.
     /// The protocol clients wrap their transport in <see cref="LoggingTransport"/> when enabled.
     /// </summary>
     public bool LogFrames { get; set; }
 
     /// <summary>Gets or sets the logger that receives frame dumps when <see cref="LogFrames"/> is enabled.</summary>
-    public IPlcLogger? Logger { get; set; }
+    public ICommunicationLogger? Logger { get; set; }
 
     /// <summary>Validates the option values and throws when a value is out of range.</summary>
     public virtual void Validate()

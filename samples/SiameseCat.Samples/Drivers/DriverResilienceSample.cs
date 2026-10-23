@@ -128,11 +128,11 @@ public sealed class DriverResilienceSample : ISample
         SampleConsole.Step("4. Recovery policy");
         SampleConsole.Detail("A faulted driver accepts ConnectAsync again once the device answers.");
         SampleConsole.Detail("KeepAliveInterval = 0 disables the background probe; the default is off.");
-        SampleConsole.Detail("Wire an IPlcLogger to see every retry and state transition on the log.");
+        SampleConsole.Detail("Wire an ICommunicationLogger to see every retry and state transition on the log.");
         SampleConsole.Note("Next: 'run drivers/hosting' to register drivers and slaves in dependency injection.");
     }
 
-    private static async Task WaitForStateAsync(IPlcDriver driver, DriverState state, CancellationToken cancellationToken)
+    private static async Task WaitForStateAsync(IDeviceDriver driver, DriverState state, CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
         while (driver.State != state && DateTime.UtcNow < deadline)

@@ -137,8 +137,8 @@ public class HealthCheckTests
                 configuration.ProbeAddress = "HR0";
             });
             services.AddHealthChecks().AddSiameseCatDriverCheck(
-                "plc-main",
-                sp => sp.GetRequiredKeyedService<IPlcDriver>("modbus"));
+                "device-main",
+                sp => sp.GetRequiredKeyedService<IDeviceDriver>("modbus"));
         });
 
         await using (provider.ConfigureAwait(false))
@@ -146,7 +146,7 @@ public class HealthCheckTests
             var report = await provider.GetRequiredService<HealthCheckService>().CheckHealthAsync();
 
             var entry = Assert.Single(report.Entries);
-            Assert.Equal("plc-main", entry.Key);
+            Assert.Equal("device-main", entry.Key);
             Assert.Equal(HealthStatus.Healthy, entry.Value.Status);
         }
     }
@@ -167,14 +167,14 @@ public class HealthCheckTests
                 configuration.Port = slave.Port;
                 configuration.Timeout = TimeSpan.FromSeconds(2);
                 configuration.ProbeAddress = "DB1.DBW0";
-            }, name: "plc-s7"));
+            }, name: "device-s7"));
 
         await using (provider.ConfigureAwait(false))
         {
             var report = await provider.GetRequiredService<HealthCheckService>().CheckHealthAsync();
 
             var entry = Assert.Single(report.Entries);
-            Assert.Equal("plc-s7", entry.Key);
+            Assert.Equal("device-s7", entry.Key);
             Assert.Equal(HealthStatus.Healthy, entry.Value.Status);
             Assert.Equal("s7", entry.Value.Data["driver"]);
         }

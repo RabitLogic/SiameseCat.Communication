@@ -12,17 +12,17 @@ namespace SiameseCat.Communication;
 /// </remarks>
 public sealed class DriverRegistry
 {
-    private readonly Dictionary<string, IPlcDriverFactory> _factories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IDeviceDriverFactory> _factories = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Gets the registered factories.</summary>
-    public IReadOnlyCollection<IPlcDriverFactory> Factories => _factories.Values;
+    public IReadOnlyCollection<IDeviceDriverFactory> Factories => _factories.Values;
 
     /// <summary>Gets descriptors of all registered drivers.</summary>
     public IEnumerable<DriverDescriptor> Descriptors => _factories.Values.Select(factory => factory.Descriptor);
 
     /// <summary>Registers a factory, replacing an existing registration with the same id.</summary>
     /// <param name="factory">Factory to register.</param>
-    public DriverRegistry Register(IPlcDriverFactory factory)
+    public DriverRegistry Register(IDeviceDriverFactory factory)
     {
         Guard.NotNull(factory, nameof(factory));
         _factories[factory.Descriptor.Id] = factory;
@@ -41,7 +41,7 @@ public sealed class DriverRegistry
     /// <summary>Tries to get a factory.</summary>
     /// <param name="driverId">Driver id.</param>
     /// <param name="factory">Registered factory, when found.</param>
-    public bool TryGetFactory(string driverId, [NotNullWhen(true)] out IPlcDriverFactory? factory) =>
+    public bool TryGetFactory(string driverId, [NotNullWhen(true)] out IDeviceDriverFactory? factory) =>
         _factories.TryGetValue(driverId, out factory);
 
     /// <summary>Creates a driver by id.</summary>
@@ -50,11 +50,11 @@ public sealed class DriverRegistry
     /// <param name="logger">Optional logger.</param>
     /// <param name="metrics">Optional metrics collector.</param>
     /// <exception cref="KeyNotFoundException">The driver id is not registered.</exception>
-    public IPlcDriver Create(
+    public IDeviceDriver Create(
         string driverId,
         DriverConfiguration configuration,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null)
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null)
     {
         if (!TryGetFactory(driverId, out var factory))
         {
@@ -66,7 +66,7 @@ public sealed class DriverRegistry
     }
 
     /// <summary>
-    /// Scans an assembly for public parameterless types implementing <see cref="IPlcDriverFactory"/>
+    /// Scans an assembly for public parameterless types implementing <see cref="IDeviceDriverFactory"/>
     /// and registers them.
     /// </summary>
     /// <param name="assembly">Assembly to scan.</param>
@@ -81,7 +81,7 @@ public sealed class DriverRegistry
         var count = 0;
         foreach (var type in assembly.GetExportedTypes())
         {
-            if (type.IsAbstract || !typeof(IPlcDriverFactory).IsAssignableFrom(type))
+            if (type.IsAbstract || !typeof(IDeviceDriverFactory).IsAssignableFrom(type))
             {
                 continue;
             }
@@ -91,7 +91,7 @@ public sealed class DriverRegistry
                 continue;
             }
 
-            Register((IPlcDriverFactory)Activator.CreateInstance(type)!);
+            Register((IDeviceDriverFactory)Activator.CreateInstance(type)!);
             count++;
         }
 

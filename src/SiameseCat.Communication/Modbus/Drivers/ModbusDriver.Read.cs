@@ -5,7 +5,7 @@ namespace SiameseCat.Communication.Modbus;
 public partial class ModbusDriver
 {
     /// <inheritdoc/>
-    protected override async Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken)
+    protected override async Task<DeviceValue> DoReadAsync(DeviceAddress address, CancellationToken cancellationToken)
     {
         switch (address.Region)
         {
@@ -13,13 +13,13 @@ public partial class ModbusDriver
                 EnsureBool(address);
                 var coils = await _client.ReadCoilsAsync(_unitId, ToUShort(address.Offset), 1, cancellationToken)
                     .ConfigureAwait(false);
-                return PlcValue.FromBool(coils[0]);
+                return DeviceValue.FromBool(coils[0]);
 
             case ModbusAddressParser.DiscreteInputRegion:
                 EnsureBool(address);
                 var inputs = await _client.ReadDiscreteInputsAsync(_unitId, ToUShort(address.Offset), 1, cancellationToken)
                     .ConfigureAwait(false);
-                return PlcValue.FromBool(inputs[0]);
+                return DeviceValue.FromBool(inputs[0]);
 
             case ModbusAddressParser.HoldingRegisterRegion:
             case ModbusAddressParser.InputRegisterRegion:
@@ -36,11 +36,11 @@ public partial class ModbusDriver
 
 
     /// <inheritdoc/>
-    protected override async Task<PlcValue[]> DoReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    protected override async Task<DeviceValue[]> DoReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken)
     {
-        var results = new PlcValue[addresses.Count];
+        var results = new DeviceValue[addresses.Count];
 
         foreach (var group in GroupByRegion(addresses))
         {
@@ -65,8 +65,8 @@ public partial class ModbusDriver
 
     private async Task ReadBitsBatchAsync(
         string region,
-        List<(int Index, PlcAddress Address)> items,
-        PlcValue[] results,
+        List<(int Index, DeviceAddress Address)> items,
+        DeviceValue[] results,
         CancellationToken cancellationToken)
     {
         items.Sort((left, right) => left.Address.Offset.CompareTo(right.Address.Offset));
@@ -93,7 +93,7 @@ public partial class ModbusDriver
 
             for (var i = runStart; i < runEnd; i++)
             {
-                results[items[i].Index] = PlcValue.FromBool(values[items[i].Address.Offset - start]);
+                results[items[i].Index] = DeviceValue.FromBool(values[items[i].Address.Offset - start]);
             }
 
             runStart = runEnd;
@@ -102,8 +102,8 @@ public partial class ModbusDriver
 
     private async Task ReadRegistersBatchAsync(
         string region,
-        List<(int Index, PlcAddress Address)> items,
-        PlcValue[] results,
+        List<(int Index, DeviceAddress Address)> items,
+        DeviceValue[] results,
         CancellationToken cancellationToken)
     {
         items.Sort((left, right) => left.Address.Offset.CompareTo(right.Address.Offset));
@@ -146,15 +146,15 @@ public partial class ModbusDriver
         }
     }
 
-    private static Dictionary<string, List<(int Index, PlcAddress Address)>> GroupByRegion(
-        IReadOnlyList<PlcAddress> addresses)
+    private static Dictionary<string, List<(int Index, DeviceAddress Address)>> GroupByRegion(
+        IReadOnlyList<DeviceAddress> addresses)
     {
-        var groups = new Dictionary<string, List<(int, PlcAddress)>>(StringComparer.Ordinal);
+        var groups = new Dictionary<string, List<(int, DeviceAddress)>>(StringComparer.Ordinal);
         for (var i = 0; i < addresses.Count; i++)
         {
             if (!groups.TryGetValue(addresses[i].Region, out var list))
             {
-                list = new List<(int, PlcAddress)>();
+                list = new List<(int, DeviceAddress)>();
                 groups[addresses[i].Region] = list;
             }
 

@@ -4,7 +4,7 @@ using SiameseCat.Communication;
 namespace SiameseCat.Communication.S7;
 
 /// <summary>Creates S7 drivers.</summary>
-public sealed class S7DriverFactory : IPlcDriverFactory
+public sealed class S7DriverFactory : IDeviceDriverFactory
 {
     /// <summary>Gets the descriptor shared by all S7 drivers.</summary>
     public static DriverDescriptor DefaultDescriptor { get; } = new(
@@ -19,10 +19,10 @@ public sealed class S7DriverFactory : IPlcDriverFactory
     public DriverDescriptor Descriptor => DefaultDescriptor;
 
     /// <inheritdoc/>
-    public IPlcDriver Create(
+    public IDeviceDriver Create(
         DriverConfiguration configuration,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null)
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null)
     {
         Guard.NotNull(configuration, nameof(configuration));
         configuration.Validate();

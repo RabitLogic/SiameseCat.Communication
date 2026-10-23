@@ -53,10 +53,10 @@ public class DriverContractTests
         await driver.ConnectAsync();
         var address = driver.AddressParser.Parse("R5");
 
-        await driver.WriteAsync(address, PlcValue.FromUInt16(1234));
+        await driver.WriteAsync(address, DeviceValue.FromUInt16(1234));
         var value = await driver.ReadAsync(address);
 
-        Assert.Equal(PlcValue.FromUInt16(1234), value);
+        Assert.Equal(DeviceValue.FromUInt16(1234), value);
     }
 
     [Fact]
@@ -68,14 +68,14 @@ public class DriverContractTests
         var first = driver.AddressParser.Parse("R1");
         var second = driver.AddressParser.Parse("R2");
         var third = driver.AddressParser.Parse("R3");
-        await driver.WriteAsync(first, PlcValue.FromUInt16(1));
-        await driver.WriteAsync(second, PlcValue.FromUInt16(2));
-        await driver.WriteAsync(third, PlcValue.FromUInt16(3));
+        await driver.WriteAsync(first, DeviceValue.FromUInt16(1));
+        await driver.WriteAsync(second, DeviceValue.FromUInt16(2));
+        await driver.WriteAsync(third, DeviceValue.FromUInt16(3));
 
         var values = await driver.ReadBatchAsync(new[] { third, first, second });
 
         Assert.Equal(
-            new[] { PlcValue.FromUInt16(3), PlcValue.FromUInt16(1), PlcValue.FromUInt16(2) },
+            new[] { DeviceValue.FromUInt16(3), DeviceValue.FromUInt16(1), DeviceValue.FromUInt16(2) },
             values);
     }
 
@@ -87,12 +87,12 @@ public class DriverContractTests
         await driver.ConnectAsync();
 
         var address = driver.AddressParser.Parse("R0");
-        await driver.WriteAsync(address, PlcValue.FromUInt16(9));
+        await driver.WriteAsync(address, DeviceValue.FromUInt16(9));
         driver.TransientFailuresRemaining = 1;
 
         var value = await driver.ReadAsync(address);
 
-        Assert.Equal(PlcValue.FromUInt16(9), value);
+        Assert.Equal(DeviceValue.FromUInt16(9), value);
         Assert.Equal(2, driver.ConnectCount);
         Assert.Equal(1, driver.DisconnectCount);
         Assert.Equal(1, driver.Metrics.Snapshot().Retries);
@@ -108,7 +108,7 @@ public class DriverContractTests
         driver.TransientFailuresRemaining = 1;
 
         await Assert.ThrowsAsync<CommunicationTimeoutException>(
-            () => driver.WriteAsync(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(1)));
+            () => driver.WriteAsync(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(1)));
 
         Assert.Equal(1, driver.ConnectCount);
     }
@@ -127,7 +127,7 @@ public class DriverContractTests
         await driver.ConnectAsync();
         driver.TransientFailuresRemaining = 1;
 
-        await driver.WriteAsync(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(1));
+        await driver.WriteAsync(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(1));
 
         Assert.Equal(2, driver.ConnectCount);
     }
@@ -138,7 +138,7 @@ public class DriverContractTests
         await using var driver = new MockDriver();
         await driver.ConnectAsync();
 
-        await driver.WriteAsync(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(1));
+        await driver.WriteAsync(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(1));
         await driver.ReadAsync(driver.AddressParser.Parse("R0"));
 
         var snapshot = driver.Metrics.Snapshot();
@@ -156,9 +156,9 @@ public class DriverContractTests
         await using var driver = new MockDriver();
         await driver.ConnectAsync();
         var address = driver.AddressParser.Parse("R0");
-        await driver.WriteAsync(address, PlcValue.FromUInt16(1));
+        await driver.WriteAsync(address, DeviceValue.FromUInt16(1));
 
-        var changes = new List<PlcValue>();
+        var changes = new List<DeviceValue>();
         var subscription = await driver.SubscribeAsync(
             address,
             TimeSpan.FromMilliseconds(20),
@@ -173,14 +173,14 @@ public class DriverContractTests
             });
 
         await Task.Delay(100);
-        await driver.WriteAsync(address, PlcValue.FromUInt16(2));
+        await driver.WriteAsync(address, DeviceValue.FromUInt16(2));
         await Task.Delay(150);
         await subscription.DisposeAsync();
 
         lock (changes)
         {
-            Assert.Contains(PlcValue.FromUInt16(1), changes);
-            Assert.Contains(PlcValue.FromUInt16(2), changes);
+            Assert.Contains(DeviceValue.FromUInt16(1), changes);
+            Assert.Contains(DeviceValue.FromUInt16(2), changes);
         }
     }
 
@@ -203,9 +203,9 @@ public class DriverContractTests
     {
         await using var driver = new MockDriver();
         await driver.ConnectAsync();
-        var tag = new PlcTag("speed", "R7", PlcDataType.Int16, scale: 0.5);
+        var tag = new DeviceTag("speed", "R7", DeviceDataType.Int16, scale: 0.5);
 
-        await driver.WriteAsync(driver.AddressParser.Parse("R7", PlcDataType.Int16), PlcValue.FromInt16(100));
+        await driver.WriteAsync(driver.AddressParser.Parse("R7", DeviceDataType.Int16), DeviceValue.FromInt16(100));
         var value = await driver.ReadTagAsync(tag);
 
         Assert.Equal((short)100, value.AsInt16());
@@ -217,16 +217,16 @@ public class DriverContractTests
     {
         await using var driver = new MockDriver();
         await driver.ConnectAsync();
-        await driver.WriteAsync(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(1));
-        await driver.WriteAsync(driver.AddressParser.Parse("R1"), PlcValue.FromUInt16(2));
+        await driver.WriteAsync(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(1));
+        await driver.WriteAsync(driver.AddressParser.Parse("R1"), DeviceValue.FromUInt16(2));
 
         var values = await driver.ReadTagsAsync(new[]
         {
-            new PlcTag("a", "R0", PlcDataType.UInt16),
-            new PlcTag("b", "R1", PlcDataType.UInt16),
+            new DeviceTag("a", "R0", DeviceDataType.UInt16),
+            new DeviceTag("b", "R1", DeviceDataType.UInt16),
         });
 
-        Assert.Equal(new[] { PlcValue.FromUInt16(1), PlcValue.FromUInt16(2) }, values);
+        Assert.Equal(new[] { DeviceValue.FromUInt16(1), DeviceValue.FromUInt16(2) }, values);
     }
 }
 
@@ -275,14 +275,14 @@ public class DriverRegistryTests
         Assert.Equal(2, registry.Descriptors.Count());
     }
 
-    private sealed class ModbusDriverFactoryForTests : IPlcDriverFactory
+    private sealed class ModbusDriverFactoryForTests : IDeviceDriverFactory
     {
         public DriverDescriptor Descriptor { get; } = new(
             "mock-driver", "Mock", "Test driver", TransportKind.Tcp);
 
-        public IPlcDriver Create(
+        public IDeviceDriver Create(
             DriverConfiguration configuration,
-            IPlcLogger? logger = null,
-            PlcMetrics? metrics = null) => new MockDriver(configuration, logger, metrics);
+            ICommunicationLogger? logger = null,
+            CommunicationMetrics? metrics = null) => new MockDriver(configuration, logger, metrics);
     }
 }

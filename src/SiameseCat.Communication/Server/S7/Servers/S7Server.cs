@@ -7,7 +7,7 @@ namespace SiameseCat.Communication.Server.S7;
 
 /// <summary>
 /// S7 (ISO-on-TCP) slave that exposes an in-process <see cref="S7DataStore"/>.
-/// Use it for integration tests, demos and offline development when no real PLC is available.
+/// Use it for integration tests, demos and offline development when no real device is available.
 /// </summary>
 /// <remarks>
 /// <para>Handles the COTP connection handshake, Setup Communication and read/write variable services.</para>
@@ -156,7 +156,7 @@ public sealed class S7Server : IS7Server
             }
 
             Statistics.RecordConnection();
-            _options.Logger?.Log(PlcLogLevel.Debug, $"S7 client connected: {client.Client.RemoteEndPoint}.");
+            _options.Logger?.Log(CommunicationLogLevel.Debug, $"S7 client connected: {client.Client.RemoteEndPoint}.");
             _ = Task.Run(() => ServeAsync(client, token), CancellationToken.None);
         }
     }
@@ -232,7 +232,7 @@ public sealed class S7Server : IS7Server
             }
 
             Statistics.RecordDisconnection();
-            _options.Logger?.Log(PlcLogLevel.Debug, "S7 client disconnected.");
+            _options.Logger?.Log(CommunicationLogLevel.Debug, "S7 client disconnected.");
         }
     }
 

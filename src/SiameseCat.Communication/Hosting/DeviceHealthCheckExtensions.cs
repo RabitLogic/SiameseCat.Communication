@@ -13,7 +13,7 @@ namespace SiameseCat.Communication.Hosting;
 /// and reports a result instead of throwing. Keep the probe address cheap for the device (one register or one
 /// marker bit) because orchestrators call it every few seconds.
 /// </remarks>
-public static class PlcHealthCheckExtensions
+public static class DeviceHealthCheckExtensions
 {
     private const string DedicatedKeyPrefix = "siamese-health:";
 
@@ -44,7 +44,7 @@ public static class PlcHealthCheckExtensions
         var key = DedicatedKeyPrefix + checkName;
 
         builder.Services.AddSiameseCat();
-        builder.Services.AddKeyedSingleton<IPlcDriver>(key, (provider, _) =>
+        builder.Services.AddKeyedSingleton<IDeviceDriver>(key, (provider, _) =>
         {
             var configuration = new DriverConfiguration();
             configure?.Invoke(configuration);
@@ -53,12 +53,12 @@ public static class PlcHealthCheckExtensions
             return provider.GetRequiredService<DriverRegistry>().Create(
                 driverId,
                 configuration,
-                provider.GetService<IPlcLogger>());
+                provider.GetService<ICommunicationLogger>());
         });
 
         return builder.Add(new HealthCheckRegistration(
             checkName,
-            provider => new PlcDriverHealthCheck(provider, p => p.GetRequiredKeyedService<IPlcDriver>(key)),
+            provider => new DeviceDriverHealthCheck(provider, p => p.GetRequiredKeyedService<IDeviceDriver>(key)),
             failureStatus,
             tags,
             timeout));
@@ -69,7 +69,7 @@ public static class PlcHealthCheckExtensions
     /// <c>AddSiameseCatDriver</c> or a long-lived singleton.
     /// </summary>
     /// <param name="builder">Health-check builder.</param>
-    /// <param name="name">Health-check name, for example <c>plc-main</c>.</param>
+    /// <param name="name">Health-check name, for example <c>device-main</c>.</param>
     /// <param name="driverAccessor">Resolves the driver to probe.</param>
     /// <param name="failureStatus">Status reported on failure.</param>
     /// <param name="tags">Optional tags.</param>
@@ -78,7 +78,7 @@ public static class PlcHealthCheckExtensions
     public static IHealthChecksBuilder AddSiameseCatDriverCheck(
         this IHealthChecksBuilder builder,
         string name,
-        Func<IServiceProvider, IPlcDriver> driverAccessor,
+        Func<IServiceProvider, IDeviceDriver> driverAccessor,
         HealthStatus? failureStatus = null,
         IEnumerable<string>? tags = null,
         TimeSpan? timeout = null)
@@ -89,7 +89,7 @@ public static class PlcHealthCheckExtensions
 
         return builder.Add(new HealthCheckRegistration(
             name,
-            provider => new PlcDriverHealthCheck(provider, driverAccessor),
+            provider => new DeviceDriverHealthCheck(provider, driverAccessor),
             failureStatus,
             tags,
             timeout));

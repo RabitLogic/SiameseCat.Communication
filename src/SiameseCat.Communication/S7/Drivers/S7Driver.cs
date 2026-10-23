@@ -4,7 +4,7 @@ using SiameseCat.Communication;
 namespace SiameseCat.Communication.S7;
 
 /// <summary>
-/// S7 driver implementing the pluggable <see cref="IPlcDriver"/> contract on top of the S7 client.
+/// S7 driver implementing the pluggable <see cref="IDeviceDriver"/> contract on top of the S7 client.
 /// </summary>
 public sealed class S7Driver : DriverBase
 {
@@ -19,15 +19,15 @@ public sealed class S7Driver : DriverBase
     /// <summary>Creates a driver over an existing client, primarily for testing or custom transports.</summary>
     /// <param name="client">S7 client that performs the ISO-on-TCP exchange.</param>
     /// <param name="configuration">Connection and retry settings.</param>
-    /// <param name="stringEncoding">Encoding used for <see cref="PlcDataType.String"/>.</param>
+    /// <param name="stringEncoding">Encoding used for <see cref="DeviceDataType.String"/>.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="metrics">Optional metrics collector.</param>
     public S7Driver(
         S7Client client,
         DriverConfiguration configuration,
         Encoding? stringEncoding = null,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null)
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null)
         : base(S7DriverFactory.DefaultDescriptor, new S7AddressParser(), configuration, logger, metrics)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
@@ -42,46 +42,46 @@ public sealed class S7Driver : DriverBase
     protected override Task DoDisconnectAsync() => _client.DisconnectAsync();
 
     /// <inheritdoc/>
-    protected override async Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken)
+    protected override async Task<DeviceValue> DoReadAsync(DeviceAddress address, CancellationToken cancellationToken)
     {
         var s7 = S7AddressParser.ToS7Address(address);
 
         switch (address.DataType)
         {
-            case PlcDataType.Bool:
-                return PlcValue.FromBool(await _client.ReadBoolAsync(s7, cancellationToken).ConfigureAwait(false));
+            case DeviceDataType.Bool:
+                return DeviceValue.FromBool(await _client.ReadBoolAsync(s7, cancellationToken).ConfigureAwait(false));
 
-            case PlcDataType.String:
-                return PlcValue.FromString(
+            case DeviceDataType.String:
+                return DeviceValue.FromString(
                     await _client.ReadStringAsync(s7, address.Length, cancellationToken).ConfigureAwait(false));
 
             default:
                 var bytes = await _client.ReadBytesAsync(s7, address.ByteSize, cancellationToken).ConfigureAwait(false);
-                return PlcValueCodec.FromBytes(address.DataType, bytes, address.Length);
+                return DeviceValueCodec.FromBytes(address.DataType, bytes, address.Length);
         }
     }
 
     /// <inheritdoc/>
     protected override async Task DoWriteAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         CancellationToken cancellationToken)
     {
         var s7 = S7AddressParser.ToS7Address(address);
 
         switch (address.DataType)
         {
-            case PlcDataType.Bool:
+            case DeviceDataType.Bool:
                 await _client.WriteBoolAsync(s7, value.AsBool(), cancellationToken).ConfigureAwait(false);
                 return;
 
-            case PlcDataType.String:
+            case DeviceDataType.String:
                 await _client.WriteStringAsync(s7, value.AsString(), address.Length, cancellationToken)
                     .ConfigureAwait(false);
                 return;
 
             default:
-                var bytes = PlcValueCodec.ToBytes(value);
+                var bytes = DeviceValueCodec.ToBytes(value);
                 if (bytes.Length != address.ByteSize)
                 {
                     throw new ArgumentException(
@@ -96,27 +96,27 @@ public sealed class S7Driver : DriverBase
 
     /// <inheritdoc/>
     protected override async Task DoWriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         CancellationToken cancellationToken)
     {
         var items = new List<S7WriteItem>(requests.Count);
         foreach (var request in requests)
         {
             var s7 = S7AddressParser.ToS7Address(request.Address);
-            if (request.Address.DataType == PlcDataType.Bool)
+            if (request.Address.DataType == DeviceDataType.Bool)
             {
                 items.Add(new S7WriteItem(s7, request.Value.AsBool() ? OneByte : ZeroByte));
                 continue;
             }
 
             byte[] bytes;
-            if (request.Address.DataType == PlcDataType.String)
+            if (request.Address.DataType == DeviceDataType.String)
             {
                 bytes = BuildStringBuffer(request.Value.AsString(), request.Address.Length);
             }
             else
             {
-                bytes = PlcValueCodec.ToBytes(request.Value);
+                bytes = DeviceValueCodec.ToBytes(request.Value);
                 if (bytes.Length != request.Address.ByteSize)
                 {
                     throw new ArgumentException(
@@ -156,8 +156,8 @@ public sealed class S7Driver : DriverBase
     private static int WriteItemCost(int payloadLength) => 12 + 4 + (((payloadLength + 1) / 2) * 2);
 
     /// <inheritdoc/>
-    protected override async Task<PlcValue[]> DoReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    protected override async Task<DeviceValue[]> DoReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken)
     {
         var items = new S7ReadItem[addresses.Count];
@@ -165,22 +165,22 @@ public sealed class S7Driver : DriverBase
         {
             var length = addresses[i].DataType switch
             {
-                PlcDataType.Bool => 1,
-                PlcDataType.String => addresses[i].Length + 2,
+                DeviceDataType.Bool => 1,
+                DeviceDataType.String => addresses[i].Length + 2,
                 _ => addresses[i].ByteSize,
             };
             items[i] = new S7ReadItem(S7AddressParser.ToS7Address(addresses[i]), length);
         }
 
         var raw = await _client.ReadMultipleAsync(items, cancellationToken).ConfigureAwait(false);
-        var values = new PlcValue[addresses.Count];
+        var values = new DeviceValue[addresses.Count];
         for (var i = 0; i < addresses.Count; i++)
         {
             values[i] = addresses[i].DataType switch
             {
-                PlcDataType.Bool => PlcValue.FromBool(raw[i][0] != 0),
-                PlcDataType.String => PlcValue.FromString(DecodeString(raw[i], addresses[i].Length)),
-                _ => PlcValueCodec.FromBytes(addresses[i].DataType, raw[i], addresses[i].Length),
+                DeviceDataType.Bool => DeviceValue.FromBool(raw[i][0] != 0),
+                DeviceDataType.String => DeviceValue.FromString(DecodeString(raw[i], addresses[i].Length)),
+                _ => DeviceValueCodec.FromBytes(addresses[i].DataType, raw[i], addresses[i].Length),
             };
         }
 
@@ -214,7 +214,7 @@ public sealed class S7Driver : DriverBase
         var currentLength = bytes[1];
         if (currentLength > maxLength || currentLength > bytes.Length - 2)
         {
-            throw new ProtocolException($"The PLC returned an invalid S7 string length ({currentLength}).");
+            throw new ProtocolException($"The device returned an invalid S7 string length ({currentLength}).");
         }
 
         return _encoding.GetString(bytes, 2, currentLength);

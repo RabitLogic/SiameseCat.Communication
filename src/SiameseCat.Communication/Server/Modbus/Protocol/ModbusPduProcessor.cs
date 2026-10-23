@@ -12,7 +12,7 @@ internal sealed partial class ModbusPduProcessor
     private readonly ModbusServerStatistics _statistics;
     private readonly byte[] _identifierBytes;
     private readonly bool _runIndicator;
-    private readonly IPlcLogger? _logger;
+    private readonly ICommunicationLogger? _logger;
     private readonly KeyValuePair<byte, byte[]>[] _deviceObjects;
     private readonly byte _conformityLevel;
 
@@ -21,7 +21,7 @@ internal sealed partial class ModbusPduProcessor
         ModbusServerStatistics statistics,
         string serverIdentifier,
         bool runIndicator,
-        IPlcLogger? logger,
+        ICommunicationLogger? logger,
         IDictionary<byte, string>? deviceIdentification = null)
     {
         _data = data ?? throw new ArgumentNullException(nameof(data));
@@ -102,7 +102,7 @@ internal sealed partial class ModbusPduProcessor
         {
             _statistics.RecordException(function);
             _logger?.Log(
-                PlcLogLevel.Debug,
+                CommunicationLogLevel.Debug,
                 $"Modbus slave answered function {function} with exception 0x{destination[1]:X2}.");
         }
 

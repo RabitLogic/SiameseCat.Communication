@@ -21,7 +21,7 @@ public class DriverCapabilityTests
         await driver.ConnectAsync();
 
         var exception = await Assert.ThrowsAsync<NotSupportedException>(
-            () => driver.WriteAsync(driver.AddressParser.Parse("R1"), PlcValue.FromUInt16(1)));
+            () => driver.WriteAsync(driver.AddressParser.Parse("R1"), DeviceValue.FromUInt16(1)));
 
         Assert.Contains("Write", exception.Message, StringComparison.Ordinal);
     }
@@ -293,7 +293,7 @@ public class SubscriptionPollingTests
     {
         await using var driver = new MockDriver(new DriverConfiguration { SubscriptionJitter = false });
         await driver.ConnectAsync();
-        driver[driver.AddressParser.Parse("R1")] = PlcValue.FromUInt16(2);
+        driver[driver.AddressParser.Parse("R1")] = DeviceValue.FromUInt16(2);
 
         var callbackCount = 0;
         var addresses = new[]
@@ -332,10 +332,10 @@ public class SubscriptionPollingTests
         await driver.ConnectAsync();
         var first = driver.AddressParser.Parse("R0");
         var second = driver.AddressParser.Parse("R1");
-        driver[first] = PlcValue.FromUInt16(1);
-        driver[second] = PlcValue.FromUInt16(2);
+        driver[first] = DeviceValue.FromUInt16(1);
+        driver[second] = DeviceValue.FromUInt16(2);
 
-        var results = new List<IReadOnlyList<PlcValue>>();
+        var results = new List<IReadOnlyList<DeviceValue>>();
         var subscription = await driver.SubscribeBatchAsync(
             new[] { first, second },
             TimeSpan.FromMilliseconds(10),
@@ -355,7 +355,7 @@ public class SubscriptionPollingTests
             await Task.Delay(10);
         }
 
-        driver[second] = PlcValue.FromUInt16(42);
+        driver[second] = DeviceValue.FromUInt16(42);
         deadline = DateTime.UtcNow.AddSeconds(5);
         while (Volatile.Read(ref results).Count < 2 && DateTime.UtcNow < deadline)
         {
@@ -401,7 +401,7 @@ public class SubscriptionPollingTests
         var address = driver.AddressParser.Parse("R0");
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            driver.SubscribeBatchAsync(Array.Empty<PlcAddress>(), TimeSpan.FromMilliseconds(10), _ => Task.CompletedTask));
+            driver.SubscribeBatchAsync(Array.Empty<DeviceAddress>(), TimeSpan.FromMilliseconds(10), _ => Task.CompletedTask));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             driver.SubscribeBatchAsync(new[] { address }, TimeSpan.Zero, _ => Task.CompletedTask));
@@ -457,8 +457,8 @@ public class FrameLoggingTests
         var read = await transport.ReadAsync(buffer);
 
         Assert.Equal(2, read);
-        Assert.True(logger.Contains(PlcLogLevel.Trace, "test TX AA 01"));
-        Assert.True(logger.Contains(PlcLogLevel.Trace, "test RX 01 02"));
+        Assert.True(logger.Contains(CommunicationLogLevel.Trace, "test TX AA 01"));
+        Assert.True(logger.Contains(CommunicationLogLevel.Trace, "test RX 01 02"));
     }
 
     [Fact]
@@ -478,8 +478,8 @@ public class FrameLoggingTests
         var values = await client.ReadHoldingRegistersAsync(1, 0, 1);
 
         Assert.Equal(42, values[0]);
-        Assert.True(logger.Contains(PlcLogLevel.Trace, "TX"));
-        Assert.True(logger.Contains(PlcLogLevel.Trace, "RX"));
+        Assert.True(logger.Contains(CommunicationLogLevel.Trace, "TX"));
+        Assert.True(logger.Contains(CommunicationLogLevel.Trace, "RX"));
     }
 
     [Fact]
@@ -497,7 +497,7 @@ public class FrameLoggingTests
 
         await client.ConnectAsync();
 
-        Assert.True(logger.Contains(PlcLogLevel.Trace, "TX"));
-        Assert.True(logger.Contains(PlcLogLevel.Trace, "RX"));
+        Assert.True(logger.Contains(CommunicationLogLevel.Trace, "TX"));
+        Assert.True(logger.Contains(CommunicationLogLevel.Trace, "RX"));
     }
 }

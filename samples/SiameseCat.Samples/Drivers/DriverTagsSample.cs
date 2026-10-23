@@ -50,9 +50,9 @@ public sealed class DriverTagsSample : ISample
         SampleConsole.Step("1. Tags carry metadata, not protocol knowledge");
         var tags = new[]
         {
-            new PlcTag("Temperature", "HR0", PlcDataType.UInt16, scale: 0.1, offset: -40, unit: "degC"),
-            new PlcTag("Setpoint", "HR2", PlcDataType.Int16, scale: 0.5, unit: "bar"),
-            new PlcTag("Running", "C0", PlcDataType.Bool),
+            new DeviceTag("Temperature", "HR0", DeviceDataType.UInt16, scale: 0.1, offset: -40, unit: "degC"),
+            new DeviceTag("Setpoint", "HR2", DeviceDataType.Int16, scale: 0.5, unit: "bar"),
+            new DeviceTag("Running", "C0", DeviceDataType.Bool),
         };
 
         foreach (var tag in tags)
@@ -66,12 +66,12 @@ public sealed class DriverTagsSample : ISample
         {
             var tag = tags[i];
             var raw = values[i];
-            var engineering = tag.DataType == PlcDataType.Bool
+            var engineering = tag.DataType == DeviceDataType.Bool
                 ? double.NaN
                 : tag.ToEngineering(raw.AsDouble());
             SampleConsole.Value(
                 tag.Name,
-                tag.DataType == PlcDataType.Bool
+                tag.DataType == DeviceDataType.Bool
                     ? $"raw {raw.AsBool()}"
                     : $"raw {raw.AsDouble()} -> {engineering:0.##} {tag.Unit}");
         }
@@ -90,21 +90,21 @@ public sealed class DriverTagsSample : ISample
         SampleConsole.Value("IsGood", values[0].IsGood);
 
         SampleConsole.Step("4. Arrays and timestamps");
-        var arrayAddress = driver.AddressParser.Parse("HR4", PlcDataType.UInt16).WithLength(2);
-        await writer.WriteAsync(arrayAddress, PlcValue.FromUInt16Array(new ushort[] { 5, 6 }), cancellationToken)
+        var arrayAddress = driver.AddressParser.Parse("HR4", DeviceDataType.UInt16).WithLength(2);
+        await writer.WriteAsync(arrayAddress, DeviceValue.FromUInt16Array(new ushort[] { 5, 6 }), cancellationToken)
             .ConfigureAwait(false);
         var array = await reader.ReadAsync(arrayAddress, cancellationToken).ConfigureAwait(false);
         SampleConsole.Value("IsArray", array.IsArray);
         SampleConsole.Value("Length", array.Length);
         SampleConsole.Value("Values", string.Join(", ", array.AsUInt16Array()));
 
-        var stamped = array.WithTimestamp(DateTimeOffset.UtcNow).WithQuality(PlcValueQuality.Good);
+        var stamped = array.WithTimestamp(DateTimeOffset.UtcNow).WithQuality(DeviceValueQuality.Good);
         SampleConsole.Value("Timestamp", stamped.Timestamp?.ToString("O"));
 
         SampleConsole.Step("5. Read-only regions reject writes");
         try
         {
-            await writer.WriteAsync(driver.AddressParser.Parse("IR0"), PlcValue.FromUInt16(1), cancellationToken)
+            await writer.WriteAsync(driver.AddressParser.Parse("IR0"), DeviceValue.FromUInt16(1), cancellationToken)
                 .ConfigureAwait(false);
             SampleConsole.Warn("Writing to an input register succeeded, which was not expected.");
         }

@@ -7,7 +7,7 @@ namespace SiameseCat.Communication.Drivers;
 /// <summary>Registers the drivers shipped with SiameseCat.</summary>
 /// <remarks>
 /// Registration is explicit so it stays compatible with Native AOT. Third-party drivers follow the
-/// same pattern: implement <see cref="IPlcDriverFactory"/> and call
+/// same pattern: implement <see cref="IDeviceDriverFactory"/> and call
 /// <see cref="DriverRegistry.Register"/>.
 /// </remarks>
 public static class DriverRegistryExtensions

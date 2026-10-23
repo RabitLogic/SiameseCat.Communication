@@ -34,8 +34,8 @@ In scope:
 
 Out of scope:
 
-- misconfiguration of a real PLC or network (for example exposing a Modbus slave to the internet),
-- vulnerabilities in third-party runtimes or in the PLC firmware itself.
+- misconfiguration of a real device or network (for example exposing a Modbus slave to the internet),
+- vulnerabilities in third-party runtimes or in the device firmware itself.
 
 ## Hardening notes
 

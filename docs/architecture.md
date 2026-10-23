@@ -2,8 +2,8 @@
 
 `SiameseCat.Communication` is a single package with one assembly. Inside it, code is grouped by
 responsibility into separate namespaces, and dependencies only point inwards — contracts ← transport ←
-protocol ← drivers — so a custom driver only needs the contracts and a custom protocol only needs the
-transport abstractions.
+TCP framing ← protocol ← drivers — so a custom driver only needs the contracts, a custom protocol only
+needs the transport and frame abstractions, and the TCP framing layer itself has no device-model dependency.
 
 ## Namespaces
 
@@ -11,12 +11,14 @@ transport abstractions.
 | --- | --- | --- |
 | `SiameseCat.Communication` | root, `Addressing/`, `Diagnostics/`, `Drivers/`, `Exceptions/` | driver contracts, address/value model, `DriverBase`, registry, options, metrics, exceptions |
 | `SiameseCat.Communication.Transport` | `Transport/` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
-| `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus frames/CRC/converters, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
+| `SiameseCat.Communication.Tcp` | `Tcp/` | `TcpFrameCodec` presets, `ITcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` |
+| `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus frames/CRC/converters, `ModbusTcpFrameCodec`, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
 | `SiameseCat.Communication.S7` | `S7/` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options`, `S7Driver` |
 | `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
 | `SiameseCat.Communication.Server` | `Server/` | `IModbusServer`, `IS7Server`, shared buffer-size validation |
 | `SiameseCat.Communication.Server.Modbus` | `Server/Modbus/` | `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics` |
 | `SiameseCat.Communication.Server.S7` | `Server/S7/` | `S7Server`, `S7PduProcessor`, `S7DataStore`, `S7ServerStatistics` |
+| `SiameseCat.Communication.Server.Tcp` | `Server/Tcp/` | `CustomTcpServer`, `CustomTcpConnection`, `CustomTcpServerStatistics` |
 | `SiameseCat.Communication.Hosting` | `Hosting/` | `AddSiameseCat()` / `AddSiameseCatDriver()`, slave hosting, health checks, `Microsoft.Extensions.Logging` adapter |
 
 ## Source layout
@@ -24,15 +26,16 @@ transport abstractions.
 ```text
 src/SiameseCat.Communication/
 ├── CommunicationOptions.cs / RetryPolicy.cs
-├── Addressing/          PlcAddress, PlcValue, PlcValueCodec, PlcTag, IPlcAddressParser   (SiameseCat.Communication)
-├── Diagnostics/         IPlcLogger, NullPlcLogger, PlcMetrics, PlcDiagnostics            (SiameseCat.Communication)
+├── Addressing/          DeviceAddress, DeviceValue, DeviceValueCodec, DeviceTag, IDeviceAddressParser   (SiameseCat.Communication)
+├── Diagnostics/         ICommunicationLogger, NullCommunicationLogger, CommunicationMetrics, CommunicationDiagnostics            (SiameseCat.Communication)
 ├── Drivers/
-│   ├── Abstractions/    IPlcDriver + capability interfaces + descriptor + state           (SiameseCat.Communication)
+│   ├── Abstractions/    IDeviceDriver + capability interfaces + descriptor + state           (SiameseCat.Communication)
 │   ├── Runtime/         DriverBase (partials), DriverRegistry, DriverConfiguration        (SiameseCat.Communication)
 │   └── DriverRegistryExtensions.cs                                                        (…Communication.Drivers)
 ├── Exceptions/          one file per exception type                                       (SiameseCat.Communication)
 ├── Transport/           ITransport + TCP/UDP/serial implementations                       (…Communication.Transport)
-├── Modbus/              frames, clients, driver                                           (…Communication.Modbus)
+├── Tcp/                 framing, TcpFrameConnection, CustomTcpClient                      (…Communication.Tcp)
+├── Modbus/              frames, ModbusTcpFrameCodec, clients, driver                      (…Communication.Modbus)
 ├── S7/                  S7 client, addresses, options, driver                       (…Communication.S7)
 ├── Server/              Modbus and S7 slaves                                          (…Communication.Server.*)
 └── Hosting/             DI registration, health checks, logger adapter                    (…Communication.Hosting)
@@ -60,8 +63,31 @@ src/SiameseCat.Communication/Server/
 │   ├── Storage/         S7DataStore
 │   ├── Events/          S7WriteEventArgs
 │   └── Diagnostics/     S7ServerStatistics
+├── Tcp/                 namespace SiameseCat.Communication.Server.Tcp
+│   ├── CustomTcpServerOptions.cs
+│   ├── CustomTcpServer.cs / CustomTcpConnection.cs
+│   ├── CustomTcpServerStatistics.cs
+│   └── StreamTransport.cs  internal stream adapter used by the shared codecs
 └── ServerBufferSizes.cs internal buffer-size validation shared by both protocols
 ```
+
+### TCP framing and reuse
+
+`SiameseCat.Communication.Tcp` has no dependency on the device model: it only knows `ITransport`,
+`ITcpFrameCodec` and `TcpFrameConnection`. That makes it reusable outside the driver layer and keeps
+the protocol-specific parts small:
+
+| Concern | Owner |
+| --- | --- |
+| Byte-stream connection, open/close | `TcpTransport` (`SiameseCat.Communication.Transport`) |
+| Frame boundaries (raw, length prefix, delimiter, fixed length) | `TcpFrameCodec` / `ITcpFrameCodec` |
+| Write + read one frame, optional trace logging | `TcpFrameConnection` |
+| Request serialization, timeout, retries, reconnect | `CustomTcpClient` (or `ModbusClientBase` for Modbus) |
+| Protocol payloads and validation | caller (`CustomTcpClient` users) or `ModbusTcpClient` |
+
+Modbus TCP is the first consumer of the shared core: `ModbusTcpFrameCodec` supplies MBAP framing to
+`TcpFrameConnection`, while `ModbusTcpClient` keeps the transaction-id, protocol-id, unit-id and PDU
+validation. A vendor protocol can follow the same split without touching the Modbus code.
 
 The folders group files by responsibility, while the namespace stays at the protocol level: everything
 under `Server/Modbus/` is in `SiameseCat.Communication.Server.Modbus`, so the physical layout can change
@@ -92,7 +118,7 @@ Every read/write/batch request goes through `ExecuteAsync`:
 5. **Recover** — retryable failures wait `RetryDelay × 2^(n-1)` (capped by `MaxRetryDelay`, jittered by
    `RetryJitter`); timeouts additionally trigger a reconnect so late responses cannot pollute the next
    request.
-6. **Observe** — every attempt records metrics (`PlcMetrics`) and diagnostics (`PlcDiagnostics`), and the
+6. **Observe** — every attempt records metrics (`CommunicationMetrics`) and diagnostics (`CommunicationDiagnostics`), and the
    connector logs warnings with context (unit id, address).
 
 ## Capability model
@@ -104,26 +130,26 @@ so a read-only driver fails fast with `NotSupportedException` instead of sending
 Protocol hooks are virtual and throw by default:
 
 ```csharp
-protected virtual Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken token);
-protected virtual Task DoWriteAsync(PlcAddress address, PlcValue value, CancellationToken token);
-protected virtual Task<IAsyncDisposable?> DoSubscribeAsync(PlcAddress address, TimeSpan interval,
-    Func<PlcValue, Task> onChanged, CancellationToken token);          // null → poll
-protected virtual Task<IAsyncDisposable?> DoSubscribeBatchAsync(IReadOnlyList<PlcAddress> addresses,
-    TimeSpan interval, Func<IReadOnlyList<PlcValue>, Task> onChanged, CancellationToken token);
+protected virtual Task<DeviceValue> DoReadAsync(DeviceAddress address, CancellationToken token);
+protected virtual Task DoWriteAsync(DeviceAddress address, DeviceValue value, CancellationToken token);
+protected virtual Task<IAsyncDisposable?> DoSubscribeAsync(DeviceAddress address, TimeSpan interval,
+    Func<DeviceValue, Task> onChanged, CancellationToken token);          // null → poll
+protected virtual Task<IAsyncDisposable?> DoSubscribeBatchAsync(IReadOnlyList<DeviceAddress> addresses,
+    TimeSpan interval, Func<IReadOnlyList<DeviceValue>, Task> onChanged, CancellationToken token);
 ```
 
 Declaring `KeepAliveInterval` without the `Health` capability is rejected in the constructor.
 
 ## Value and address model
 
-- `PlcAddress` — `Region`, `Offset`, `BitOffset?`, `DataType`, `Length` (elements for numeric arrays,
+- `DeviceAddress` — `Region`, `Offset`, `BitOffset?`, `DataType`, `Length` (elements for numeric arrays,
   characters/bytes for `String`/`Raw`), optional `Symbol`.
-- `PlcValue` — immutable payload with factories/accessors per data type, array factories
+- `DeviceValue` — immutable payload with factories/accessors per data type, array factories
   (`FromUInt16Array`, `FromFloatArray`, …), `IsArray`/`Length`, optional `Quality` and `Timestamp`.
   Equality compares payload only, so subscription change detection ignores metadata.
-- `PlcValueCodec` — protocol-independent byte conversions (`ToBytes`, `FromBytes` with element count),
+- `DeviceValueCodec` — protocol-independent byte conversions (`ToBytes`, `FromBytes` with element count),
   used by the S7 driver and available to custom drivers.
-- `PlcTag` — named tag with scale/offset/unit and `ToEngineering`/`FromEngineering` helpers.
+- `DeviceTag` — named tag with scale/offset/unit and `ToEngineering`/`FromEngineering` helpers.
 
 ## Multi-targeting and AOT
 
@@ -175,7 +201,7 @@ Both sides of the stack are allocation-lean by design.
   (`CancellationTokenSource.TryReset`, .NET 6+). Caller tokens still use a linked source.
 - Retry loops are inlined, so no closures or extra state machines are allocated per attempt.
 - `DriverBase` measures latency with `Stopwatch.GetTimestamp()` instead of allocating a `Stopwatch`, builds
-  failure messages lazily, and `PlcDiagnostics` caches operation-name tag values instead of formatting the
+  failure messages lazily, and `CommunicationDiagnostics` caches operation-name tag values instead of formatting the
   enum on every request.
 
 Measured on a 14-core Windows machine, loopback TCP, 20k requests per scenario, median of 3 runs
@@ -200,7 +226,7 @@ numbers on your hardware.
 | --- | --- |
 | Protocol types keep the protocol name | `ModbusTcpClient`, `S7Client`, `S7Address` |
 | Drivers use the protocol name | `ModbusDriver`, `S7Driver`, `S7AddressParser` |
-| Contract types use `Plc` prefixes or `I…` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `IPlcAddressParser` |
+| Device-domain types use `Device`; diagnostics use `Communication` | `DeviceAddress`, `DeviceValue`, `IDeviceDriver`, `IDeviceAddressParser`, `ICommunicationLogger`, `CommunicationMetrics` |
 | One public type per file | `Exceptions/CommunicationTimeoutException.cs` |
 | Optional features are separate namespaces | `SiameseCat.Communication.Hosting`, `SiameseCat.Communication.Server` |
 

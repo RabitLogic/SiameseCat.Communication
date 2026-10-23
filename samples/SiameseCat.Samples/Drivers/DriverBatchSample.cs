@@ -11,7 +11,7 @@ namespace SiameseCat.Samples.Drivers;
 /// </summary>
 /// <remarks>
 /// The sample counts requests on the slave side, which is the only honest measure: the driver may
-/// merge, split or chunk a batch internally, but the wire traffic is what the PLC has to answer.
+/// merge, split or chunk a batch internally, but the wire traffic is what the device has to answer.
 /// </remarks>
 public sealed class DriverBatchSample : ISample
 {
@@ -93,7 +93,7 @@ public sealed class DriverBatchSample : ISample
         before = slave.Statistics.TotalRequests;
         foreach (var index in Enumerable.Range(20, 4))
         {
-            await writer.WriteAsync(driver.AddressParser.Parse($"HR{index}"), PlcValue.FromUInt16((ushort)index), cancellationToken)
+            await writer.WriteAsync(driver.AddressParser.Parse($"HR{index}"), DeviceValue.FromUInt16((ushort)index), cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -102,9 +102,9 @@ public sealed class DriverBatchSample : ISample
         before = slave.Statistics.TotalRequests;
         await batchWriter.WriteBatchAsync(
                 Enumerable.Range(24, 4)
-                    .Select(index => new PlcWriteRequest(
+                    .Select(index => new DeviceWriteRequest(
                         driver.AddressParser.Parse($"HR{index}"),
-                        PlcValue.FromUInt16((ushort)index)))
+                        DeviceValue.FromUInt16((ushort)index)))
                     .ToArray(),
                 cancellationToken)
             .ConfigureAwait(false);

@@ -9,22 +9,22 @@ public class S7AddressParserTests
     private readonly S7AddressParser _parser = new();
 
     [Theory]
-    [InlineData("DB1.DBX0.0", "DB1", 0, PlcDataType.Bool, 0)]
-    [InlineData("DB1.DBX12.7", "DB1", 12, PlcDataType.Bool, 7)]
-    [InlineData("DB5.DBB10", "DB5", 10, PlcDataType.Byte, null)]
-    [InlineData("DB5.DBW12", "DB5", 12, PlcDataType.UInt16, null)]
-    [InlineData("DB5.DBD14", "DB5", 14, PlcDataType.UInt32, null)]
-    [InlineData("M0.0", "M", 0, PlcDataType.Bool, 0)]
-    [InlineData("MW6", "M", 6, PlcDataType.UInt16, null)]
-    [InlineData("I0.1", "I", 0, PlcDataType.Bool, 1)]
-    [InlineData("IW4", "I", 4, PlcDataType.UInt16, null)]
-    [InlineData("Q0.2", "Q", 0, PlcDataType.Bool, 2)]
-    [InlineData("QD8", "Q", 8, PlcDataType.UInt32, null)]
+    [InlineData("DB1.DBX0.0", "DB1", 0, DeviceDataType.Bool, 0)]
+    [InlineData("DB1.DBX12.7", "DB1", 12, DeviceDataType.Bool, 7)]
+    [InlineData("DB5.DBB10", "DB5", 10, DeviceDataType.Byte, null)]
+    [InlineData("DB5.DBW12", "DB5", 12, DeviceDataType.UInt16, null)]
+    [InlineData("DB5.DBD14", "DB5", 14, DeviceDataType.UInt32, null)]
+    [InlineData("M0.0", "M", 0, DeviceDataType.Bool, 0)]
+    [InlineData("MW6", "M", 6, DeviceDataType.UInt16, null)]
+    [InlineData("I0.1", "I", 0, DeviceDataType.Bool, 1)]
+    [InlineData("IW4", "I", 4, DeviceDataType.UInt16, null)]
+    [InlineData("Q0.2", "Q", 0, DeviceDataType.Bool, 2)]
+    [InlineData("QD8", "Q", 8, DeviceDataType.UInt32, null)]
     public void Parse_MapsNativeAddress(
         string text,
         string region,
         int offset,
-        PlcDataType dataType,
+        DeviceDataType dataType,
         int? bitOffset)
     {
         var address = _parser.Parse(text);
@@ -38,9 +38,9 @@ public class S7AddressParserTests
     [Fact]
     public void Parse_OverridesDataType()
     {
-        var address = _parser.Parse("DB1.DBB0", PlcDataType.Int32);
+        var address = _parser.Parse("DB1.DBB0", DeviceDataType.Int32);
 
-        Assert.Equal(PlcDataType.Int32, address.DataType);
+        Assert.Equal(DeviceDataType.Int32, address.DataType);
         Assert.Equal(0, address.Offset);
     }
 
@@ -77,7 +77,7 @@ public class S7DriverTests
 
         var value = await driver.ReadAsync(driver.AddressParser.Parse("DB1.DBW0"));
 
-        Assert.Equal(PlcValue.FromUInt16(42), value);
+        Assert.Equal(DeviceValue.FromUInt16(42), value);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class S7DriverTests
             ProtocolFrames.DataItem(new byte[] { 4, 2, (byte)'A', (byte)'B', 0, 0 })));
         await using var driver = await CreateConnectedDriverAsync(transport);
 
-        var value = await driver.ReadAsync(driver.AddressParser.Parse("DB2.DBB0", PlcDataType.String).WithLength(4));
+        var value = await driver.ReadAsync(driver.AddressParser.Parse("DB2.DBB0", DeviceDataType.String).WithLength(4));
 
         Assert.Equal("AB", value.AsString());
     }
@@ -123,11 +123,11 @@ public class S7DriverTests
         var values = await driver.ReadBatchAsync(new[]
         {
             driver.AddressParser.Parse("DB1.DBW0"),
-            driver.AddressParser.Parse("DB1.DBD2", PlcDataType.Int32),
+            driver.AddressParser.Parse("DB1.DBD2", DeviceDataType.Int32),
         });
 
-        Assert.Equal(PlcValue.FromUInt16(10), values[0]);
-        Assert.Equal(PlcValue.FromInt32(42), values[1]);
+        Assert.Equal(DeviceValue.FromUInt16(10), values[0]);
+        Assert.Equal(DeviceValue.FromInt32(42), values[1]);
         Assert.Equal(3, transport.Writes.Count);
     }
 
@@ -160,7 +160,7 @@ public class S7DriverTests
 
         await driver.WriteAsync(
             driver.AddressParser.Parse("DB1.DBW0").WithLength(2),
-            PlcValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 }));
+            DeviceValue.FromUInt16Array(new ushort[] { 0x1234, 0x5678 }));
 
         Assert.Equal(new byte[] { 0x12, 0x34, 0x56, 0x78 }, transport.Writes[2][35..39]);
     }
@@ -175,7 +175,7 @@ public class S7DriverTests
             new byte[] { 0xFF }));
         await using var driver = await CreateConnectedDriverAsync(transport);
 
-        await driver.WriteAsync(driver.AddressParser.Parse("DB1.DBW0"), PlcValue.FromUInt16(0x1234));
+        await driver.WriteAsync(driver.AddressParser.Parse("DB1.DBW0"), DeviceValue.FromUInt16(0x1234));
 
         Assert.Equal(new byte[] { 0x12, 0x34 }, transport.Writes[2][35..37]);
     }
@@ -187,7 +187,7 @@ public class S7DriverTests
         await using var driver = await CreateConnectedDriverAsync(transport);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => driver.WriteAsync(driver.AddressParser.Parse("DB1.DBW0"), PlcValue.FromInt32(1)));
+            () => driver.WriteAsync(driver.AddressParser.Parse("DB1.DBW0"), DeviceValue.FromInt32(1)));
     }
 
     [Fact]
@@ -215,8 +215,8 @@ public class S7DriverTests
 
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(driver.AddressParser.Parse("DB1.DBW0"), PlcValue.FromUInt16(1)),
-            new PlcWriteRequest(driver.AddressParser.Parse("DB1.DBW2"), PlcValue.FromUInt16(2)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("DB1.DBW0"), DeviceValue.FromUInt16(1)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("DB1.DBW2"), DeviceValue.FromUInt16(2)),
         });
 
         Assert.Equal(3, transport.Writes.Count);
@@ -232,9 +232,9 @@ public class S7DriverTests
 
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(
-                driver.AddressParser.Parse("DB3.DBB0", PlcDataType.String).WithLength(4),
-                PlcValue.FromString("AB")),
+            new DeviceWriteRequest(
+                driver.AddressParser.Parse("DB3.DBB0", DeviceDataType.String).WithLength(4),
+                DeviceValue.FromString("AB")),
         });
 
         Assert.Equal(3, transport.Writes.Count);
@@ -253,10 +253,10 @@ public class S7DriverTests
 
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(driver.AddressParser.Parse("DB1.DBW0"), PlcValue.FromUInt16(1)),
-            new PlcWriteRequest(
-                driver.AddressParser.Parse("DB3.DBB0", PlcDataType.String).WithLength(4),
-                PlcValue.FromString("AB")),
+            new DeviceWriteRequest(driver.AddressParser.Parse("DB1.DBW0"), DeviceValue.FromUInt16(1)),
+            new DeviceWriteRequest(
+                driver.AddressParser.Parse("DB3.DBB0", DeviceDataType.String).WithLength(4),
+                DeviceValue.FromString("AB")),
         });
 
         Assert.Equal(3, transport.Writes.Count);
@@ -277,10 +277,10 @@ public class S7DriverTests
         var values = await driver.ReadBatchAsync(new[]
         {
             driver.AddressParser.Parse("DB1.DBW0"),
-            driver.AddressParser.Parse("DB3.DBB0", PlcDataType.String).WithLength(4),
+            driver.AddressParser.Parse("DB3.DBB0", DeviceDataType.String).WithLength(4),
         });
 
-        Assert.Equal(PlcValue.FromUInt16(42), values[0]);
+        Assert.Equal(DeviceValue.FromUInt16(42), values[0]);
         Assert.Equal("AB", values[1].AsString());
         Assert.Equal(3, transport.Writes.Count);
     }

@@ -12,7 +12,7 @@ public sealed class TcpTransportOptions
     /// <summary>Maximum time allowed for establishing the connection. Defaults to 5 seconds.</summary>
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
-    /// <summary>Disables Nagle's algorithm. Defaults to <see langword="true"/>, which is desirable for PLC traffic.</summary>
+    /// <summary>Disables Nagle's algorithm. Defaults to <see langword="true"/>, which is desirable for device traffic.</summary>
     public bool NoDelay { get; set; } = true;
 
     /// <summary>Enables TCP keep-alive probes.</summary>

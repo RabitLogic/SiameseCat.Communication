@@ -5,13 +5,13 @@ using SiameseCat.Communication;
 namespace SiameseCat.Tests.Fakes;
 
 /// <summary>Address parser for the in-memory mock driver: <c>R0</c> registers and <c>B0</c> bits.</summary>
-internal sealed partial class MockAddressParser : IPlcAddressParser
+internal sealed partial class MockAddressParser : IDeviceAddressParser
 {
     public string ProtocolName => "Mock";
 
-    public PlcAddress Parse(string address) => Parse(address, PlcDataType.UInt16);
+    public DeviceAddress Parse(string address) => Parse(address, DeviceDataType.UInt16);
 
-    public PlcAddress Parse(string address, PlcDataType dataType)
+    public DeviceAddress Parse(string address, DeviceDataType dataType)
     {
         var match = Pattern().Match(address ?? string.Empty);
         if (!match.Success)
@@ -26,7 +26,7 @@ internal sealed partial class MockAddressParser : IPlcAddressParser
             _ => "reg",
         };
 
-        return new PlcAddress(region, offset, dataType);
+        return new DeviceAddress(region, offset, dataType);
     }
 
     [GeneratedRegex(@"^(?<kind>R|B)(?<offset>\d+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -55,12 +55,12 @@ internal sealed class ConcurrencyProbe
 /// <summary>In-memory driver used to validate the driver contract without a real protocol.</summary>
 internal sealed class MockDriver : DriverBase
 {
-    private readonly Dictionary<PlcAddress, PlcValue> _store = new();
+    private readonly Dictionary<DeviceAddress, DeviceValue> _store = new();
 
     public MockDriver(
         DriverConfiguration? configuration = null,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null,
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null,
         DriverCapabilities capabilities = DriverCapabilities.All)
         : base(
             new DriverDescriptor(
@@ -78,7 +78,7 @@ internal sealed class MockDriver : DriverBase
 
     public ConcurrencyProbe? Probe { get; set; }
 
-    public Func<PlcAddress, TimeSpan, Func<PlcValue, Task>, CancellationToken, Task<IAsyncDisposable?>>? SubscribeHandler { get; set; }
+    public Func<DeviceAddress, TimeSpan, Func<DeviceValue, Task>, CancellationToken, Task<IAsyncDisposable?>>? SubscribeHandler { get; set; }
 
     public int ConnectCount { get; private set; }
 
@@ -94,9 +94,9 @@ internal sealed class MockDriver : DriverBase
 
     public TimeSpan ReadDelay { get; set; }
 
-    public PlcValue this[PlcAddress address]
+    public DeviceValue this[DeviceAddress address]
     {
-        get => _store.TryGetValue(address, out var value) ? value : PlcValue.Null;
+        get => _store.TryGetValue(address, out var value) ? value : DeviceValue.Null;
         set => _store[address] = value;
     }
 
@@ -119,7 +119,7 @@ internal sealed class MockDriver : DriverBase
         return Task.CompletedTask;
     }
 
-    protected override async Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken)
+    protected override async Task<DeviceValue> DoReadAsync(DeviceAddress address, CancellationToken cancellationToken)
     {
         ReadCount++;
         Probe?.Enter();
@@ -132,7 +132,7 @@ internal sealed class MockDriver : DriverBase
             }
 
             CheckFailure();
-            return _store.TryGetValue(address, out var value) ? value : PlcValue.Null;
+            return _store.TryGetValue(address, out var value) ? value : DeviceValue.Null;
         }
         finally
         {
@@ -141,16 +141,16 @@ internal sealed class MockDriver : DriverBase
     }
 
     protected override Task<IAsyncDisposable?> DoSubscribeAsync(
-        PlcAddress address,
+        DeviceAddress address,
         TimeSpan interval,
-        Func<PlcValue, Task> onChanged,
+        Func<DeviceValue, Task> onChanged,
         CancellationToken cancellationToken) =>
         SubscribeHandler?.Invoke(address, interval, onChanged, cancellationToken)
         ?? Task.FromResult<IAsyncDisposable?>(null);
 
     protected override Task DoWriteAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         CancellationToken cancellationToken)
     {
         CheckFailure();
@@ -167,16 +167,16 @@ internal sealed class MockDriver : DriverBase
         }
     }
 
-    protected override Task<PlcValue[]> DoReadBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+    protected override Task<DeviceValue[]> DoReadBatchAsync(
+        IReadOnlyList<DeviceAddress> addresses,
         CancellationToken cancellationToken)
     {
         BatchReadCount++;
 
-        var values = new PlcValue[addresses.Count];
+        var values = new DeviceValue[addresses.Count];
         for (var i = 0; i < addresses.Count; i++)
         {
-            values[i] = _store.TryGetValue(addresses[i], out var value) ? value : PlcValue.Null;
+            values[i] = _store.TryGetValue(addresses[i], out var value) ? value : DeviceValue.Null;
         }
 
         return Task.FromResult(values);

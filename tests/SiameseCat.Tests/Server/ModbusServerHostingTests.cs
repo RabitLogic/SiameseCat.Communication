@@ -97,11 +97,11 @@ public class ModbusServerHostingTests
     }
 
     [Fact]
-    public async Task AddModbusServer_UsesTheRegisteredPlcLogger()
+    public async Task AddModbusServer_UsesTheRegisteredCommunicationLogger()
     {
         var logger = new RecordingLogger();
         var services = new ServiceCollection();
-        services.AddSingleton<SiameseCat.Communication.IPlcLogger>(logger);
+        services.AddSingleton<SiameseCat.Communication.ICommunicationLogger>(logger);
         services.AddModbusServer(options => options.Port = 0);
 
         await using var provider = services.BuildServiceProvider();
@@ -119,6 +119,6 @@ public class ModbusServerHostingTests
         await client.ConnectAsync();
         await client.ReadHoldingRegistersAsync(1, 0, 1);
 
-        Assert.True(logger.Contains(SiameseCat.Communication.PlcLogLevel.Debug, "client connected"));
+        Assert.True(logger.Contains(SiameseCat.Communication.CommunicationLogLevel.Debug, "client connected"));
     }
 }

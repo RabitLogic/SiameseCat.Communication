@@ -6,9 +6,9 @@ public abstract partial class DriverBase
 
     /// <inheritdoc/>
     public async Task<IAsyncDisposable> SubscribeAsync(
-        PlcAddress address,
+        DeviceAddress address,
         TimeSpan interval,
-        Func<PlcValue, Task> onChanged,
+        Func<DeviceValue, Task> onChanged,
         CancellationToken cancellationToken = default)
     {
         Guard.NotNull(onChanged, nameof(onChanged));
@@ -33,9 +33,9 @@ public abstract partial class DriverBase
 
     /// <inheritdoc/>
     public async Task<IAsyncDisposable> SubscribeBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+        IReadOnlyList<DeviceAddress> addresses,
         TimeSpan interval,
-        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        Func<IReadOnlyList<DeviceValue>, Task> onChanged,
         CancellationToken cancellationToken = default)
     {
         Guard.NotNull(addresses, nameof(addresses));
@@ -54,7 +54,7 @@ public abstract partial class DriverBase
         EnsureCapability(DriverCapabilities.SubscribeBatch);
 
         // Copy so callers can reuse or clear their list while the subscription runs.
-        var targets = new PlcAddress[addresses.Count];
+        var targets = new DeviceAddress[addresses.Count];
         for (var i = 0; i < targets.Length; i++)
         {
             targets[i] = addresses[i];
@@ -89,9 +89,9 @@ public abstract partial class DriverBase
     /// <param name="cancellationToken">Cancelled when the caller disposes the subscription or the driver is disposed.</param>
     /// <returns>A handle that stops the subscription, or <see langword="null"/> to use polling.</returns>
     protected virtual Task<IAsyncDisposable?> DoSubscribeAsync(
-        PlcAddress address,
+        DeviceAddress address,
         TimeSpan interval,
-        Func<PlcValue, Task> onChanged,
+        Func<DeviceValue, Task> onChanged,
         CancellationToken cancellationToken) => Task.FromResult<IAsyncDisposable?>(null);
 
     /// <summary>
@@ -104,15 +104,15 @@ public abstract partial class DriverBase
     /// <param name="cancellationToken">Cancelled when the caller disposes the subscription or the driver is disposed.</param>
     /// <returns>A handle that stops the subscription, or <see langword="null"/> to use polling.</returns>
     protected virtual Task<IAsyncDisposable?> DoSubscribeBatchAsync(
-        IReadOnlyList<PlcAddress> addresses,
+        IReadOnlyList<DeviceAddress> addresses,
         TimeSpan interval,
-        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        Func<IReadOnlyList<DeviceValue>, Task> onChanged,
         CancellationToken cancellationToken) => Task.FromResult<IAsyncDisposable?>(null);
 
     private Task PollAsync(
-        PlcAddress address,
+        DeviceAddress address,
         TimeSpan interval,
-        Func<PlcValue, Task> onChanged,
+        Func<DeviceValue, Task> onChanged,
         CancellationTokenSource cts) =>
         RunPollLoopAsync(
             interval,
@@ -123,9 +123,9 @@ public abstract partial class DriverBase
             cts);
 
     private Task PollBatchAsync(
-        PlcAddress[] addresses,
+        DeviceAddress[] addresses,
         TimeSpan interval,
-        Func<IReadOnlyList<PlcValue>, Task> onChanged,
+        Func<IReadOnlyList<DeviceValue>, Task> onChanged,
         CancellationTokenSource cts) =>
         RunPollLoopAsync(
             interval,
@@ -135,7 +135,7 @@ public abstract partial class DriverBase
             onChanged,
             cts);
 
-    private static bool ValuesEqual(PlcValue[] previous, PlcValue[] current)
+    private static bool ValuesEqual(DeviceValue[] previous, DeviceValue[] current)
     {
         if (ReferenceEquals(previous, current))
         {

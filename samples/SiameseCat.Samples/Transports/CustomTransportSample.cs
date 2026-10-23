@@ -68,7 +68,7 @@ public sealed class CustomTransportSample : ISample
             "the recording proves the request/response framing");
 
         SampleConsole.Step("2. Log every frame on the driver level");
-        var logger = new ConsolePlcLogger();
+        var logger = new ConsoleCommunicationLogger();
         var registry = new DriverRegistry()
             .Register(new ModbusDriverFactory());
         await using (var driver = registry.Create(
@@ -139,12 +139,12 @@ public sealed class CustomTransportSample : ISample
         public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 
-    /// <summary>Minimal <see cref="IPlcLogger"/> that prints frames to the console.</summary>
-    private sealed class ConsolePlcLogger : IPlcLogger
+    /// <summary>Minimal <see cref="ICommunicationLogger"/> that prints frames to the console.</summary>
+    private sealed class ConsoleCommunicationLogger : ICommunicationLogger
     {
         public int FrameCount { get; private set; }
 
-        public void Log(PlcLogLevel level, string message, Exception? exception = null)
+        public void Log(CommunicationLogLevel level, string message, Exception? exception = null)
         {
             if (message.Contains(" TX ", StringComparison.Ordinal) || message.Contains(" RX ", StringComparison.Ordinal))
             {

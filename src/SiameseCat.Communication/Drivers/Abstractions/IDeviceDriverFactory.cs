@@ -1,7 +1,7 @@
 namespace SiameseCat.Communication;
 
 /// <summary>Creates drivers of one protocol.</summary>
-public interface IPlcDriverFactory
+public interface IDeviceDriverFactory
 {
     /// <summary>Gets the descriptor of the drivers created by this factory.</summary>
     DriverDescriptor Descriptor { get; }
@@ -10,8 +10,8 @@ public interface IPlcDriverFactory
     /// <param name="configuration">Connection and retry settings.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="metrics">Optional metrics collector; a new instance is created when omitted.</param>
-    IPlcDriver Create(
+    IDeviceDriver Create(
         DriverConfiguration configuration,
-        IPlcLogger? logger = null,
-        PlcMetrics? metrics = null);
+        ICommunicationLogger? logger = null,
+        CommunicationMetrics? metrics = null);
 }

@@ -1,6 +1,7 @@
 using System.Buffers;
 
 using SiameseCat.Communication;
+using SiameseCat.Communication.Tcp;
 using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Communication.Modbus;
@@ -9,6 +10,8 @@ namespace SiameseCat.Communication.Modbus;
 public sealed class ModbusTcpClient : ModbusClientBase
 {
     private const int MaxResponseLength = 254;
+
+    private readonly TcpFrameConnection _connection;
 
     private ushort _transactionId;
 
@@ -27,6 +30,7 @@ public sealed class ModbusTcpClient : ModbusClientBase
     {
         Guard.NotNull(options, nameof(options));
         options.Tcp.Validate();
+        _connection = new TcpFrameConnection(Transport, new ModbusTcpFrameCodec());
     }
 
     /// <inheritdoc/>
@@ -40,55 +44,43 @@ public sealed class ModbusTcpClient : ModbusClientBase
     {
         ushort transactionId = unchecked(++_transactionId);
         var pool = ArrayPool<byte>.Shared;
-        var frame = pool.Rent(7 + pdu.Length + MaxResponseLength);
+        var frame = pool.Rent(7 + pdu.Length);
 
         try
         {
             BuildFrame(frame, transactionId, unitId, pdu);
 
             Transport.DiscardInput();
-            await Transport
-                .WriteAsync(frame.AsMemory(0, 7 + pdu.Length), cancellationToken)
+            var response = await _connection
+                .ExchangeAsync(frame.AsMemory(0, 7 + pdu.Length), cancellationToken)
                 .ConfigureAwait(false);
 
-            // Header and response body are read into the following bytes of the same buffer.
-            var headerOffset = 7 + pdu.Length;
-            await Transport
-                .ReadExactlyAsync(frame.AsMemory(headerOffset, 7), cancellationToken)
-                .ConfigureAwait(false);
-
-            ushort responseTransactionId = (ushort)((frame[headerOffset] << 8) | frame[headerOffset + 1]);
+            ushort responseTransactionId = (ushort)((response[0] << 8) | response[1]);
             if (responseTransactionId != transactionId)
             {
                 throw new ProtocolException(
                     $"The Modbus TCP response has transaction id {responseTransactionId} but {transactionId} was expected.");
             }
 
-            ushort protocolId = (ushort)((frame[headerOffset + 2] << 8) | frame[headerOffset + 3]);
+            ushort protocolId = (ushort)((response[2] << 8) | response[3]);
             if (protocolId != 0)
             {
                 throw new ProtocolException($"The Modbus TCP response has protocol id {protocolId} instead of 0.");
             }
 
-            ushort length = (ushort)((frame[headerOffset + 4] << 8) | frame[headerOffset + 5]);
+            ushort length = (ushort)((response[4] << 8) | response[5]);
             if (length is < 2 or > MaxResponseLength)
             {
                 throw new ProtocolException($"The Modbus TCP response has invalid length {length}.");
             }
 
-            if (frame[headerOffset + 6] != unitId)
+            if (response[6] != unitId)
             {
                 throw new ProtocolException(
-                    $"The Modbus TCP response has unit id {frame[headerOffset + 6]} but {unitId} was expected.");
+                    $"The Modbus TCP response has unit id {response[6]} but {unitId} was expected.");
             }
 
-            var pduLength = length - 1;
-            var bodyOffset = headerOffset + 7;
-            await Transport
-                .ReadExactlyAsync(frame.AsMemory(bodyOffset, pduLength), cancellationToken)
-                .ConfigureAwait(false);
-
-            return frame.AsSpan(bodyOffset, pduLength).ToArray();
+            return response.AsSpan(7, length - 1).ToArray();
         }
         finally
         {
@@ -111,7 +103,7 @@ public sealed class ModbusTcpClient : ModbusClientBase
             BuildFrame(frame, transactionId, unitId, pdu);
 
             Transport.DiscardInput();
-            await Transport
+            await _connection
                 .WriteAsync(frame.AsMemory(0, 7 + pdu.Length), cancellationToken)
                 .ConfigureAwait(false);
         }

@@ -2,9 +2,11 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-面向 PLC 和工业设备的轻量级 .NET 通讯库。包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
+面向工业设备的轻量级 .NET 通讯库。包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
 
 > 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) · [发布指南](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md) · [仓库设置（规则集、工作流权限）](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/repository-settings.md)
+>
+> 从零动手复刻教程（中文）：[tutorial/](tutorial/README.md)
 
 本仓库只产出**一个** NuGet 包 `SiameseCat.Communication`：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。包内按**命名空间**分层，层内再按协议分组：
 
@@ -12,10 +14,11 @@
 | --- | --- | --- |
 | `SiameseCat.Communication` | 根、`Addressing/`、`Diagnostics/`、`Drivers/`、`Exceptions/` | 驱动契约、地址/值模型、`DriverBase`、注册表、日志抽象与指标、`ITransport` 抽象 |
 | `SiameseCat.Communication.Transport` | `Transport/` | TCP / UDP / 串口传输实现 |
+| `SiameseCat.Communication.Tcp` | `Tcp/` | 与设备模型无关的 TCP 协议层：分帧（原始/长度前缀/分隔符/定长）、`TcpFrameConnection`、`CustomTcpClient` |
 | `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus（RTU/TCP）帧、客户端、地址解析与通用 Modbus 驱动 |
 | `SiameseCat.Communication.S7` | `S7/` | `S7Client`、`S7Address`、S7 选项与读写项、通用 S7 驱动 |
 | `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
-| `SiameseCat.Communication.Server.Modbus` / `.S7` | `Server/` | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B）与 S7（ISO-on-TCP）从站，含统计与日志 |
+| `SiameseCat.Communication.Server.Modbus` / `.S7` / `.Tcp` | `Server/` | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B）、S7（ISO-on-TCP）从站与通用 TCP 服务端，含统计与日志 |
 | `SiameseCat.Communication.Hosting` | `Hosting/` | `IServiceCollection` 注册、从站托管、健康检查、`Microsoft.Extensions.Logging` 适配器 |
 
 协议栈自行实现（含设备标识 FC2B 与文件记录 FC14/15），不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
@@ -24,12 +27,12 @@
 
 ```text
 应用
- │  只依赖驱动契约与 PlcAddress/PlcValue，不依赖品牌或协议
+ │  只依赖驱动契约与 DeviceAddress/DeviceValue，不依赖品牌或协议
  ▼
 SiameseCat.Communication（契约 + 模型）
- ├── IPlcDriver / IReadable / IWritable / IBatchReadable / IBatchWritable / ISubscribable / IHealthCheckable
+ ├── IDeviceDriver / IReadable / IWritable / IBatchReadable / IBatchWritable / ISubscribable / IHealthCheckable
  ├── DriverBase        状态机 / 事务锁 / 超时 / 重试 / 重连 / 日志 / 指标（5 个 partial）
- ├── PlcAddress / PlcValue / PlcTag / IPlcAddressParser
+ ├── DeviceAddress / DeviceValue / DeviceTag / IDeviceAddressParser
  ├── ITransport        字节收发抽象
  └── DriverRegistry    驱动发现与创建
         ▲                                        ▲
@@ -51,9 +54,9 @@ SiameseCat.Communication（契约 + 模型）
 
 - **传输层与协议层解耦**：`ITransport` 只提供 `open / close / send / recv / discard`；协议驱动通过构造参数接收传输，因此 Modbus RTU 与 TCP 共用同一套 PDU 逻辑，S7 的 ISO-TP 层也不依赖具体 TCP 实现。
 - **能力分离**：没有几十个方法的 `IDriver`，而是 `IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` / `ISubscribable` / `IHealthCheckable`，驱动按需实现，并在 `DriverDescriptor.Capabilities` 中声明；`DriverBase` 在调用前校验，越界调用直接抛 `NotSupportedException`。
-- **两层地址模型**：用户写协议原生地址（`40001`、`DB1.DBD0`），由 `IPlcAddressParser` 解析为 `{ Region, Offset, BitOffset?, DataType, Length, Symbol? }`；上层只操作 `PlcAddress`。符号寻址协议（OPC UA / CIP / ADS）使用 `Symbol` 字段，不把符号拼进字符串。
+- **两层地址模型**：用户写协议原生地址（`40001`、`DB1.DBD0`），由 `IDeviceAddressParser` 解析为 `{ Region, Offset, BitOffset?, DataType, Length, Symbol? }`；上层只操作 `DeviceAddress`。符号寻址协议（OPC UA / CIP / ADS）使用 `Symbol` 字段，不把符号拼进字符串。
 - **模板方法**：状态机、事务锁、超时、重试、重连、指标都在 `DriverBase`，驱动只实现 `DoConnectAsync` / `DoReadAsync` / `DoWriteAsync`（可选 `DoReadBatchAsync`）。`DriverBase` 按职责拆成 5 个分部文件：`DriverBase.cs`（契约与读写 API）、`.Lifecycle.cs`（连接状态机）、`.Execution.cs`（超时/重试/重连管线）、`.Health.cs`（`PingAsync` / Keep-Alive）、`.Subscription.cs`（轮询订阅）。
-- **插件式注册**：`DriverRegistry` 按 id 注册 `IPlcDriverFactory`，核心库不硬编码任何协议；AOT 场景使用显式注册，非 AOT 场景可用 `RegisterFromAssembly` 扫描。
+- **插件式注册**：`DriverRegistry` 按 id 注册 `IDeviceDriverFactory`，核心库不硬编码任何协议；AOT 场景使用显式注册，非 AOT 场景可用 `RegisterFromAssembly` 扫描。
 
 内置驱动 id：
 
@@ -135,10 +138,10 @@ var batch = (IBatchReadable)driver;
 var batchWrite = (IBatchWritable)driver;
 
 // 原生地址 -> 结构化地址
-var speed = driver.AddressParser.Parse("40001", PlcDataType.Int16);
+var speed = driver.AddressParser.Parse("40001", DeviceDataType.Int16);
 ushort raw = (await readable.ReadAsync(speed)).AsUInt16();
 
-await writable.WriteAsync(driver.AddressParser.Parse("HR10", PlcDataType.Float), PlcValue.FromFloat(12.5f));
+await writable.WriteAsync(driver.AddressParser.Parse("HR10", DeviceDataType.Float), DeviceValue.FromFloat(12.5f));
 
 // 批量读：S7 使用多变量请求，Modbus 合并连续寄存器
 var values = await batch.ReadBatchAsync(new[]
@@ -151,12 +154,12 @@ var values = await batch.ReadBatchAsync(new[]
 // 批量写：Modbus 合并连续寄存器（FC16）/ 线圈（FC15），S7 使用多变量写请求
 await batchWrite.WriteBatchAsync(new[]
 {
-    new PlcWriteRequest(driver.AddressParser.Parse("HR0"), PlcValue.FromUInt16(10)),
-    new PlcWriteRequest(driver.AddressParser.Parse("HR1"), PlcValue.FromUInt16(11)),
+    new DeviceWriteRequest(driver.AddressParser.Parse("HR0"), DeviceValue.FromUInt16(10)),
+    new DeviceWriteRequest(driver.AddressParser.Parse("HR1"), DeviceValue.FromUInt16(11)),
 });
 
-// PlcTag + 工程换算
-var tag = new PlcTag("temperature", "40001", PlcDataType.Int16, scale: 0.1, offset: -40, unit: "°C");
+// DeviceTag + 工程换算
+var tag = new DeviceTag("temperature", "40001", DeviceDataType.Int16, scale: 0.1, offset: -40, unit: "°C");
 var engineering = tag.ToEngineering((await driver.ReadTagAsync(tag)).AsDouble());
 
 // 轮询订阅（默认带抖动与失败退避）
@@ -203,7 +206,7 @@ foreach (var station in new byte[] { 1, 2, 3 })
 - `TransportKind.Custom` 表示「字节流由 `TransportFactory` 提供」，驱动不再自己开端口；Modbus 用 `framing` 选项决定 MBAP（`tcp`）还是 RTU 组帧，S7 固定使用它自己的 TPKT 组帧。
 - 只共享 `TransportFactory`、不共享 `RequestLock` 会让两个站的请求帧交错，务必两者一起设置；`SharedTransportFactory.RequestLock` 就是为此准备的。
 - 不想共享时也可以让工厂每次返回新传输，用于复用已有连接或自建隧道。
-- `LogFrames = true` 会把每一帧以 `Trace` 级别写到 `IPlcLogger`（hex），现场排障时打开即可，例如输出 `modbus/1 TX 01 03 00 00 00 02 C4 0B`、`RX 01 03 04 00 64 00 C8 ...`。
+- `LogFrames = true` 会把每一帧以 `Trace` 级别写到 `ICommunicationLogger`（hex），现场排障时打开即可，例如输出 `modbus/1 TX 01 03 00 00 00 02 C4 0B`、`RX 01 03 04 00 64 00 C8 ...`。
 
 ### 能力声明与可选钩子
 
@@ -242,7 +245,7 @@ using SiameseCat.Communication.Hosting;
 
 var services = new ServiceCollection();
 services.AddLogging(builder => builder.AddConsole());
-services.AddSiameseCat();                       // DriverRegistry + IPlcLogger 适配器
+services.AddSiameseCat();                       // DriverRegistry + ICommunicationLogger 适配器
 
 services.AddSiameseCatDriver("modbus", configuration =>
 {
@@ -252,12 +255,12 @@ services.AddSiameseCatDriver("modbus", configuration =>
 });
 
 var provider = services.BuildServiceProvider();
-var driver = provider.GetRequiredKeyedService<IPlcDriver>("modbus");
+var driver = provider.GetRequiredKeyedService<IDeviceDriver>("modbus");
 await driver.ConnectAsync();
 ```
 
 - 每次解析 keyed 驱动都会创建新实例（transient），作用域释放时自动 `DisposeAsync`。
-- 未注册日志时自动退化为 `NullPlcLogger`，因此不强制引入日志实现。
+- 未注册日志时自动退化为 `NullCommunicationLogger`，因此不强制引入日志实现。
 - 单独使用适配器：`new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`。
 
 Modbus 与 S7 从站也可以交给 DI 管理（注册为 `IModbusServer` / `IS7Server` 单例，随宿主自动启停）：
@@ -286,7 +289,7 @@ services.AddS7Server(options =>
 
 - Modbus 从站以 `IModbusServer` 注册、S7 从站以 `IS7Server` 注册，`provider.GetServices<...>()` 可取到全部实例。
 - 内部注册一个 `IHostedService`，在宿主启动/停止时统一 `StartAsync` / `StopAsync`。
-- 未显式设置 `Logger` 时自动使用 DI 中的 `IPlcLogger`。
+- 未显式设置 `Logger` 时自动使用 DI 中的 `ICommunicationLogger`。
 
 ### 地址模型
 
@@ -301,32 +304,32 @@ services.AddS7Server(options =>
 
 ```csharp
 // 读 10 个连续寄存器为一个数组
-var block = await driver.ReadAsync(driver.AddressParser.Parse("HR0", PlcDataType.UInt16).WithLength(10));
+var block = await driver.ReadAsync(driver.AddressParser.Parse("HR0", DeviceDataType.UInt16).WithLength(10));
 ushort[] values = block.AsUInt16Array();
 
 // 写一个数组，Modbus 会自动改用 FC16 / S7 走多字节写
 await driver.WriteAsync(
-    driver.AddressParser.Parse("HR0", PlcDataType.Float).WithLength(4),
-    PlcValue.FromFloatArray(new[] { 1.5f, 2.5f, 3.5f, 4.5f }));
+    driver.AddressParser.Parse("HR0", DeviceDataType.Float).WithLength(4),
+    DeviceValue.FromFloatArray(new[] { 1.5f, 2.5f, 3.5f, 4.5f }));
 ```
 
-支持的数组元素类型：`Int16` / `UInt16` / `Int32` / `UInt32` / `Int64` / `UInt64` / `Float` / `Double`；`PlcValue.IsArray` / `Length` / `AsUInt16Array()` 等访问器与**按元素比较**的相等性都已提供，标量访问器对数组会抛 `InvalidCastException`。
-v1 不提供跨协议统一语义地址（例如把 `"temperature"` 映射到不同厂商的地址），`PlcTag` 已能满足配置化场景。
+支持的数组元素类型：`Int16` / `UInt16` / `Int32` / `UInt32` / `Int64` / `UInt64` / `Float` / `Double`；`DeviceValue.IsArray` / `Length` / `AsUInt16Array()` 等访问器与**按元素比较**的相等性都已提供，标量访问器对数组会抛 `InvalidCastException`。
+v1 不提供跨协议统一语义地址（例如把 `"temperature"` 映射到不同厂商的地址），`DeviceTag` 已能满足配置化场景。
 
-**符号寻址**：OPC UA / CIP / ADS 这类按名字寻址的协议不用再把符号拼进字符串，`PlcAddress` 带一个可选 `Symbol`：
+**符号寻址**：OPC UA / CIP / ADS 这类按名字寻址的协议不用再把符号拼进字符串，`DeviceAddress` 带一个可选 `Symbol`：
 
 ```csharp
-var address = PlcAddress.FromSymbol("ns=2", "s=Temperature", PlcDataType.Double);
+var address = DeviceAddress.FromSymbol("ns=2", "s=Temperature", DeviceDataType.Double);
 // Region="ns=2", Symbol="s=Temperature", Offset=0, ToString() => "ns=2:s=Temperature[Double]"
 ```
 
 ### 值元数据（Quality / Timestamp）
 
-`PlcValue` 除了载荷还携带可选的**质量**与**采样时间**，两者都是元数据，不参与相等性比较（轮询变更检测不受影响）：
+`DeviceValue` 除了载荷还携带可选的**质量**与**采样时间**，两者都是元数据，不参与相等性比较（轮询变更检测不受影响）：
 
 ```csharp
-var value = PlcValue.FromDouble(12.5)
-    .WithQuality(PlcValueQuality.Good)
+var value = DeviceValue.FromDouble(12.5)
+    .WithQuality(DeviceValueQuality.Good)
     .WithTimestamp(DateTimeOffset.UtcNow);
 
 bool usable = value.IsGood;      // Quality == Good
@@ -338,24 +341,24 @@ DateTimeOffset? sampledAt = value.Timestamp;
 ### 新增第三方驱动
 
 ```csharp
-public sealed class MyProtocolFactory : IPlcDriverFactory
+public sealed class MyProtocolFactory : IDeviceDriverFactory
 {
     public static DriverDescriptor DefaultDescriptor { get; } =
-        new("myplc", "My PLC", "Custom protocol", TransportKind.Tcp, 5000, new[] { "D100" });
+        new("mydevice", "My Device", "Custom protocol", TransportKind.Tcp, 5000, new[] { "D100" });
 
     public DriverDescriptor Descriptor => DefaultDescriptor;
 
-    public IPlcDriver Create(DriverConfiguration configuration, IPlcLogger? logger = null, PlcMetrics? metrics = null) =>
+    public IDeviceDriver Create(DriverConfiguration configuration, ICommunicationLogger? logger = null, CommunicationMetrics? metrics = null) =>
         new MyProtocolDriver(configuration, logger, metrics);
 }
 
 // 只读驱动：声明能力 + 只实现 DoConnect / DoRead，写和批量钩子都不用写
 public sealed class MyProtocolDriver : DriverBase
 {
-    public MyProtocolDriver(DriverConfiguration configuration, IPlcLogger? logger, PlcMetrics? metrics)
+    public MyProtocolDriver(DriverConfiguration configuration, ICommunicationLogger? logger, CommunicationMetrics? metrics)
         : base(
             new DriverDescriptor(
-                "myplc", "My PLC", "Custom protocol", TransportKind.Tcp, 5000,
+                "mydevice", "My Device", "Custom protocol", TransportKind.Tcp, 5000,
                 capabilities: DriverCapabilities.Read | DriverCapabilities.Subscribe),
             new MyAddressParser(),
             configuration,
@@ -366,13 +369,13 @@ public sealed class MyProtocolDriver : DriverBase
 
     protected override Task DoConnectAsync(CancellationToken ct) => /* open transport */ Task.CompletedTask;
     protected override Task DoDisconnectAsync() => /* close transport */ Task.CompletedTask;
-    protected override Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken ct) => /* read */ throw new NotImplementedException();
+    protected override Task<DeviceValue> DoReadAsync(DeviceAddress address, CancellationToken ct) => /* read */ throw new NotImplementedException();
 
     // 可选：接入协议原生订阅；不重写则自动回退到轮询 DoReadAsync
     protected override Task<IAsyncDisposable?> DoSubscribeAsync(
-        PlcAddress address,
+        DeviceAddress address,
         TimeSpan interval,
-        Func<PlcValue, Task> onChanged,
+        Func<DeviceValue, Task> onChanged,
         CancellationToken ct) => /* subscribe */ Task.FromResult<IAsyncDisposable?>(null);
 }
 
@@ -390,13 +393,14 @@ registry.Register(new MyProtocolFactory());
 | Modbus 扩展 | FC23 原子读写（`ReadWriteRegistersAsync`）、FC14/15 文件记录、FC2B 设备标识、广播写（`unitId=0` 只发不等） |
 | S7 | ISO-on-TCP (RFC 1006) + COTP + S7 PDU，支持 DB/M/I/Q 区、位/字节/字/双字/浮点/字符串、批量读写、位数组写、PDU 分片 |
 | TCP | 原始 TCP 客户端传输，可用于自定义文本/二进制协议 |
+| 自定义 TCP 协议 | `SiameseCat.Communication.Tcp`：原始/长度前缀/分隔符/定长分帧、可插拔 `ITcpFrameCodec`、`CustomTcpClient` 与 `CustomTcpServer`；`TcpFrameConnection` 同时被 Modbus TCP 的 MBAP 复用 |
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
 | SerialPort | 原始串口传输，可配置波特率、校验位、数据位、停止位、流控 |
 | 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求（含 `STRING`，不再逐条回退） |
 | 订阅 | `ISubscribable` 单点轮询；`IBatchSubscribable` 一组点位一次请求（原生批量订阅可重写 `DoSubscribeBatchAsync`），均带抖动与失败退避 |
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
-| 数值数组 | `PlcAddress.Length` 表示元素个数，`PlcValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
+| 数值数组 | `DeviceAddress.Length` 表示元素个数，`DeviceValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
 | Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
 | S7 从站 | `SiameseCat.Communication.Server.S7`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
 | Native AOT | 程序集标记 `IsAotCompatible`；现代目标启用裁剪/AOT 分析器，代码无反射与动态代码生成 |
@@ -431,28 +435,30 @@ broadcast.Options["unitId"] = "0";
 
 | 命名空间 | 职责 |
 | --- | --- |
-| `SiameseCat.Communication` | 驱动契约、`DriverBase`、注册表、`PlcAddress`/`PlcValue`/`PlcTag`、选项、异常、指标、`ITransport` 抽象 |
+| `SiameseCat.Communication` | 驱动契约、`DriverBase`、注册表、`DeviceAddress`/`DeviceValue`/`DeviceTag`、选项、异常、指标、`ITransport` 抽象 |
 | `SiameseCat.Communication.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
-| `SiameseCat.Communication.Modbus` | Modbus（RTU/TCP）帧、客户端与通用 Modbus 驱动 |
+| `SiameseCat.Communication.Tcp` | 与设备模型无关的分帧与连接核心：`TcpFrameCodec`、`TcpFrameConnection`、`CustomTcpClient` |
+| `SiameseCat.Communication.Modbus` | Modbus（RTU/TCP）帧（含 `ModbusTcpFrameCodec`）、客户端与通用 Modbus 驱动 |
 | `SiameseCat.Communication.S7` | `S7Client`、`S7Address`、S7 选项与读写项、`S7Driver` 与原生地址映射 |
 | `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
-| `SiameseCat.Communication.Server.Modbus` / `.S7` | Modbus TCP/RTU 从站（`IModbusServer`）与 S7 从站（`IS7Server`），复用协议层 PDU/CRC 与传输层串口，提供统计与日志 |
+| `SiameseCat.Communication.Server.Modbus` / `.S7` / `.Tcp` | Modbus TCP/RTU 从站（`IModbusServer`）、S7 从站（`IS7Server`）与通用 TCP 服务端（`CustomTcpServer`），复用协议层 PDU/CRC、分帧与传输层串口，提供统计与日志 |
 | `SiameseCat.Communication.Hosting` | DI 注册（`AddSiameseCat` / `AddModbusServer` / `AddS7Server`）、健康检查、`Microsoft.Extensions.Logging` 适配器 |
 
 ```text
 src/SiameseCat.Communication/
 ├── CommunicationOptions.cs / RetryPolicy.cs                                  # 契约 + 模型
-├── Addressing/          IPlcAddressParser、PlcAddress、PlcValue、PlcValueCodec、PlcTag
-├── Diagnostics/         IPlcLogger、NullPlcLogger、PlcMetrics、PlcDiagnostics
+├── Addressing/          IDeviceAddressParser、DeviceAddress、DeviceValue、DeviceValueCodec、DeviceTag
+├── Diagnostics/         ICommunicationLogger、NullCommunicationLogger、CommunicationMetrics、CommunicationDiagnostics
 ├── Drivers/
-│   ├── Abstractions/    IPlcDriver、读写/批量/订阅/健康接口、工厂、描述符、状态
+│   ├── Abstractions/    IDeviceDriver、读写/批量/订阅/健康接口、工厂、描述符、状态
 │   ├── Runtime/         DriverBase（5 个 partial）、DriverRegistry、DriverConfiguration、RequestLock
 │   └── DriverRegistryExtensions.cs                                          # 命名空间 …Communication.Drivers
 ├── Exceptions/          CommunicationException 及子类，一类一个文件
 ├── Transport/           ITransport 契约 + Tcp/Udp/SerialPort 实现（唯一 System.IO.Ports 依赖）
-├── Modbus/              帧、CRC、寄存器转换、RTU/TCP 客户端、地址解析、ModbusDriver
+├── Tcp/                 与设备模型无关的分帧、TcpFrameConnection、CustomTcpClient
+├── Modbus/              帧、CRC、寄存器转换、RTU/TCP 客户端、地址解析、ModbusDriver、ModbusTcpFrameCodec
 ├── S7/                  S7Client（连接/读/写/协议 4 个 partial）、S7Address、读写项、选项、Drivers/
-├── Server/              Modbus/ 与 S7/ 从站，ServerBufferSizes 共享缓冲区校验
+├── Server/              Modbus/、S7/ 从站与 Tcp/ 通用服务端，ServerBufferSizes 共享缓冲区校验
 └── Hosting/             ServiceCollectionExtensions、SlaveServerServiceCollectionExtensions、健康检查、日志适配器
 
 tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus / S7 / Server / Integration / Fakes）
@@ -463,7 +469,7 @@ tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成�
 benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 ```
 
-> 命名空间：`SiameseCat.Communication`、`.Transport`、`.Modbus`、`.S7`、`.Drivers`、`.Server.Modbus`、`.Server.S7`、`.Hosting`。包内文件调整不影响引用方。
+> 命名空间：`SiameseCat.Communication`、`.Transport`、`.Tcp`、`.Modbus`、`.S7`、`.Drivers`、`.Server.Modbus`、`.Server.S7`、`.Server.Tcp`、`.Hosting`。包内文件调整不影响引用方。
 
 ### 命名约定
 
@@ -471,11 +477,11 @@ benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 | --- | --- | --- |
 | 包名 = 产品 | 组织名 `SiameseCat` + 产品名，一个产品一个包 | `SiameseCat.Communication` |
 | 命名空间 = 产品 + 层/协议 | 一个包内用命名空间表达分层，避免再拆程序集 | `SiameseCat.Communication.Modbus` |
-| 领域模型统一 `Plc` 前缀 | 核心值类型与契约一律带 `Plc` 前缀，读写代码一眼可辨 | `PlcAddress`、`PlcValue`、`PlcTag`、`IPlcAddressParser` |
+| 领域模型用 `Device`，诊断用 `Communication` | 设备域类型统一 `Device` 前缀；日志、指标等通信诊断用 `Communication` 前缀 | `DeviceAddress`、`DeviceValue`、`DeviceTag`、`IDeviceDriver`、`ICommunicationLogger`、`CommunicationMetrics` |
 | 驱动类按协议命名 | 通用驱动用 `协议 + Driver`，协议客户端保留协议名 | `ModbusDriver`、`S7Driver`、`S7Client` |
-| 工厂 = 契约入口 | `IPlcDriverFactory` 的实现类以 `DriverFactory` 结尾 | `ModbusDriverFactory`、`S7DriverFactory` |
+| 工厂 = 契约入口 | `IDeviceDriverFactory` 的实现类以 `DriverFactory` 结尾 | `ModbusDriverFactory`、`S7DriverFactory` |
 | 分部类按职责拆文件 | 单类型职责超过 3 块或超过 ~300 行时用 `类型.职责.cs` | `DriverBase.Lifecycle.cs`、`S7Client.Protocol.cs` |
-| 一个公共类型一个文件 | 仅紧耦合的辅助类型可同文件（枚举、事件参数、选项族） | `PlcDataTypeExtensions.cs`、`Exceptions/*.cs` |
+| 一个公共类型一个文件 | 仅紧耦合的辅助类型可同文件（枚举、事件参数、选项族） | `DeviceDataTypeExtensions.cs`、`Exceptions/*.cs` |
 | 目录只留一层实现分组 | 协议根目录放帧与地址模型，`Clients/` 放会话，`Drivers/` 放驱动适配 | `Modbus/Clients/`、`S7/Clients/` |
 
 依赖方向（严格单向，无环）：
@@ -658,6 +664,50 @@ var buffer = new byte[1024];
 int read = await transport.ReadAsync(buffer);
 ```
 
+#### 自定义 TCP 协议
+
+`SiameseCat.Communication.Tcp` 提供与设备模型解耦的分帧与请求/响应能力：
+
+```csharp
+using SiameseCat.Communication.Tcp;
+
+var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };   // CR LF
+
+await using var client = new CustomTcpClient(new CustomTcpClientOptions
+{
+    Tcp = { Host = "127.0.0.1", Port = 5000 },
+    Framing = framing,
+    Timeout = TimeSpan.FromSeconds(2),
+});
+
+await client.ConnectAsync();
+var answer = await client.RequestAsync(Encoding.ASCII.GetBytes("READ temperature"));
+```
+
+`TcpFrameOptions.Mode` 可选 `Raw`、`LengthPrefix`（1/2/4 字节长度字段，可配置字节序与是否含头）、
+`Delimiter`（保留或去除分隔符）与 `FixedLength`。厂商协议若有转义或校验，实现 `ITcpFrameCodec` 即可。
+
+服务端与共享连接核心：
+
+```csharp
+using SiameseCat.Communication.Server.Tcp;
+
+await using var server = new CustomTcpServer(
+    async (connection, token) =>
+    {
+        var request = await connection.ReadFrameAsync(token);
+        if (request is not null)
+        {
+            await connection.SendAsync(request, token);
+        }
+    },
+    new CustomTcpServerOptions { Port = 5000, Framing = framing });
+```
+
+`TcpFrameConnection` 是可复用核心：在任意 `ITransport` 上收发完整帧，并可输出 Trace 帧日志；超时、
+重试与并发串行化留给持有连接的调用方。Modbus TCP 通过 `ModbusTcpFrameCodec` 复用同一核心：MBAP
+分帧由 codec 负责，事务号与单元号校验仍留在 `ModbusTcpClient`。
+
 ### 原始 UDP
 
 ```csharp
@@ -698,7 +748,7 @@ int read = await transport.ReadAsync(buffer);
 
 ## Modbus 从站（联调 / 仿真）
 
-`SiameseCat.Communication.Server.Modbus` / `.S7` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实 PLC 时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
+`SiameseCat.Communication.Server.Modbus` / `.S7` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实设备时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
 
 ```csharp
 using SiameseCat.Communication.Server.Modbus;
@@ -741,7 +791,7 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 using var server = new ModbusTcpServer(new ModbusServerOptions
 {
     Port = 0,
-    Logger = myPlcLogger,       // 可选：实现 IPlcLogger 即可
+    Logger = myCommunicationLogger, // 可选：实现 ICommunicationLogger 即可
     ServerIdentifier = "SIM-1",
 });
 
@@ -816,7 +866,7 @@ using SiameseCat.Communication.S7;
 await using var s7 = new S7Server(new S7ServerOptions
 {
     Host = "127.0.0.1",
-    Port = 0,                     // 0 = 系统分配；真实 PLC 端口是 102
+    Port = 0,                     // 0 = 系统分配；真实 S7 端口是 102
     MemorySize = 512,             // M 区
     InputSize = 512,              // I 区
     OutputSize = 512,             // Q 区
@@ -955,7 +1005,7 @@ bool alive = await ((IHealthCheckable)driver).PingAsync();   // 失败返回 fal
 
 ### 轮询订阅（抖动与退避）
 
-`SubscribeAsync` 在驱动没有原生订阅时按固定间隔轮询，间隔默认带 **±20% 抖动**，连续读失败时按指数退避，避免多个驱动同时打 PLC：
+`SubscribeAsync` 在驱动没有原生订阅时按固定间隔轮询，间隔默认带 **±20% 抖动**，连续读失败时按指数退避，避免多个驱动同时轮询设备：
 
 ```csharp
 var configuration = new DriverConfiguration
@@ -970,7 +1020,7 @@ await using var subscription = await driver.SubscribeAsync(
     value => { Console.WriteLine(value); return Task.CompletedTask; });
 ```
 
-- 抖动只作用于轮询间隔，不改变业务语义；变化检测仍按 `PlcValue` 载荷比较。
+- 抖动只作用于轮询间隔，不改变业务语义；变化检测仍按 `DeviceValue` 载荷比较。
 - 失败退避为 `interval × 2^失败次数`（上限 `SubscriptionMaxBackoff`），首次读取成功后立即复位。
 - 协议原生订阅（重写 `DoSubscribeAsync`）不受这两个设置影响。
 
@@ -1017,18 +1067,18 @@ Console.WriteLine(snapshot.FailureKinds.Timeouts); // 超时 / 连接断开 / �
 
 | 指标 | 类型 | 标签 | 说明 |
 | --- | --- | --- | --- |
-| `plc.requests` | Counter | `driver`、`operation` | 请求次数 |
-| `plc.failures` | Counter | `driver`、`operation`、`error` | 失败次数与错误类型 |
-| `plc.retries` | Counter | `driver` | 重试次数 |
-| `plc.bytes.read` / `plc.bytes.written` | Counter | `driver` | 负载字节数 |
-| `plc.latency` | Histogram (ms) | `driver`、`operation` | 请求延迟 |
+| `device.requests` | Counter | `driver`、`operation` | 请求次数 |
+| `device.failures` | Counter | `driver`、`operation`、`error` | 失败次数与错误类型 |
+| `device.retries` | Counter | `driver` | 重试次数 |
+| `device.bytes.read` / `device.bytes.written` | Counter | `driver` | 负载字节数 |
+| `device.latency` | Histogram (ms) | `driver`、`operation` | 请求延迟 |
 
 接入 OpenTelemetry 只需订阅计量器名称：
 
 ```csharp
 builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
-        .AddMeter(PlcDiagnostics.MeterName)   // "SiameseCat"
+        .AddMeter(CommunicationDiagnostics.MeterName)   // "SiameseCat"
         .AddPrometheusExporter());
 ```
 
@@ -1081,7 +1131,7 @@ dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
 dotnet run --project samples/SiameseCat.Samples -- run drivers/batch
 dotnet run --project samples/SiameseCat.Samples -- run server/s7
 
-# 跑完全部带仿真器的示例（17 步，约 10 秒，失败返回 1）
+# 跑完全部带仿真器的示例（18 步，约 10 秒，失败返回 1）
 dotnet run --project samples/SiameseCat.Samples -- selftest
 
 # .NET Framework 4.8 兼容性验证（跑 netstandard2.0 资产，仅 Windows）
@@ -1104,10 +1154,10 @@ dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Rele
 ## 当前限制
 
 - Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Communication.Server.Modbus`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
-- 驱动层内置两个通用协议驱动：Modbus（RTU/TCP）与 S7；品牌专有地址映射按 `IPlcDriverFactory` 以插件形式扩展（每个品牌都需按真机验证）。
+- 驱动层内置两个通用协议驱动：Modbus（RTU/TCP）与 S7；品牌专有地址映射按 `IDeviceDriverFactory` 以插件形式扩展（每个品牌都需按真机验证）。
 - S7 目前只支持 TCP 传输；Modbus 支持 TCP/RTU。
 - 数值数组支持 `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`；`Bool` 只表示单个位（多位请用多个地址），`String`/`Raw` 继续用 `Length` 表示字符数/字节数。
-- v1 不提供跨协议统一语义地址映射，`PlcTag` 覆盖配置化场景。
+- v1 不提供跨协议统一语义地址映射，`DeviceTag` 覆盖配置化场景。
 - 串口没有可取消的异步 API：取消正在进行的读写会关闭串口，需要重新调用 `ConnectAsync`。
 - 串口 `ReadTimeout` 建议小于协议 `Timeout`，否则超时检测会被串口读超时延迟。
 - `netstandard2.0` 目标由 `tests/SiameseCat.Compatibility` 在 .NET Framework 4.8 上做冒烟验证（地址解析、Modbus TCP 往返、驱动契约、帧日志）；完整单元测试仍运行在 `net8.0`。该目标下 AOT 分析与源生成正则不生效，正则回退为编译缓存实现，TCP keep-alive 只能开启探测而不调优时间参数。

@@ -13,7 +13,7 @@ namespace SiameseCat.Samples.Drivers;
 /// Step 6 of the driver track: dependency injection and host lifecycle.
 /// </summary>
 /// <remarks>
-/// <c>AddSiameseCat()</c> registers the driver registry and an <see cref="IPlcLogger"/> that writes
+/// <c>AddSiameseCat()</c> registers the driver registry and an <see cref="ICommunicationLogger"/> that writes
 /// through <see cref="ILoggerFactory"/>. <c>AddSiameseCatDriver(id, ...)</c> registers a keyed transient
 /// driver, and <c>AddModbusServer</c>/<c>AddS7Server</c> register in-process slaves that start and stop
 /// with the host.
@@ -65,7 +65,7 @@ public sealed class DriverHostingSample : ISample
         });
 
         await using var provider = services.BuildServiceProvider();
-        SampleConsole.Value("IPlcLogger", provider.GetRequiredService<IPlcLogger>().GetType().Name);
+        SampleConsole.Value("ICommunicationLogger", provider.GetRequiredService<ICommunicationLogger>().GetType().Name);
         SampleConsole.Value("Registry size", provider.GetRequiredService<DriverRegistry>().Descriptors.Count());
 
         SampleConsole.Step("2. Start the hosted services, exactly like a generic host");
@@ -85,7 +85,7 @@ public sealed class DriverHostingSample : ISample
         SampleConsole.Value("IS7Server count", provider.GetServices<IS7Server>().Count());
 
         SampleConsole.Step("3. Resolve the driver by key and use it");
-        await using (var driver = provider.GetRequiredKeyedService<IPlcDriver>("modbus"))
+        await using (var driver = provider.GetRequiredKeyedService<IDeviceDriver>("modbus"))
         {
             await driver.ConnectAsync(cancellationToken).ConfigureAwait(false);
             var reader = DriverAccess.Reader(driver);

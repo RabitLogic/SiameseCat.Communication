@@ -24,7 +24,7 @@ public static class SlaveServerServiceCollectionExtensions
         services.AddSiameseCat();
         services.AddSingleton(provider =>
         {
-            options.Logger ??= provider.GetService<IPlcLogger>();
+            options.Logger ??= provider.GetService<ICommunicationLogger>();
             return new ModbusTcpServer(options);
         });
         services.AddSingleton<IModbusServer>(provider => provider.GetRequiredService<ModbusTcpServer>());
@@ -61,7 +61,7 @@ public static class SlaveServerServiceCollectionExtensions
         services.AddSiameseCat();
         services.AddSingleton(provider =>
         {
-            options.Logger ??= provider.GetService<IPlcLogger>();
+            options.Logger ??= provider.GetService<ICommunicationLogger>();
             return new ModbusRtuServer(options);
         });
         services.AddSingleton<IModbusServer>(provider => provider.GetRequiredService<ModbusRtuServer>());
@@ -98,7 +98,7 @@ public static class SlaveServerServiceCollectionExtensions
         services.AddSiameseCat();
         services.AddSingleton(provider =>
         {
-            options.Logger ??= provider.GetService<IPlcLogger>();
+            options.Logger ??= provider.GetService<ICommunicationLogger>();
             return new S7Server(options);
         });
         services.AddSingleton<IS7Server>(provider => provider.GetRequiredService<S7Server>());

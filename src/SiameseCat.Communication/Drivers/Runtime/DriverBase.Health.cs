@@ -23,7 +23,7 @@ public abstract partial class DriverBase
                 isWrite: false,
                 address,
                 timeout: null,
-                PlcOperation.Ping,
+                CommunicationOperation.Ping,
                 cancellationToken).ConfigureAwait(false);
 
             return true;

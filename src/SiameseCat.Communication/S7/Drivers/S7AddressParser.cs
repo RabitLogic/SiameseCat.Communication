@@ -5,43 +5,43 @@ namespace SiameseCat.Communication.S7;
 
 /// <summary>
 /// Parses S7 native addresses (<c>DB1.DBX0.0</c>, <c>DB1.DBW2</c>, <c>M0.0</c>, <c>IW4</c>) into
-/// <see cref="PlcAddress"/> and maps them back.
+/// <see cref="DeviceAddress"/> and maps them back.
 /// </summary>
 /// <remarks>
 /// The region key is <c>DB{n}</c> for data blocks and <c>I</c>, <c>Q</c>, <c>M</c>, <c>T</c> or <c>C</c>
 /// for the other areas. Offsets are byte offsets.
 /// </remarks>
-public sealed class S7AddressParser : IPlcAddressParser
+public sealed class S7AddressParser : IDeviceAddressParser
 {
     /// <inheritdoc/>
     public string ProtocolName => "S7";
 
     /// <inheritdoc/>
-    public PlcAddress Parse(string address) => ParseCore(address, null);
+    public DeviceAddress Parse(string address) => ParseCore(address, null);
 
     /// <inheritdoc/>
-    public PlcAddress Parse(string address, PlcDataType dataType) => ParseCore(address, dataType);
+    public DeviceAddress Parse(string address, DeviceDataType dataType) => ParseCore(address, dataType);
 
     /// <summary>Maps a protocol-neutral address back to an <see cref="S7Address"/>.</summary>
     /// <param name="address">Address produced by this parser.</param>
-    public static S7Address ToS7Address(PlcAddress address)
+    public static S7Address ToS7Address(DeviceAddress address)
     {
         var (area, dbNumber) = ParseRegion(address.Region);
 
         var dataType = address.DataType switch
         {
-            PlcDataType.Bool => S7DataType.Bool,
-            PlcDataType.Byte => S7DataType.Byte,
-            PlcDataType.Int16 or PlcDataType.UInt16 => S7DataType.Word,
-            PlcDataType.Int32 or PlcDataType.UInt32 or PlcDataType.Float => S7DataType.DWord,
+            DeviceDataType.Bool => S7DataType.Bool,
+            DeviceDataType.Byte => S7DataType.Byte,
+            DeviceDataType.Int16 or DeviceDataType.UInt16 => S7DataType.Word,
+            DeviceDataType.Int32 or DeviceDataType.UInt32 or DeviceDataType.Float => S7DataType.DWord,
             _ => S7DataType.Byte,
         };
 
-        var bitOffset = address.DataType == PlcDataType.Bool ? address.BitOffset ?? 0 : (byte)0;
+        var bitOffset = address.DataType == DeviceDataType.Bool ? address.BitOffset ?? 0 : (byte)0;
         return new S7Address(area, dbNumber, address.Offset, dataType, bitOffset);
     }
 
-    private static PlcAddress ParseCore(string address, PlcDataType? overrideType)
+    private static DeviceAddress ParseCore(string address, DeviceDataType? overrideType)
     {
         if (string.IsNullOrWhiteSpace(address))
         {
@@ -62,13 +62,13 @@ public sealed class S7AddressParser : IPlcAddressParser
 
         var dataType = overrideType ?? s7.DataType switch
         {
-            S7DataType.Bool => PlcDataType.Bool,
-            S7DataType.Word => PlcDataType.UInt16,
-            S7DataType.DWord => PlcDataType.UInt32,
-            _ => PlcDataType.Byte,
+            S7DataType.Bool => DeviceDataType.Bool,
+            S7DataType.Word => DeviceDataType.UInt16,
+            S7DataType.DWord => DeviceDataType.UInt32,
+            _ => DeviceDataType.Byte,
         };
 
-        return new PlcAddress(
+        return new DeviceAddress(
             region,
             s7.ByteOffset,
             dataType,

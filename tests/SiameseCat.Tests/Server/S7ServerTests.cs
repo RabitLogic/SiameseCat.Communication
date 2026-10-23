@@ -182,8 +182,8 @@ public class S7ServerTests
 
         await driver.ConnectAsync();
 
-        var address = driver.AddressParser.Parse("DB1.DBD2", SiameseCat.Communication.PlcDataType.Float);
-        await ((SiameseCat.Communication.IWritable)driver).WriteAsync(address, SiameseCat.Communication.PlcValue.FromFloat(2.5f));
+        var address = driver.AddressParser.Parse("DB1.DBD2", SiameseCat.Communication.DeviceDataType.Float);
+        await ((SiameseCat.Communication.IWritable)driver).WriteAsync(address, SiameseCat.Communication.DeviceValue.FromFloat(2.5f));
         var value = await ((SiameseCat.Communication.IReadable)driver).ReadAsync(address);
 
         Assert.Equal(2.5f, value.AsFloat(), 4);

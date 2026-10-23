@@ -47,10 +47,10 @@ public class AddressParsingBenchmarks
     private readonly string _s7Address = "DB1.DBX2.3";
 
     [Benchmark]
-    public PlcAddress ModbusReferenceNumber() => _modbus.Parse("40001");
+    public DeviceAddress ModbusReferenceNumber() => _modbus.Parse("40001");
 
     [Benchmark]
-    public PlcAddress ModbusNamed() => _modbus.Parse("HR10");
+    public DeviceAddress ModbusNamed() => _modbus.Parse("HR10");
 
     [Benchmark]
     public S7Address S7DataBlock() => S7Address.Parse(_s7Address);
@@ -60,26 +60,26 @@ public class AddressParsingBenchmarks
 [MemoryDiagnoser]
 public class ValueCodecBenchmarks
 {
-    private readonly PlcValue _scalar = PlcValue.FromUInt16(1234);
-    private readonly PlcValue _array = PlcValue.FromUInt16Array(new ushort[10]);
-    private readonly byte[] _scalarBytes = PlcValueCodec.ToBytes(PlcValue.FromUInt32(0xDEADBEEF));
-    private readonly byte[] _arrayBytes = PlcValueCodec.ToBytes(PlcValue.FromUInt16Array(new ushort[10]));
+    private readonly DeviceValue _scalar = DeviceValue.FromUInt16(1234);
+    private readonly DeviceValue _array = DeviceValue.FromUInt16Array(new ushort[10]);
+    private readonly byte[] _scalarBytes = DeviceValueCodec.ToBytes(DeviceValue.FromUInt32(0xDEADBEEF));
+    private readonly byte[] _arrayBytes = DeviceValueCodec.ToBytes(DeviceValue.FromUInt16Array(new ushort[10]));
     private readonly Encoding _ascii = Encoding.ASCII;
 
     [Benchmark]
-    public byte[] EncodeScalar() => PlcValueCodec.ToBytes(_scalar);
+    public byte[] EncodeScalar() => DeviceValueCodec.ToBytes(_scalar);
 
     [Benchmark]
-    public PlcValue DecodeScalar() => PlcValueCodec.FromBytes(PlcDataType.UInt16, _scalarBytes);
+    public DeviceValue DecodeScalar() => DeviceValueCodec.FromBytes(DeviceDataType.UInt16, _scalarBytes);
 
     [Benchmark]
-    public byte[] EncodeArray() => PlcValueCodec.ToBytes(_array);
+    public byte[] EncodeArray() => DeviceValueCodec.ToBytes(_array);
 
     [Benchmark]
-    public PlcValue DecodeArray() => PlcValueCodec.FromBytes(PlcDataType.UInt16, _arrayBytes, count: 10);
+    public DeviceValue DecodeArray() => DeviceValueCodec.FromBytes(DeviceDataType.UInt16, _arrayBytes, count: 10);
 
     [Benchmark]
-    public bool CompareArrays() => _array == PlcValue.FromUInt16Array(new ushort[10]);
+    public bool CompareArrays() => _array == DeviceValue.FromUInt16Array(new ushort[10]);
 
     [Benchmark]
     public string EncodeString() => _ascii.GetString(_arrayBytes);

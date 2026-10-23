@@ -4,7 +4,7 @@ using SiameseCat.Communication;
 
 namespace SiameseCat.Communication.Modbus;
 
-/// <summary>Converts between Modbus 16-bit registers and common PLC data types.</summary>
+/// <summary>Converts between Modbus 16-bit registers and common device data types.</summary>
 /// <remarks>
 /// <para>Modbus registers are transmitted big-endian, so the high byte comes first inside a register.</para>
 /// <para>
@@ -139,7 +139,7 @@ public static class ModbusRegisterConverter
     /// <param name="registerCount">Number of registers that belong to the string.</param>
     /// <param name="encoding">Text encoding. Defaults to ASCII.</param>
     /// <param name="swapBytes">Swaps the two bytes inside every register.</param>
-    /// <param name="trimAtNull">Stops at the first NUL character, as many PLCs pad strings with zero bytes.</param>
+    /// <param name="trimAtNull">Stops at the first NUL character, as many devices pad strings with zero bytes.</param>
     /// <remarks>
     /// Trimming happens before decoding, so a multi-byte encoding is never cut in the middle of a character.
     /// </remarks>

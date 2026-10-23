@@ -6,8 +6,8 @@ public partial class ModbusDriver
 {
     /// <inheritdoc/>
     protected override async Task DoWriteAsync(
-        PlcAddress address,
-        PlcValue value,
+        DeviceAddress address,
+        DeviceValue value,
         CancellationToken cancellationToken)
     {
         switch (address.Region)
@@ -44,7 +44,7 @@ public partial class ModbusDriver
 
     /// <inheritdoc/>
     protected override async Task DoWriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         CancellationToken cancellationToken)
     {
         foreach (var group in GroupRequestsByRegion(requests))
@@ -70,7 +70,7 @@ public partial class ModbusDriver
     }
 
     private async Task WriteRegisterRunsAsync(
-        List<PlcWriteRequest> items,
+        List<DeviceWriteRequest> items,
         CancellationToken cancellationToken)
     {
         items.Sort(static (left, right) => left.Address.Offset.CompareTo(right.Address.Offset));
@@ -114,7 +114,7 @@ public partial class ModbusDriver
     }
 
     private async Task WriteCoilRunsAsync(
-        List<PlcWriteRequest> items,
+        List<DeviceWriteRequest> items,
         CancellationToken cancellationToken)
     {
         items.Sort(static (left, right) => left.Address.Offset.CompareTo(right.Address.Offset));
@@ -152,15 +152,15 @@ public partial class ModbusDriver
         }
     }
 
-    private static Dictionary<string, List<PlcWriteRequest>> GroupRequestsByRegion(
-        IReadOnlyList<PlcWriteRequest> requests)
+    private static Dictionary<string, List<DeviceWriteRequest>> GroupRequestsByRegion(
+        IReadOnlyList<DeviceWriteRequest> requests)
     {
-        var groups = new Dictionary<string, List<PlcWriteRequest>>(StringComparer.Ordinal);
+        var groups = new Dictionary<string, List<DeviceWriteRequest>>(StringComparer.Ordinal);
         foreach (var request in requests)
         {
             if (!groups.TryGetValue(request.Address.Region, out var list))
             {
-                list = new List<PlcWriteRequest>();
+                list = new List<DeviceWriteRequest>();
                 groups[request.Address.Region] = list;
             }
 

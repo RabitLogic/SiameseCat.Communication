@@ -3,14 +3,39 @@
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。`SiameseCat` 是组织名，本仓库对应产品包
 `SiameseCat.Communication`；后续产品（例如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
 
+## [0.9.2] - 2026-10-23
+
+### 破坏性变更
+
+- 公共 API 全面移除旧的处理器前缀，设备域统一为 `Device*`，通信诊断统一为 `Communication*`；
+  类型、文件名、示例与文档均已同步，未保留旧名兼容别名。主要类型包括 `IDeviceDriver`、
+  `IDeviceDriverFactory`、`IDeviceAddressParser`、`DeviceAddress`、`DeviceValue`、`DeviceValueCodec`、
+  `DeviceValueQuality`、`DeviceDataType`、`DeviceTag`、`DeviceWriteRequest`、`ICommunicationLogger`、
+  `CommunicationLogLevel`、`NullCommunicationLogger`、`CommunicationMetrics`、`CommunicationOperation`、
+  `CommunicationDiagnostics`、`DeviceDriverHealthCheck`、`DeviceHealthCheckExtensions`。
+- `System.Diagnostics.Metrics` 仪器名统一为 `device.*`（`device.requests`、`device.failures`、
+  `device.retries`、`device.bytes.*`、`device.latency`）；Meter 名仍为 `SiameseCat`。
+  仪表盘、告警和 OpenTelemetry 视图需要同步更新。
+
+### 新增
+
+- 通用 TCP 协议层 `SiameseCat.Communication.Tcp`（与设备类型无关）：`TcpFrameCodec` 提供原始 / 长度前缀 /
+  分隔符 / 定长四种分帧，`ITcpFrameCodec` 可按需自定义转义或校验；`TcpFrameConnection` 统一收发完整帧；
+  `CustomTcpClient` 在其上提供请求/响应、超时、重试与帧日志。
+- 通用 TCP 服务端 `SiameseCat.Communication.Server.Tcp`：`CustomTcpServer` + `CustomTcpConnection`，
+  每个连接一个处理器，并提供连接数、帧数与字节数统计。
+- Modbus TCP 复用同一分帧核心：新增 `ModbusTcpFrameCodec`（MBAP），`ModbusTcpClient` 改为通过
+  `TcpFrameConnection` 收发；事务号、协议号与单元号校验仍留在 Modbus 层。
+- 示例 `transports/custom-protocol`，以及分帧、客户端/服务端与 MBAP codec 的单元/集成测试。
+
 ## [0.9.1] - 2026-10-23
 
 ### 破坏性变更
 
-- 取消 PLC 品牌驱动层 `SiameseCat.Communication.Siemens`（`SiemensDriver` / `SiemensAddressParser` /
+- 取消旧品牌驱动层 `SiameseCat.Communication.Siemens`（`SiemensDriver` / `SiemensAddressParser` /
   `SiemensDriverFactory`）。S7 改为通用协议驱动：`s7` 驱动 id，`S7Driver` / `S7AddressParser` /
   `S7DriverFactory` 位于 `SiameseCat.Communication.S7`；内置驱动只剩通用的 `modbus` 与 `s7`，品牌地址映射
-  由第三方插件按 `IPlcDriverFactory` 扩展。
+  由第三方插件按 `IDeviceDriverFactory` 扩展。
 
 ## [0.9.0] - 2026-10-20
 
@@ -34,32 +59,32 @@
 
 ### 驱动模型
 
-- `IPlcDriver` 生命周期契约 + 能力接口 `IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` /
+- `IDeviceDriver` 生命周期契约 + 能力接口 `IReadable` / `IWritable` / `IBatchReadable` / `IBatchWritable` /
   `ISubscribable` / `IBatchSubscribable` / `IHealthCheckable`；`DriverDescriptor.Capabilities` 声明能力，
   `DriverBase` 在入口校验，越界调用直接抛 `NotSupportedException`。
 - `DriverBase` 统一状态机（Disconnected → Connecting → Connected → Faulted）、事务锁、超时、重试、重连、
   日志与指标，按职责拆成 5 个 partial：`DriverBase.cs`、`.Lifecycle.cs`、`.Execution.cs`、`.Health.cs`、
   `.Subscription.cs`。
-- `DriverRegistry` + `IPlcDriverFactory` 支持运行时按 id 创建驱动；注册显式进行（AOT 友好），
+- `DriverRegistry` + `IDeviceDriverFactory` 支持运行时按 id 创建驱动；注册显式进行（AOT 友好），
   非 AOT 场景可用 `RegisterFromAssembly` 扫描程序集。
-- 两层地址模型：协议原生地址由 `IPlcAddressParser` 解析为
-  `PlcAddress { Region, Offset, BitOffset?, DataType, Length, Symbol? }`；`PlcValue` / `PlcValueCodec`
-  提供协议无关的值与字节转换；`PlcTag` 提供命名、缩放与单位。
-- 数值数组：`PlcAddress.Length` 对数值类型表示元素个数，`PlcValue.FromUInt16Array` 等 8 个数组工厂与
+- 两层地址模型：协议原生地址由 `IDeviceAddressParser` 解析为
+  `DeviceAddress { Region, Offset, BitOffset?, DataType, Length, Symbol? }`；`DeviceValue` / `DeviceValueCodec`
+  提供协议无关的值与字节转换；`DeviceTag` 提供命名、缩放与单位。
+- 数值数组：`DeviceAddress.Length` 对数值类型表示元素个数，`DeviceValue.FromUInt16Array` 等 8 个数组工厂与
   `As*Array()` 访问器，`IsArray` / `Length` / 按元素比较；Modbus 与 S7 驱动均按元素数换算寄存器/字节。
 - 批量读写：`ReadBatchAsync` / `WriteBatchAsync` 合并连续地址（Modbus）或使用多变量请求（S7），
   保持返回顺序一致。
 - 订阅：单点 `SubscribeAsync` 与整组 `SubscribeBatchAsync`（一次 `ReadBatchAsync` 请求/周期）；
-  `SubscriptionJitter`（±20%）与 `SubscriptionMaxBackoff` 避免多驱动同时打断 PLC；
+  `SubscriptionJitter`（±20%）与 `SubscriptionMaxBackoff` 避免多驱动同时轮询设备；
   `DoSubscribeAsync` / `DoSubscribeBatchAsync` 可接入协议原生订阅，返回 `null` 时回退轮询。
 - 重试与恢复：瞬时错误按 `RetryDelay × 2^(n-1)` 退避（上限 `MaxRetryDelay`，带抖动），写操作默认不重试
   （`RetryWrites` 可开）；超时后重连以丢弃迟到响应；可选 Keep-Alive 探针在连续失败后自动重连。
 - 单次调用超时：读写与批量 API 均提供 `TimeSpan timeout` 重载，可覆盖 `Timeout`。
 - 选项加固：`DriverConfiguration` 提供 `GetOption(key, default, min, max)` / `GetByteOption` /
   `GetUInt16Option` / `GetBooleanOption` / `HasOption`；非法文本与越界值直接抛异常，不静默截断。
-- 指标与诊断：`PlcMetrics` 按操作分类计数，延迟提供 P50/P95/Max（64 桶对数直方图，误差 ≤ 19%，无分配），
-  失败按超时/连接断开/协议错误/其它分类；`PlcDiagnostics` 通过 `System.Diagnostics.Metrics` 发布
-  `plc.requests`、`plc.failures`、`plc.retries`、`plc.bytes.*`、`plc.latency`（Meter 名 `SiameseCat`），
+- 指标与诊断：`CommunicationMetrics` 按操作分类计数，延迟提供 P50/P95/Max（64 桶对数直方图，误差 ≤ 19%，无分配），
+  失败按超时/连接断开/协议错误/其它分类；`CommunicationDiagnostics` 通过 `System.Diagnostics.Metrics` 发布
+  `device.requests`、`device.failures`、`device.retries`、`device.bytes.*`、`device.latency`（Meter 名 `SiameseCat`），
   可直接由 OpenTelemetry 订阅。
 
 ### Modbus
@@ -85,7 +110,7 @@
   支持 DB/M/I/Q 区，位/字节/字/双字/浮点/字符串读写，多变量读写与位数组写（`WriteBitsAsync`）。
 - `S7Address` 支持 `DB1.DBX0.0` / `DB1.DBW2` / `MW2` / `IW4` 等原生写法，`Parse` / `TryParse`，
   实现 `IEquatable` 可直接作字典键；`AddBits` 推进位地址。
-- `S7Driver` + `S7AddressParser` 把 S7 地址映射为统一 `PlcAddress`，以 `s7` 驱动 id 注册；批量读写包含
+- `S7Driver` + `S7AddressParser` 把 S7 地址映射为统一 `DeviceAddress`，以 `s7` 驱动 id 注册；批量读写包含
   `STRING` 时不再整批回退，`STRING` 作为普通数据项参与多变量读写。
 
 ### 传输层
@@ -109,18 +134,18 @@
   `Load()` / `Reset()`，以及按功能码统计的 `ModbusServerStatistics`。
 - `S7Server`（`IS7Server`）+ `S7DataStore`：COTP 握手、Setup Communication（PDU 可配置）、读/写变量
   （含多变量、位、位数组、`STRING`），支持 M/I/Q/DB 区、按需创建数据块、`Written` 事件与统计。
-- 从站共用 PDU 处理器与调用方缓冲区，支持 `IPlcLogger` 注入，记录连接、丢弃帧、未知功能码与异常响应。
+- 从站共用 PDU 处理器与调用方缓冲区，支持 `ICommunicationLogger` 注入，记录连接、丢弃帧、未知功能码与异常响应。
 
 ### 宿主集成与可观测性
 
-- `SiameseCat.Communication.Hosting`：`AddSiameseCat()` 注册 `DriverRegistry` 与 `IPlcLogger`；
+- `SiameseCat.Communication.Hosting`：`AddSiameseCat()` 注册 `DriverRegistry` 与 `ICommunicationLogger`；
   `AddSiameseCatDriver(id, configure)` 以 keyed transient 解析驱动；`AddModbusServer()` /
   `AddModbusRtuServer()` / `AddS7Server()` 把从站注册为单例并由单个 `IHostedService` 随宿主启停。
 - 健康检查：`AddSiameseCatDriverCheck(...)` 把 `PingAsync` 暴露为 `IHealthCheck`，返回
   `Healthy` / `Unhealthy` / `Degraded`，报告携带驱动状态、请求/失败/重试计数、失败分类与 P50/P95，
   可直接挂到 ASP.NET Core `MapHealthChecks` 或 Kubernetes 探针。
-- `MicrosoftLoggerAdapter` 把 `IPlcLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，
-  AOT 友好）；未注册日志时回退到 `NullPlcLogger`。
+- `MicrosoftLoggerAdapter` 把 `ICommunicationLogger` 适配到 `Microsoft.Extensions.Logging`（`LoggerMessage` 源生成，
+  AOT 友好）；未注册日志时回退到 `NullCommunicationLogger`。
 
 ### 性能
 
@@ -128,7 +153,7 @@
   入站载荷用 `stackalloc` 解析，写入事件仅在存在订阅者时分配。单请求分配下降 11.5%–21.5%。
 - 客户端热路径：Modbus TCP/RTU 与 S7 复用帧缓冲区，S7 组帧直写发送缓冲、响应只读入一次，重试循环内联，
   未传令牌时复用超时 `CancellationTokenSource`；`DriverBase` 用 `Stopwatch.GetTimestamp()` 计时并惰性构造
-  失败消息，`PlcDiagnostics` 缓存标签值。单次请求分配下降 27.8%–36.6%。
+  失败消息，`CommunicationDiagnostics` 缓存标签值。单次请求分配下降 27.8%–36.6%。
 
 ### 示例与文档
 

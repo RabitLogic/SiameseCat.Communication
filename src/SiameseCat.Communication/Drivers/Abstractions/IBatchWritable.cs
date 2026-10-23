@@ -7,7 +7,7 @@ public interface IBatchWritable
     /// <param name="requests">Address/value pairs to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task WriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         CancellationToken cancellationToken = default);
 
     /// <summary>Writes several values with a per-call timeout that overrides <see cref="DriverConfiguration.Timeout"/>.</summary>
@@ -15,7 +15,7 @@ public interface IBatchWritable
     /// <param name="timeout">Timeout for this call.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task WriteBatchAsync(
-        IReadOnlyList<PlcWriteRequest> requests,
+        IReadOnlyList<DeviceWriteRequest> requests,
         TimeSpan timeout,
         CancellationToken cancellationToken = default);
 }

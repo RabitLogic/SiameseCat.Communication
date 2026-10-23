@@ -1,7 +1,7 @@
 namespace SiameseCat.Communication;
 
-/// <summary>Log severity used by <see cref="IPlcLogger"/>.</summary>
-public enum PlcLogLevel
+/// <summary>Log severity used by <see cref="ICommunicationLogger"/>.</summary>
+public enum CommunicationLogLevel
 {
     /// <summary>Very verbose diagnostics.</summary>
     Trace,
@@ -20,11 +20,11 @@ public enum PlcLogLevel
 }
 
 /// <summary>Minimal logging abstraction so the libraries stay dependency-free.</summary>
-public interface IPlcLogger
+public interface ICommunicationLogger
 {
     /// <summary>Writes a log entry.</summary>
     /// <param name="level">Severity.</param>
     /// <param name="message">Message.</param>
     /// <param name="exception">Optional exception.</param>
-    void Log(PlcLogLevel level, string message, Exception? exception = null);
+    void Log(CommunicationLogLevel level, string message, Exception? exception = null);
 }

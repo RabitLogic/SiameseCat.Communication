@@ -9,14 +9,14 @@ public class MetricsTests
     [Fact]
     public void Snapshot_CountsOperationsSeparately()
     {
-        var metrics = new PlcMetrics();
+        var metrics = new CommunicationMetrics();
 
-        metrics.RecordRequest(PlcOperation.Read);
-        metrics.RecordRequest(PlcOperation.Read);
-        metrics.RecordRequest(PlcOperation.Write);
-        metrics.RecordRequest(PlcOperation.ReadBatch);
-        metrics.RecordRequest(PlcOperation.WriteBatch);
-        metrics.RecordRequest(PlcOperation.Ping);
+        metrics.RecordRequest(CommunicationOperation.Read);
+        metrics.RecordRequest(CommunicationOperation.Read);
+        metrics.RecordRequest(CommunicationOperation.Write);
+        metrics.RecordRequest(CommunicationOperation.ReadBatch);
+        metrics.RecordRequest(CommunicationOperation.WriteBatch);
+        metrics.RecordRequest(CommunicationOperation.Ping);
 
         var snapshot = metrics.Snapshot();
 
@@ -31,12 +31,12 @@ public class MetricsTests
     [Fact]
     public void Snapshot_ClassifiesFailures()
     {
-        var metrics = new PlcMetrics();
+        var metrics = new CommunicationMetrics();
 
-        metrics.RecordFailure(PlcOperation.Read, new CommunicationTimeoutException("timeout"));
-        metrics.RecordFailure(PlcOperation.Read, new ConnectionClosedException("closed"));
-        metrics.RecordFailure(PlcOperation.Write, new ProtocolException("bad frame"));
-        metrics.RecordFailure(PlcOperation.Write, new InvalidOperationException("other"));
+        metrics.RecordFailure(CommunicationOperation.Read, new CommunicationTimeoutException("timeout"));
+        metrics.RecordFailure(CommunicationOperation.Read, new ConnectionClosedException("closed"));
+        metrics.RecordFailure(CommunicationOperation.Write, new ProtocolException("bad frame"));
+        metrics.RecordFailure(CommunicationOperation.Write, new InvalidOperationException("other"));
 
         var snapshot = metrics.Snapshot();
 
@@ -50,11 +50,11 @@ public class MetricsTests
     [Fact]
     public void Snapshot_ComputesLatencyPercentilesAndMax()
     {
-        var metrics = new PlcMetrics();
+        var metrics = new CommunicationMetrics();
 
-        metrics.RecordRequest(PlcOperation.Read);
-        metrics.RecordRequest(PlcOperation.Read);
-        metrics.RecordRequest(PlcOperation.Read);
+        metrics.RecordRequest(CommunicationOperation.Read);
+        metrics.RecordRequest(CommunicationOperation.Read);
+        metrics.RecordRequest(CommunicationOperation.Read);
         metrics.RecordLatency(TimeSpan.FromMilliseconds(1));
         metrics.RecordLatency(TimeSpan.FromMilliseconds(10));
         metrics.RecordLatency(TimeSpan.FromMilliseconds(100));
@@ -72,7 +72,7 @@ public class MetricsTests
     [Fact]
     public void Snapshot_ReportsZeroPercentilesWithoutSamples()
     {
-        var snapshot = new PlcMetrics().Snapshot();
+        var snapshot = new CommunicationMetrics().Snapshot();
 
         Assert.Equal(0, snapshot.P50LatencyMs);
         Assert.Equal(0, snapshot.P95LatencyMs);
@@ -90,7 +90,7 @@ public class MetricsTests
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
-            if (instrument.Meter.Name == PlcDiagnostics.MeterName)
+            if (instrument.Meter.Name == CommunicationDiagnostics.MeterName)
             {
                 l.EnableMeasurementEvents(instrument);
             }
@@ -120,7 +120,7 @@ public class MetricsTests
         });
         await driver.ConnectAsync();
         await driver.ReadAsync(driver.AddressParser.Parse("R0"));
-        await driver.WriteAsync(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(3));
+        await driver.WriteAsync(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(3));
         await driver.PingAsync();
         await driver.DisposeAsync();
 
@@ -128,22 +128,22 @@ public class MetricsTests
         {
             Assert.Contains(
                 counters,
-                entry => entry.Instrument == "plc.requests"
+                entry => entry.Instrument == "device.requests"
                     && entry.Driver == "mock"
                     && entry.Operation == "Read"
                     && entry.Value == 1);
             Assert.Contains(
                 counters,
-                entry => entry.Instrument == "plc.requests" && entry.Operation == "Write");
+                entry => entry.Instrument == "device.requests" && entry.Operation == "Write");
             Assert.Contains(
                 counters,
-                entry => entry.Instrument == "plc.requests" && entry.Operation == "Ping");
+                entry => entry.Instrument == "device.requests" && entry.Operation == "Ping");
             Assert.Contains(
                 counters,
-                entry => entry.Instrument == "plc.bytes.read" && entry.Driver == "mock");
+                entry => entry.Instrument == "device.bytes.read" && entry.Driver == "mock");
             Assert.Contains(
                 histograms,
-                entry => entry.Instrument == "plc.latency" && entry.Operation == "Read");
+                entry => entry.Instrument == "device.latency" && entry.Operation == "Read");
         }
     }
 
@@ -158,11 +158,11 @@ public class MetricsTests
         await driver.ConnectAsync();
 
         await driver.ReadAsync(driver.AddressParser.Parse("R0"));
-        await driver.WriteAsync(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(1));
+        await driver.WriteAsync(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(1));
         await driver.ReadBatchAsync(new[] { driver.AddressParser.Parse("R0") });
         await driver.WriteBatchAsync(new[]
         {
-            new PlcWriteRequest(driver.AddressParser.Parse("R0"), PlcValue.FromUInt16(2)),
+            new DeviceWriteRequest(driver.AddressParser.Parse("R0"), DeviceValue.FromUInt16(2)),
         });
         await driver.PingAsync();
 

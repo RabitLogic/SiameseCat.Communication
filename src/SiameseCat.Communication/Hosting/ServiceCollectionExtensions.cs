@@ -11,7 +11,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the <see cref="DriverRegistry"/> with every built-in driver and, when logging is
-    /// available, an <see cref="IPlcLogger"/> that writes through <see cref="ILoggerFactory"/>.
+    /// available, an <see cref="ICommunicationLogger"/> that writes through <see cref="ILoggerFactory"/>.
     /// </summary>
     /// <param name="services">Target service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -20,11 +20,11 @@ public static class ServiceCollectionExtensions
         Guard.NotNull(services, nameof(services));
 
         services.TryAddSingleton(static _ => DriverRegistryExtensions.CreateDefaultRegistry());
-        services.TryAddSingleton<IPlcLogger>(static provider =>
+        services.TryAddSingleton<ICommunicationLogger>(static provider =>
         {
             var factory = provider.GetService<ILoggerFactory>();
             return factory is null
-                ? NullPlcLogger.Instance
+                ? NullCommunicationLogger.Instance
                 : new MicrosoftLoggerAdapter(factory.CreateLogger("SiameseCat"));
         });
 
@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers a keyed transient driver that is resolved with <c>[FromKeyedServices("id")]</c> or by
-    /// <c>serviceProvider.GetRequiredKeyedService&lt;IPlcDriver&gt;("id")</c>.
+    /// <c>serviceProvider.GetRequiredKeyedService&lt;IDeviceDriver&gt;("id")</c>.
     /// </summary>
     /// <param name="services">Target service collection.</param>
     /// <param name="driverId">Driver id such as <c>modbus</c> or <c>s7</c>.</param>
@@ -44,14 +44,14 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string driverId,
         Action<DriverConfiguration> configure,
-        PlcMetrics? metrics = null)
+        CommunicationMetrics? metrics = null)
     {
         Guard.NotNull(services, nameof(services));
         Guard.NotNullOrWhiteSpace(driverId, nameof(driverId));
         Guard.NotNull(configure, nameof(configure));
 
         services.AddSiameseCat();
-        services.AddKeyedTransient<IPlcDriver>(driverId, (provider, key) =>
+        services.AddKeyedTransient<IDeviceDriver>(driverId, (provider, key) =>
         {
             var registry = provider.GetRequiredService<DriverRegistry>();
             var configuration = new DriverConfiguration();
@@ -60,7 +60,7 @@ public static class ServiceCollectionExtensions
             return registry.Create(
                 (string)key!,
                 configuration,
-                provider.GetService<IPlcLogger>(),
+                provider.GetService<ICommunicationLogger>(),
                 metrics);
         });
 
