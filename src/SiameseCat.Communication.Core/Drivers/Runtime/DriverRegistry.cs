@@ -78,7 +78,7 @@ public sealed class DriverRegistry
     {
         Guard.NotNull(assembly, nameof(assembly));
 
-        var count = 1;
+        var count = 0;
         foreach (var type in assembly.GetExportedTypes())
         {
             if (type.IsAbstract || !typeof(IDeviceDriverFactory).IsAssignableFrom(type))

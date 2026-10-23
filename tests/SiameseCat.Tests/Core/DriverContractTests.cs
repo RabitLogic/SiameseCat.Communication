@@ -1,5 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Drivers;
+using SiameseCat.Communication.Modbus;
 using SiameseCat.Tests.Fakes;
 
 namespace SiameseCat.Tests.Core;
@@ -273,6 +274,28 @@ public class DriverRegistryTests
         Assert.True(registry.Contains("s7"));
         Assert.False(registry.Contains("inovance"));
         Assert.Equal(2, registry.Descriptors.Count());
+    }
+
+    [Fact]
+    public void RegisterFromAssembly_ReturnsZero_WhenAssemblyHasNoFactory()
+    {
+        var registry = new DriverRegistry();
+
+        var registered = registry.RegisterFromAssembly(typeof(DriverRegistry).Assembly);
+
+        Assert.Equal(0, registered);
+        Assert.Empty(registry.Factories);
+    }
+
+    [Fact]
+    public void RegisterFromAssembly_ReturnsRegisteredCount()
+    {
+        var registry = new DriverRegistry();
+
+        var registered = registry.RegisterFromAssembly(typeof(ModbusDriverFactory).Assembly);
+
+        Assert.Equal(registry.Factories.Count, registered);
+        Assert.True(registry.Contains("modbus"));
     }
 
     private sealed class ModbusDriverFactoryForTests : IDeviceDriverFactory
