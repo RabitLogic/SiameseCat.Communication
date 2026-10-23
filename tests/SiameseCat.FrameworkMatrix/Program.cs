@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
 
 // Proves that the package is not capped at a single .NET version: every supported runtime loads the
@@ -71,7 +71,7 @@ static async Task<int> CheckModbusRoundTripAsync()
 {
     try
     {
-        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await using var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 });
         slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 11, 22, 33 });
         await slave.StartAsync().ConfigureAwait(false);
 

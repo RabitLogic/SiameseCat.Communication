@@ -18,27 +18,29 @@ dotnet run --project samples/SiameseCat.Samples -- selftest      # every offline
 | Modbus | `samples/SiameseCat.Samples/Modbus/` | TCP and RTU framing, every function code, error handling |
 | S7 | `samples/SiameseCat.Samples/S7/` | `S7Client` and the `s7` driver |
 | Drivers | `samples/SiameseCat.Samples/Drivers/` | registry, tags, batching, subscriptions, resilience, DI |
-| Slaves | `samples/SiameseCat.Samples/Server/` | Modbus TCP/RTU and S7 simulators |
+| Slaves | `samples/SiameseCat.Samples/Simulation/` | Modbus TCP/RTU and S7 simulators |
 | Transports | `samples/SiameseCat.Samples/Transports/` | raw frames, custom `ITransport` injection and custom TCP protocols |
 
-Install one package:
+Install the packages you need:
 
 ```bash
-dotnet add package SiameseCat.Communication
+dotnet add package SiameseCat.Communication.All   # everything, same as the old single package
+# or install only what the device needs
+dotnet add package SiameseCat.Communication.S7
+dotnet add package SiameseCat.Communication.Modbus
+dotnet add package SiameseCat.Communication.Simulation.Modbus
+dotnet add package SiameseCat.Communication.Hosting
 ```
 
-It contains every layer; pick the namespace you need:
-
-| Namespace | Use it for |
+| Package | Use it for |
 | --- | --- |
-| `SiameseCat.Communication` | `DeviceAddress`, `DeviceValue`, `IDeviceDriver`, `DriverBase`, metrics, transport contracts |
-| `SiameseCat.Communication.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport` |
+| `SiameseCat.Communication.Core` | `DeviceAddress`, `DeviceValue`, `IDeviceDriver`, `DriverBase`, metrics, transport contracts |
 | `SiameseCat.Communication.Tcp` | `TcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` (no device-driver types) |
 | `SiameseCat.Communication.Modbus` | `ModbusTcpClient`, `ModbusRtuClient`, the `modbus` driver |
 | `SiameseCat.Communication.S7` | `S7Client`, `S7Address`, the `s7` driver |
-| `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
-| `SiameseCat.Communication.Server.*` | Modbus TCP/RTU, S7 and custom TCP servers |
-| `SiameseCat.Communication.Hosting` | dependency injection, slave hosting, health checks, logging bridge |
+| `SiameseCat.Communication.Simulation.Modbus` / `.Simulation.S7` | Modbus TCP/RTU and S7 simulators |
+| `SiameseCat.Communication.Hosting` | dependency injection, simulator hosting, health checks, logging bridge |
+| `SiameseCat.Communication.All` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()`, plus every package above |
 
 ## 1. Modbus: first read and write (`modbus/tcp`)
 
@@ -104,7 +106,7 @@ Practical notes:
 * Serial I/O cannot be cancelled; cancelling a read closes the port, so call `ConnectAsync()` again.
 * `DiscardEcho` supports half-duplex converters that echo the request back.
 
-Without a COM port the sample wires the client to a `ModbusRtuServer` through an in-memory
+Without a COM port the sample wires the client to a `ModbusRtuSimulator` through an in-memory
 `LoopbackTransport`, which is exactly how the library's own tests run.
 
 ## 3. All function codes (`modbus/function-codes`)
@@ -141,7 +143,7 @@ var records = await client.ReadFileRecordsAsync(new[]
 });
 ```
 
-The slave serves both: device identification objects come from `ModbusServerOptions.DeviceIdentification`
+The slave serves both: device identification objects come from `ModbusSimulatorOptions.DeviceIdentification`
 and files are created with `server.Data.DefineFile(4, recordLength: 2, recordCount: 16)`. The
 `modbus/function-codes` sample exercises the whole set against the built-in slave.
 
@@ -325,8 +327,8 @@ services.AddSiameseCatDriver("modbus", configuration =>   // keyed transient dri
     configuration.Transport = TransportKind.Tcp;
     configuration.Host = "192.168.0.10";
 });
-services.AddModbusServer(new ModbusServerOptions { Port = 502 });
-services.AddS7Server(new S7ServerOptions { Port = 102 });
+services.AddModbusSimulator(new ModbusSimulatorOptions { Port = 502 });
+services.AddS7Simulator(new S7SimulatorOptions { Port = 102 });
 
 await using var provider = services.BuildServiceProvider();
 await using var driver = provider.GetRequiredKeyedService<IDeviceDriver>("modbus");
@@ -357,12 +359,12 @@ The report carries `driver`, `state`, `requests`, `failures`, `retries`, failure
 percentiles. To watch a driver the application already owns, pass an accessor instead:
 `.AddSiameseCatDriverCheck("device-main", sp => sp.GetRequiredKeyedService<IDeviceDriver>("modbus"))`.
 
-## 7. Slaves (`server/*`)
+## 7. Simulators (`simulation/*`)
 
-### Modbus TCP (`server/modbus-tcp`)
+### Modbus TCP (`simulation/modbus-tcp`)
 
 ```csharp
-await using var slave = new ModbusTcpServer(new ModbusServerOptions
+await using var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions
 {
     Host = "0.0.0.0",
     Port = 502,
@@ -388,10 +390,10 @@ The slave implements `0x01`, `0x02`, `0x03`, `0x04`, `0x05`, `0x06`, `0x07`, `0x
 identification), answers broadcast writes without a reply, validates lengths and returns the correct
 exception codes.
 
-### Modbus RTU (`server/modbus-rtu`)
+### Modbus RTU (`simulation/modbus-rtu`)
 
 ```csharp
-await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
+await using var slave = new ModbusRtuSimulator(new ModbusRtuSimulatorOptions
 {
     UnitId = 1,
     Serial = new SerialSettings { PortName = "COM4", BaudRate = 19200, ReadTimeout = TimeSpan.FromMilliseconds(20) },
@@ -401,10 +403,10 @@ await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
 `Serial.ReadTimeout` is the frame gap: a pause ends the current frame. Frames for other stations and
 frames with a bad CRC are dropped and counted in `Statistics.FramesDiscarded`.
 
-### S7 (`server/s7`)
+### S7 (`simulation/s7`)
 
 ```csharp
-await using var slave = new S7Server(new S7ServerOptions
+await using var slave = new S7Simulator(new S7SimulatorOptions
 {
     Port = 102,
     DefaultDataBlockSize = 512,
@@ -450,7 +452,7 @@ Keep the framing separate from the payload so a vendor protocol never reaches in
 ```csharp
 var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };   // CR LF
 
-await using var server = new CustomTcpServer(handler, new CustomTcpServerOptions { Port = 0, Framing = framing });
+await using var server = new CustomTcpSimulator(handler, new CustomTcpSimulatorOptions { Port = 0, Framing = framing });
 await using var client = new CustomTcpClient(new CustomTcpClientOptions
 {
     Tcp = { Host = "127.0.0.1", Port = server.Port },

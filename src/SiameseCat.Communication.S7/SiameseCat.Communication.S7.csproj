@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>SiameseCat.Communication.S7</PackageId>
+    <Description>S7 (ISO-on-TCP + COTP + S7 PDU) client and driver for SiameseCat.</Description>
+    <PackageTags>s7;siemens;iso-on-tcp;industrial;automation</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiameseCat.Communication.Core\SiameseCat.Communication.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+    <PackageReference Include="System.Memory" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+  </ItemGroup>
+
+</Project>

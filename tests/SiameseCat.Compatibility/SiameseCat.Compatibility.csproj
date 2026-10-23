@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SiameseCat.Communication\SiameseCat.Communication.csproj" />
+    <ProjectReference Include="..\..\src\SiameseCat.Communication.All\SiameseCat.Communication.All.csproj" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="all" />
   </ItemGroup>
 

@@ -1,6 +1,6 @@
 # Publishing
 
-The package is `SiameseCat.Communication`. CI publishes it with **NuGet Trusted Publishing** — no
+The package family is `SiameseCat.Communication.*` (Core, Tcp, Modbus, S7, Simulation.*, Hosting and the All aggregator). CI publishes every package with **NuGet Trusted Publishing** — no
 long-lived API key is stored in the repository. This page covers the one-time nuget.org setup, the
 tag-driven release, manual publishing from a workstation, private feeds and how to undo a mistake.
 
@@ -30,7 +30,7 @@ yields one key, so the login step sits right before the push.
    | Workflow File | `release.yml` — the **file name only**, not `.github/workflows/release.yml` |
    | Environment | leave **empty** (the workflow does not use environments; fill it only if you add `environment:` to the job) |
    | Scopes | **Push new packages and package versions** (switch to *Push only new package versions* after the first release) |
-   | Glob patterns | `SiameseCat.Communication` — the **package id** (`*` also works while the package does not exist yet) |
+   | Glob patterns | `SiameseCat.Communication.*` — the **package id family** (`*` also works) |
 
    The owner, repository and workflow file are matched case-insensitively against the run that requests
    the token. `Repository` is the **GitHub repository** the workflow runs in — the OIDC token carries
@@ -67,7 +67,7 @@ $feed = "$env:TEMP\siamesecat-feed"
 dotnet new console -o "$env:TEMP\consumer" --force
 Push-Location "$env:TEMP\consumer"
 dotnet nuget add source $feed --name siamesecat-local
-dotnet add package SiameseCat.Communication --version 0.9.0
+dotnet add package SiameseCat.Communication.All --version 0.10.0
 Pop-Location
 ```
 
@@ -114,7 +114,7 @@ Consumers add the feed once and then install from it:
 ```bash
 dotnet nuget add source "https://nuget.pkg.github.com/RabitLogic/index.json" --name github \
   --username <github-user> --password <PAT with read:packages> --store-password-in-clear-text
-dotnet add package SiameseCat.Communication --source github
+dotnet add package SiameseCat.Communication.All --source github
 ```
 
 A consuming GitHub Actions workflow can pass `secrets.GITHUB_TOKEN` with `packages: read` instead of a
@@ -132,12 +132,7 @@ $env:NUGET_API_KEY = 'oy2...'
 ./scripts/pack.ps1 -Push https://api.nuget.org/v3/index.json           # pack + push
 ./scripts/pack.ps1 -Version 1.0.1-preview.1 -Push https://api.nuget.org/v3/index.json
 
-# Equivalent raw commands
-dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Release -o artifacts
-dotnet nuget push artifacts/SiameseCat.Communication.0.9.0.nupkg `
-  --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
-dotnet nuget push artifacts/SiameseCat.Communication.0.9.0.snupkg `
-  --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
+# The script packs and pushes every package in dependency order.
 ```
 
 Keep that key in a password manager or your user profile — never in the repository, never in a workflow
@@ -158,8 +153,9 @@ the `.snupkg` in the output folder.
 ## 7. Consumers then use
 
 ```bash
-dotnet add package SiameseCat.Communication              # latest stable
-dotnet add package SiameseCat.Communication --prerelease # previews
+dotnet add package SiameseCat.Communication.All              # everything (old single package)
+dotnet add package SiameseCat.Communication.S7               # S7 only: Core + S7
+dotnet add package SiameseCat.Communication.S7 --prerelease  # previews
 ```
 
 Asset selection is automatic: .NET 8 → `lib/net8.0`, .NET 10 → `lib/net10.0`, .NET 9 → `lib/net8.0`,
@@ -191,9 +187,9 @@ skipped instead of failing.
 
 ## 9. Repository name and package id
 
-The GitHub repository is `RabitLogic/SiameseCat.Communication` and the package id is
-`SiameseCat.Communication`, so the two fields happen to carry the same text — they are still separate
-values with different meanings, and the policy only matches on the repository the workflow runs in.
+The GitHub repository is `RabitLogic/SiameseCat.Communication` and the package ids form the
+`SiameseCat.Communication.*` family — the repository and the package ids are separate values with
+different meanings, and the policy only matches on the repository the workflow runs in.
 
 If the repository is renamed again, the policy must be recreated with the new name and these places
 followed:
@@ -201,7 +197,7 @@ followed:
 | Place | What to update |
 | --- | --- |
 | nuget.org policy | `Repository`, then re-save the policy |
-| `Directory.Build.props`, `SiameseCat.Communication.csproj` | `RepositoryUrl` (shown on the nuget.org page) |
+| `Directory.Build.props`, `src/Directory.Build.props` | `RepositoryUrl` and package versions (shown on every nuget.org page) |
 | `README.md`, `README.zh-CN.md`, `CHANGELOG.md`, `SECURITY.md`, `docs/*.md` | absolute `github.com/...` links, which are what the packaged README resolves when rendered on nuget.org |
 
 Renaming the repository does not affect consumers: the package id is independent of it, and GitHub
@@ -214,7 +210,7 @@ redirect.
 - [ ] `CHANGELOG.md` has the version section and the date.
 - [ ] `dotnet build` and `dotnet test` are clean (0 warnings, 352 tests).
 - [ ] `./scripts/pack.ps1` passes the layout check and prints the SHA256.
-- [ ] The package was restored from a folder feed in a scratch project.
+- [ ] The packages were restored from a folder feed in a scratch project.
 - [ ] The Trusted Publishing policy exists for `RabitLogic/SiameseCat.Communication` + `release.yml` and the
       `NUGET_USER` variable is set.
 - [ ] `git tag v<version>` matches the version you intend to publish.

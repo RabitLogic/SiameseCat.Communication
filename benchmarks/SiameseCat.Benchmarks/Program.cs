@@ -6,8 +6,8 @@ using BenchmarkDotNet.Running;
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.S7;
-using SiameseCat.Communication.Server.Modbus;
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.Modbus;
+using SiameseCat.Communication.Simulation.S7;
 
 namespace SiameseCat.Benchmarks;
 
@@ -89,9 +89,9 @@ public class ValueCodecBenchmarks
 [MemoryDiagnoser]
 public class SlaveThroughputBenchmarks : IDisposable
 {
-    private ModbusTcpServer _modbusServer = null!;
+    private ModbusTcpSimulator _modbusServer = null!;
     private ModbusTcpClient _modbusClient = null!;
-    private S7Server _s7Server = null!;
+    private S7Simulator _s7Server = null!;
     private S7Client _s7Client = null!;
     private ushort[] _writeValues = null!;
     private S7Address _s7WriteAddress;
@@ -99,7 +99,7 @@ public class SlaveThroughputBenchmarks : IDisposable
     [GlobalSetup]
     public async Task SetupAsync()
     {
-        _modbusServer = new ModbusTcpServer(new ModbusServerOptions { Port = 0, HoldingRegisters = 256 });
+        _modbusServer = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0, HoldingRegisters = 256 });
         await _modbusServer.StartAsync().ConfigureAwait(false);
         _modbusClient = new ModbusTcpClient(new ModbusTcpOptions
         {
@@ -111,7 +111,7 @@ public class SlaveThroughputBenchmarks : IDisposable
 
         _writeValues = Enumerable.Range(1, 10).Select(value => (ushort)value).ToArray();
 
-        _s7Server = new S7Server(new S7ServerOptions { Port = 0, DefaultDataBlockSize = 64 });
+        _s7Server = new S7Simulator(new S7SimulatorOptions { Port = 0, DefaultDataBlockSize = 64 });
         await _s7Server.StartAsync().ConfigureAwait(false);
         _s7Client = new S7Client(new S7Options
         {

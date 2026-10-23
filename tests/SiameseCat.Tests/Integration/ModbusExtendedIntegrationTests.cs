@@ -1,5 +1,5 @@
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 
 namespace SiameseCat.Tests.Integration;
 
@@ -8,9 +8,9 @@ public class ModbusExtendedIntegrationTests
     [Fact]
     public async Task DeviceIdentification_RoundTripsThroughTheBuiltInSlave()
     {
-        var options = new ModbusServerOptions { Port = 0 };
+        var options = new ModbusSimulatorOptions { Port = 0 };
         options.DeviceIdentification[0x04] = "Test bench";
-        await using var server = new ModbusTcpServer(options);
+        await using var server = new ModbusTcpSimulator(options);
         await server.StartAsync();
 
         await using var client = await ConnectAsync(server);
@@ -26,8 +26,8 @@ public class ModbusExtendedIntegrationTests
     [Fact]
     public async Task FileRecords_RoundTripThroughTheBuiltInSlave()
     {
-        var options = new ModbusServerOptions { Port = 0 };
-        await using var server = new ModbusTcpServer(options);
+        var options = new ModbusSimulatorOptions { Port = 0 };
+        await using var server = new ModbusTcpSimulator(options);
         server.Data.DefineFile(4, 3, 4);
         await server.StartAsync();
 
@@ -52,7 +52,7 @@ public class ModbusExtendedIntegrationTests
         Assert.Equal(new ushort[] { 9, 8 }, records[1]);
     }
 
-    private static async Task<ModbusTcpClient> ConnectAsync(ModbusTcpServer server)
+    private static async Task<ModbusTcpClient> ConnectAsync(ModbusTcpSimulator server)
     {
         var client = new ModbusTcpClient(new ModbusTcpOptions
         {

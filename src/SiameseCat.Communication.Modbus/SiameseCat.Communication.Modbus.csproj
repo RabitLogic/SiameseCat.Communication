@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>SiameseCat.Communication.Modbus</PackageId>
+    <Description>Modbus RTU/TCP clients, driver and MBAP framing for SiameseCat.</Description>
+    <PackageTags>modbus;modbus-tcp;modbus-rtu;industrial;automation</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiameseCat.Communication.Core\SiameseCat.Communication.Core.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Tcp\SiameseCat.Communication.Tcp.csproj" />
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+    <PackageReference Include="System.Memory" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+  </ItemGroup>
+
+</Project>

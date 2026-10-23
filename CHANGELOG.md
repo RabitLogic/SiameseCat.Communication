@@ -1,7 +1,29 @@
 # Changelog
 
-本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。`SiameseCat` 是组织名，本仓库对应产品包
-`SiameseCat.Communication`；后续产品（例如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
+本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。`SiameseCat` 是组织名，本仓库对应产品包族
+`SiameseCat.Communication.*`；后续产品（例如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
+
+## [0.10.0] - 2026-10-23
+
+### 破坏性变更
+
+- 单包拆分为多个 NuGet 包，`SiameseCat.Communication` 不再发布：
+  - `SiameseCat.Communication.Core`：契约、设备模型、驱动运行时、传输、诊断
+  - `SiameseCat.Communication.Tcp`：分帧、`TcpFrameConnection`、`CustomTcpClient`、`CustomTcpSimulator`
+  - `SiameseCat.Communication.Modbus`：Modbus RTU/TCP 客户端、驱动、MBAP
+  - `SiameseCat.Communication.S7`：S7 客户端与驱动
+  - `SiameseCat.Communication.Simulation.Modbus` / `.Simulation.S7`：从站仿真器
+  - `SiameseCat.Communication.Hosting`：DI、健康检查、日志适配、仿真器托管
+  - `SiameseCat.Communication.All`：聚合包，等价于旧的单包
+  命名空间保持不变；只引用 `.S7` 时不会还原 Modbus、仿真器或 Hosting。
+- 仿真相关命名由 `Server` 改为 `Simulation` / `Simulator`：
+  - 命名空间 `.Server.Modbus` / `.Server.S7` / `.Server.Tcp` → `.Simulation.Modbus` / `.Simulation.S7` / `.Simulation.Tcp`
+  - `IModbusServer` / `IS7Server` → `IModbusSimulator` / `IS7Simulator`
+  - `ModbusTcpServer` / `ModbusRtuServer` / `S7Server` / `CustomTcpServer` → `ModbusTcpSimulator` / `ModbusRtuSimulator` / `S7Simulator` / `CustomTcpSimulator`
+  - 选项、统计与 DI 方法同步改为 `*Simulator*`、`AddModbusSimulator`、`AddS7Simulator`
+  - 示例 id 由 `server/*` 改为 `simulation/*`
+- 驱动注册入口拆分：`AddModbusDriver()`（Modbus 包）、`AddS7Driver()`（S7 包）；
+  `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 位于 `.All`；`Hosting.AddSiameseCat()` 仍注册内置驱动。
 
 ## [0.9.2] - 2026-10-23
 
@@ -22,7 +44,7 @@
 - 通用 TCP 协议层 `SiameseCat.Communication.Tcp`（与设备类型无关）：`TcpFrameCodec` 提供原始 / 长度前缀 /
   分隔符 / 定长四种分帧，`ITcpFrameCodec` 可按需自定义转义或校验；`TcpFrameConnection` 统一收发完整帧；
   `CustomTcpClient` 在其上提供请求/响应、超时、重试与帧日志。
-- 通用 TCP 服务端 `SiameseCat.Communication.Server.Tcp`：`CustomTcpServer` + `CustomTcpConnection`，
+- 通用 TCP 服务端 `SiameseCat.Communication.Simulation.Tcp`：`CustomTcpSimulator` + `CustomTcpConnection`，
   每个连接一个处理器，并提供连接数、帧数与字节数统计。
 - Modbus TCP 复用同一分帧核心：新增 `ModbusTcpFrameCodec`（MBAP），`ModbusTcpClient` 改为通过
   `TcpFrameConnection` 收发；事务号、协议号与单元号校验仍留在 Modbus 层。
@@ -44,7 +66,7 @@
 ### 包与目标框架
 
 - 单一 NuGet 包 **`SiameseCat.Communication`**，包内按命名空间分层：`SiameseCat.Communication`（契约 + 模型）、
-  `.Transport`、`.Modbus`、`.S7`、`.Drivers`、`.Server.Modbus` / `.Server.S7`、`.Hosting`。
+  `.Transport`、`.Modbus`、`.S7`、`.Drivers`、`.Simulation.Modbus` / `.Simulation.S7`、`.Hosting`。
 - 提供 `net8.0`、`net10.0` 与 `netstandard2.0` 三份资产：.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5–7 走
   `netstandard2.0`，.NET 8 走 `net8.0`，.NET 10 走 `net10.0`。目标是**下限而非上限**：.NET 9 解析到
   `lib/net8.0`、.NET 11 及以后解析到 `lib/net10.0`，新运行时无需等待包更新；`tests/SiameseCat.FrameworkMatrix`
@@ -126,21 +148,21 @@
 
 ### 从站仿真
 
-- `ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`：支持
+- `ModbusTcpSimulator` / `ModbusRtuSimulator`（统一 `IModbusSimulator`）+ `ModbusDataStore`：支持
   FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17h/2B、并发客户端、广播写、坏帧丢弃、站号过滤与帧间隔超时；
-  设备标识对象通过 `ModbusServerOptions.DeviceIdentification` 配置（默认厂商名、包名与程序集版本），
+  设备标识对象通过 `ModbusSimulatorOptions.DeviceIdentification` 配置（默认厂商名、包名与程序集版本），
   文件记录通过 `ModbusDataStore.DefineFile` 定义并由 FC14/15 读写；RTU 从站按字节数字段推断 FC14/15 帧长，
   FC2B 为固定 7 字节帧；提供四个写入事件（带 `Start` / `Values` / `PreviousValues`）、`Snapshot()` /
-  `Load()` / `Reset()`，以及按功能码统计的 `ModbusServerStatistics`。
-- `S7Server`（`IS7Server`）+ `S7DataStore`：COTP 握手、Setup Communication（PDU 可配置）、读/写变量
+  `Load()` / `Reset()`，以及按功能码统计的 `ModbusSimulatorStatistics`。
+- `S7Simulator`（`IS7Simulator`）+ `S7DataStore`：COTP 握手、Setup Communication（PDU 可配置）、读/写变量
   （含多变量、位、位数组、`STRING`），支持 M/I/Q/DB 区、按需创建数据块、`Written` 事件与统计。
 - 从站共用 PDU 处理器与调用方缓冲区，支持 `ICommunicationLogger` 注入，记录连接、丢弃帧、未知功能码与异常响应。
 
 ### 宿主集成与可观测性
 
 - `SiameseCat.Communication.Hosting`：`AddSiameseCat()` 注册 `DriverRegistry` 与 `ICommunicationLogger`；
-  `AddSiameseCatDriver(id, configure)` 以 keyed transient 解析驱动；`AddModbusServer()` /
-  `AddModbusRtuServer()` / `AddS7Server()` 把从站注册为单例并由单个 `IHostedService` 随宿主启停。
+  `AddSiameseCatDriver(id, configure)` 以 keyed transient 解析驱动；`AddModbusSimulator()` /
+  `AddModbusRtuSimulator()` / `AddS7Simulator()` 把从站注册为单例并由单个 `IHostedService` 随宿主启停。
 - 健康检查：`AddSiameseCatDriverCheck(...)` 把 `PingAsync` 暴露为 `IHealthCheck`，返回
   `Healthy` / `Unhealthy` / `Degraded`，报告携带驱动状态、请求/失败/重试计数、失败分类与 P50/P95，
   可直接挂到 ASP.NET Core `MapHealthChecks` 或 Kubernetes 探针。
@@ -157,7 +179,7 @@
 
 ### 示例与文档
 
-- `samples/SiameseCat.Samples`：按目录分层的 17 个可运行示例（Modbus、S7、Drivers、Server、Transports），
+- `samples/SiameseCat.Samples`：按目录分层的 17 个可运行示例（Modbus、S7、Drivers、Simulation、Transports），
   每个带内置仿真器可离线运行，也支持 `--host` / `--port` / `--com` 直连真机；`list` 看目录、
   `run <id>` 跑单步、`selftest` 全量自检。
 - 文档：英文 [README](README.md)（同时作为包内 README）与中文 [README.zh-CN.md](README.zh-CN.md)，

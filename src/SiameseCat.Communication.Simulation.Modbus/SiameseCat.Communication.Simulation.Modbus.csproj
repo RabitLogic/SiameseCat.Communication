@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>SiameseCat.Communication.Simulation.Modbus</PackageId>
+    <Description>In-process Modbus TCP/RTU slaves for SiameseCat.</Description>
+    <PackageTags>modbus;modbus-tcp;modbus-rtu;slave;simulator</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\SimulatorShared\SimulatorBufferSizes.cs" LinkBase="SimulatorShared" />
+    <ProjectReference Include="..\SiameseCat.Communication.Core\SiameseCat.Communication.Core.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Modbus\SiameseCat.Communication.Modbus.csproj" />
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+    <PackageReference Include="System.Memory" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+  </ItemGroup>
+
+</Project>

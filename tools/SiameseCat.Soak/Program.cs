@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using SiameseCat.Communication.Drivers;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Soak;
 
 SoakOptions options;
@@ -34,7 +34,7 @@ Console.WriteLine($"thresholds      success rate >= {options.MinSuccessRate:P0},
     + $"handles +{options.MaxHandleGrowth}, threads +{options.MaxThreadGrowth}");
 Console.WriteLine();
 
-await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0, HoldingRegisters = 256 });
+await using var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0, HoldingRegisters = 256 });
 await slave.StartAsync();
 for (var bank = 0; bank < 128; bank += options.RegisterCount + 8)
 {

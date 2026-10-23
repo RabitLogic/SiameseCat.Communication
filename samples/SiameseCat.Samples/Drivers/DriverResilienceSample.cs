@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using SiameseCat.Communication;
 using SiameseCat.Communication.Drivers;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Samples.Infrastructure;
 
 namespace SiameseCat.Samples.Drivers;
@@ -70,7 +70,7 @@ public sealed class DriverResilienceSample : ISample
         }
 
         SampleConsole.Step("2. A healthy session keeps counters");
-        var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 });
         await slave.StartAsync(cancellationToken).ConfigureAwait(false);
         slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 1 });
 

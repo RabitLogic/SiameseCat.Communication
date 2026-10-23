@@ -130,7 +130,7 @@ static void PrintCatalog()
     Console.WriteLine("    Modbus/      Modbus TCP and RTU, function codes, error handling");
     Console.WriteLine("    S7/          S7 client and the S7 driver layer");
     Console.WriteLine("    Drivers/     registry, tags, batching, subscriptions, resilience, dependency injection");
-    Console.WriteLine("    Server/      Modbus TCP, Modbus RTU and S7 slaves");
+    Console.WriteLine("    Simulation/  Modbus TCP, Modbus RTU and S7 simulators");
     Console.WriteLine("    Transports/  raw frames and custom ITransport injection");
     Console.WriteLine();
 

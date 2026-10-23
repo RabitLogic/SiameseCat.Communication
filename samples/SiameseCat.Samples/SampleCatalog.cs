@@ -2,7 +2,7 @@ using SiameseCat.Samples.Drivers;
 using SiameseCat.Samples.Infrastructure;
 using SiameseCat.Samples.Modbus;
 using SiameseCat.Samples.S7;
-using SiameseCat.Samples.Server;
+using SiameseCat.Samples.Simulation;
 using SiameseCat.Samples.Transports;
 
 namespace SiameseCat.Samples;
@@ -35,9 +35,9 @@ public static class SampleCatalog
         new DriverHostingSample(),
 
         // Slave track
-        new ModbusTcpServerSample(),
-        new ModbusRtuServerSample(),
-        new S7ServerSample(),
+        new ModbusTcpSimulatorSample(),
+        new ModbusRtuSimulatorSample(),
+        new S7SimulatorSample(),
 
         // Transport track
         new RawTcpTransportSample(),

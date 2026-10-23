@@ -1,6 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
 using SiameseCat.Samples.Infrastructure;
 
@@ -11,7 +11,7 @@ namespace SiameseCat.Samples.Modbus;
 /// </summary>
 /// <remarks>
 /// Without <c>--com</c> the sample wires an <see cref="ModbusRtuClient"/> to an in-process
-/// <see cref="ModbusRtuServer"/> through <see cref="LoopbackTransport"/>, which is exactly how the
+/// <see cref="ModbusRtuSimulator"/> through <see cref="LoopbackTransport"/>, which is exactly how the
 /// library's own tests exchange RTU frames. Pass <c>--com COM3</c> to talk to a real device; the only
 /// change is which <see cref="ITransport"/> the client is built on.
 /// </remarks>
@@ -43,7 +43,7 @@ public sealed class ModbusRtuSample : ISample
         var unitId = (byte)arguments.GetInt("unit", 1);
         var useSerial = com.Length > 0;
 
-        ModbusRtuServer? slave = null;
+        ModbusRtuSimulator? slave = null;
         ITransport clientTransport;
 
         if (useSerial)
@@ -60,7 +60,7 @@ public sealed class ModbusRtuSample : ISample
         {
             var pair = LoopbackTransport.CreatePair();
             clientTransport = pair.Client;
-            slave = new ModbusRtuServer(pair.Server, new ModbusRtuServerOptions
+            slave = new ModbusRtuSimulator(pair.Server, new ModbusRtuSimulatorOptions
             {
                 UnitId = unitId,
                 Serial = new SerialSettings { ReadTimeout = TimeSpan.FromMilliseconds(25) },
@@ -111,7 +111,7 @@ public sealed class ModbusRtuSample : ISample
             }
 
             await client.DisconnectAsync().ConfigureAwait(false);
-            SampleConsole.Note("Next: 'run modbus/function-codes' for FC01..FC23, 'run server/modbus-rtu' to build a slave.");
+            SampleConsole.Note("Next: 'run modbus/function-codes' for FC01..FC23, 'run simulation/modbus-rtu' to build a slave.");
         }
         finally
         {

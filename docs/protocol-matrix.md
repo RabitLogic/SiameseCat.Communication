@@ -29,7 +29,7 @@ Everything SiameseCat speaks, on the wire and in the API.
   set `discardEcho` to drop it.
 - TCP framing is MBAP (transaction id, protocol id, length, unit id); transactions are validated.
 
-### Slave function codes (`SiameseCat.Communication.Server`)
+### Slave function codes (`SiameseCat.Communication.Simulation`)
 
 | FC | Operation | Behaviour |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ Everything SiameseCat speaks, on the wire and in the API.
 | `0x15` | Write file record | Echoes the request; `02` for an unknown file, `03` for malformed lengths |
 | `0x16` | Mask write register | `(current AND andMask) OR (orMask AND NOT andMask)`, echoes the request |
 | `0x17` | Read/write multiple registers | Write first, then read (atomic within the slave) |
-| `0x2B` | Read device identification | `ModbusServerOptions.DeviceIdentification`, paged to fit 253 bytes |
+| `0x2B` | Read device identification | `ModbusSimulatorOptions.DeviceIdentification`, paged to fit 253 bytes |
 
 - Exception codes: `01` illegal function, `02` illegal data address, `03` illegal data value.
 - Unit id is echoed back, so one slave serves several stations; unit id `0` = broadcast (writes applied,
@@ -55,7 +55,7 @@ Everything SiameseCat speaks, on the wire and in the API.
   length per function code (fixed 8-byte frames for `0x01`–`0x06`, 4 bytes for `0x07`/`0x0B`/`0x11`,
   7 bytes for `0x2B`, 10 bytes for `0x16`, variable for `0x0F`/`0x10`/`0x17`, and 5 + byte count for
   `0x14`/`0x15`).
-- `ModbusServerStatistics` records total requests, per-FC requests and exceptions, received frames and
+- `ModbusSimulatorStatistics` records total requests, per-FC requests and exceptions, received frames and
   discarded frames (bad CRC, invalid MBAP length, truncated frames).
 
 ### Device identification
@@ -89,7 +89,7 @@ foreach (var pair in regular.Objects)
 The client follows continuation pages (`MoreFollows` / `NextObjectId`) by default, so `Objects` holds the
 whole category; pass `followMore: false` to read a single page, or use `ModbusDeviceIdCode.Individual` to
 read one object id. On the slave side the objects are configured through
-`ModbusServerOptions.DeviceIdentification` and default to the vendor name, the package id and the assembly
+`ModbusSimulatorOptions.DeviceIdentification` and default to the vendor name, the package id and the assembly
 version.
 
 ### File records
@@ -98,8 +98,8 @@ File records are register blocks addressed by file number and record number. Eve
 the same length, and the slave keeps them in `ModbusDataStore`:
 
 ```csharp
-var options = new ModbusServerOptions { Port = 0 };
-await using var slave = new ModbusTcpServer(options);
+var options = new ModbusSimulatorOptions { Port = 0 };
+await using var slave = new ModbusTcpSimulator(options);
 slave.Data.DefineFile(fileNumber: 4, recordLength: 2, recordCount: 16);  // 16 records of 2 registers
 ```
 
@@ -185,9 +185,9 @@ them in the vendor driver or write `holding:100`.
   crossing byte boundaries, split by the negotiated PDU.
 - Not supported: upload/download of blocks, diagnostic buffer and other advanced S7 services.
 
-## S7 slave (`SiameseCat.Communication.Server`)
+## S7 slave (`SiameseCat.Communication.Simulation`)
 
-`S7Server` speaks ISO-on-TCP (TPKT + COTP + S7 PDU) and answers the same services the client uses:
+`S7Simulator` speaks ISO-on-TCP (TPKT + COTP + S7 PDU) and answers the same services the client uses:
 
 | Service | Function | Behaviour |
 | --- | --- | --- |
@@ -203,7 +203,7 @@ them in the vendor driver or write `holding:100`.
   `WORD`/`INT` (2), `DWORD`/`DINT`/`REAL` (4). Unknown sizes answer `0x04`.
 - Return codes: `0xFF` success, `0x03` access denied, `0x04` data type not supported, `0x05` address out
   of range, `0x06` data error, `0x0A` object does not exist.
-- `S7ServerStatistics` reports connections, active connections, setup/read/write requests, items read and
+- `S7SimulatorStatistics` reports connections, active connections, setup/read/write requests, items read and
   written, item errors and discarded frames.
 - `S7DataStore` exposes byte and bit access plus a `Written` event with previous values, and `Reset()`.
 
@@ -226,7 +226,7 @@ Protocol-agnostic framing and request/response plumbing. This namespace does not
 - `CustomTcpClient` adds those semantics for a client (`RequestAsync`, `SendAsync`, `ReadFrameAsync`).
 - `ModbusTcpFrameCodec` applies MBAP framing (length 2..254) and returns the complete frame so
   `ModbusTcpClient` validates transaction id, protocol id and unit id before parsing the PDU.
-- `CustomTcpServer` accepts connections and hands one `CustomTcpConnection` to a handler per client.
+- `CustomTcpSimulator` accepts connections and hands one `CustomTcpConnection` to a handler per client.
 
 ## Transports
 

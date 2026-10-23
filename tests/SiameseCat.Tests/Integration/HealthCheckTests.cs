@@ -2,8 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using SiameseCat.Communication;
 using SiameseCat.Communication.Hosting;
-using SiameseCat.Communication.Server.Modbus;
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.Modbus;
+using SiameseCat.Communication.Simulation.S7;
 
 namespace SiameseCat.Tests.Integration;
 
@@ -154,7 +154,7 @@ public class HealthCheckTests
     [Fact]
     public async Task DriverCheck_ReportsTheS7Driver()
     {
-        await using var slave = new S7Server(new S7ServerOptions { Port = 0 });
+        await using var slave = new S7Simulator(new S7SimulatorOptions { Port = 0 });
         await slave.StartAsync();
         slave.Data.TryEnsureDataBlock(1, 32);
 
@@ -189,9 +189,9 @@ public class HealthCheckTests
         return services.BuildServiceProvider();
     }
 
-    private static async Task<ModbusTcpServer> StartModbusSlaveAsync()
+    private static async Task<ModbusTcpSimulator> StartModbusSlaveAsync()
     {
-        var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 });
         slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 1, 2, 3 });
         await slave.StartAsync();
         return slave;

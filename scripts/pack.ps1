@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds the six SiameseCat NuGet packages and verifies their layout.
+    Builds every SiameseCat NuGet package and verifies their layout.
 
 .DESCRIPTION
     Restores and builds the solution in Release, packs every library into -Output, checks that each
@@ -45,7 +45,16 @@ if (-not $Output) {
     $Output = Join-Path $root 'artifacts'
 }
 
-$projects = @('SiameseCat.Communication')
+$projects = @(
+    'SiameseCat.Communication.Core',
+    'SiameseCat.Communication.Tcp',
+    'SiameseCat.Communication.Modbus',
+    'SiameseCat.Communication.S7',
+    'SiameseCat.Communication.Simulation.Modbus',
+    'SiameseCat.Communication.Simulation.S7',
+    'SiameseCat.Communication.Hosting',
+    'SiameseCat.Communication.All'
+)
 if (Test-Path $Output) {
     Remove-Item -Recurse -Force $Output
 }

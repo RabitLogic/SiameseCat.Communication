@@ -41,7 +41,11 @@ jobs:
           if ($lineRate -lt 0.75) { throw ("Line coverage {0:P1} is below the 75% gate." -f $lineRate) }
 
       - name: Pack
-        run: dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj --configuration Release --no-build --output artifacts
+        run: |
+          for project in Core Tcp Modbus S7 Simulation.Modbus Simulation.S7 Hosting All; do
+            dotnet pack "src/SiameseCat.Communication.$project/SiameseCat.Communication.$project.csproj" \
+              --configuration Release --no-build --output artifacts
+          done
 
       - name: Verify package layout
         run: |

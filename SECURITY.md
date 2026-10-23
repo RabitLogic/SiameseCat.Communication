@@ -29,7 +29,7 @@ anonymous.
 
 In scope:
 
-- the `SiameseCat.Communication` NuGet package,
+- the `SiameseCat.Communication.*` NuGet packages,
 - protocol handling that processes untrusted input (Modbus slaves, frame parsing, address parsing).
 
 Out of scope:
@@ -39,9 +39,9 @@ Out of scope:
 
 ## Hardening notes
 
-- `ModbusTcpServer` listens on `127.0.0.1` by default; bind to a routable address only in a trusted
+- `ModbusTcpSimulator` listens on `127.0.0.1` by default; bind to a routable address only in a trusted
   network.
-- `ModbusRtuServer` and the Modbus drivers reject malformed frames (bad CRC, illegal length) instead of
+- `ModbusRtuSimulator` and the Modbus drivers reject malformed frames (bad CRC, illegal length) instead of
   acting on them.
 - `DriverConfiguration.LogFrames` writes raw frames to the logger at `Trace` level; keep it disabled in
   production if frames may contain sensitive process data.

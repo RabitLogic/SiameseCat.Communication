@@ -2,21 +2,22 @@
 
 ## Choosing namespaces
 
-There is exactly one package:
+Install the aggregator (everything) or only the packages you need:
 
 ```bash
-dotnet add package SiameseCat.Communication
+dotnet add package SiameseCat.Communication.All   # everything
+dotnet add package SiameseCat.Communication.S7    # S7 only (Core + S7)
 ```
 
-It contains the protocol clients, the driver layer, the slaves, the dependency-injection helpers and the
-health checks. Pick what you need by namespace:
+The aggregator contains the protocol clients, the driver layer, the simulators, the dependency-injection
+helpers and the health checks. Pick what you need:
 
-| Scenario | Namespaces |
+| Scenario | Packages |
 | --- | --- |
-| Direct protocol access (Modbus/S7 clients) | `SiameseCat.Communication`, `.Transport`, `.Modbus`, `.S7` |
+| Direct protocol access (Modbus/S7 clients) | `.Core`, `.Tcp`, `.Modbus`, `.S7` packages |
 | Driver abstraction (registry, retries, metrics) | + `SiameseCat.Communication.Drivers` |
 | ASP.NET Core / `Microsoft.Extensions.Hosting` | + `SiameseCat.Communication.Hosting` |
-| Simulator or integration tests | + `SiameseCat.Communication.Server.Modbus`, `.Server.S7` |
+| Simulator or integration tests | + `SiameseCat.Communication.Simulation.Modbus`, `.Simulation.S7` |
 
 You can start with the protocol clients and move to drivers later: both expose the same options
 (`ModbusTcpOptions`, `ModbusRtuOptions`, `S7Options`) and the same address parsers.
@@ -47,7 +48,7 @@ Behavioural differences to be aware of:
 
 ## Integrating a device step by step
 
-1. `dotnet add package SiameseCat.Communication`.
+1. `dotnet add package SiameseCat.Communication.All` (or the protocol packages you need).
 2. Pick a driver: `modbus` for any Modbus RTU/TCP device, `s7` for S7comm devices, or implement `IDeviceDriver`
    (usually by deriving from `DriverBase`) for a new protocol or brand.
 3. Configure `DriverConfiguration` (`Transport`, `Host`/`Port` or `Serial`, `Timeout`, retries) and set

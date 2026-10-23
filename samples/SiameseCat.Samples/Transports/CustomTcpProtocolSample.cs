@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using SiameseCat.Communication.Server.Tcp;
+using SiameseCat.Communication.Simulation.Tcp;
 using SiameseCat.Communication.Tcp;
 using SiameseCat.Samples.Infrastructure;
 
@@ -24,7 +24,7 @@ public sealed class CustomTcpProtocolSample : ISample
 
     /// <inheritdoc/>
     public string Description =>
-        "Serve a line based protocol with CustomTcpServer, talk to it with CustomTcpClient and compare the framing presets.";
+        "Serve a line based protocol with CustomTcpSimulator, talk to it with CustomTcpClient and compare the framing presets.";
 
     /// <inheritdoc/>
     public bool RequiresHardware => false;
@@ -46,9 +46,9 @@ public sealed class CustomTcpProtocolSample : ISample
         var framing = new TcpFrameOptions { Mode = TcpFrameMode.Delimiter };
         var codec = new TcpFrameCodec(framing);
 
-        await using var server = new CustomTcpServer(
+        await using var server = new CustomTcpSimulator(
             (connection, token) => ServeAsync(connection, tags, token),
-            new CustomTcpServerOptions
+            new CustomTcpSimulatorOptions
             {
                 Port = arguments.GetInt("port", 0),
                 Codec = codec,
@@ -88,7 +88,7 @@ public sealed class CustomTcpProtocolSample : ISample
             MaxFrameLength = 4096,
         };
 
-        await using (var binaryServer = new CustomTcpServer(
+        await using (var binaryServer = new CustomTcpSimulator(
             async (connection, token) =>
             {
                 var request = await connection.ReadFrameAsync(token).ConfigureAwait(false);
@@ -97,7 +97,7 @@ public sealed class CustomTcpProtocolSample : ISample
                     await connection.SendAsync(request, token).ConfigureAwait(false);
                 }
             },
-            new CustomTcpServerOptions { Port = 0, Framing = binary }))
+            new CustomTcpSimulatorOptions { Port = 0, Framing = binary }))
         {
             await binaryServer.StartAsync(cancellationToken).ConfigureAwait(false);
 

@@ -1,12 +1,12 @@
 using SiameseCat.Communication.S7;
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.S7;
 using SiameseCat.Samples.Infrastructure;
 
 namespace SiameseCat.Samples.S7;
 
 /// <summary>
 /// Step 1 of the S7 track: the typed <see cref="S7Client"/> against an S7 CPU, or against the
-/// in-process <see cref="S7Server"/> when no <c>--host</c> is supplied.
+/// in-process <see cref="S7Simulator"/> when no <c>--host</c> is supplied.
 /// </summary>
 public sealed class S7ClientSample : ISample
 {
@@ -112,9 +112,9 @@ public sealed class S7ClientSample : ISample
         SampleConsole.Note("Next: 'run s7/driver' to use S7 tag addresses (DB1.DBW2, M0.0) through the driver layer.");
     }
 
-    private static async Task<S7Server> StartSimulatorAsync(CancellationToken cancellationToken)
+    private static async Task<S7Simulator> StartSimulatorAsync(CancellationToken cancellationToken)
     {
-        var server = new S7Server(new S7ServerOptions { Port = 0 });
+        var server = new S7Simulator(new S7SimulatorOptions { Port = 0 });
         await server.StartAsync(cancellationToken).ConfigureAwait(false);
         server.Data.TryEnsureDataBlock(1, 64);
         return server;

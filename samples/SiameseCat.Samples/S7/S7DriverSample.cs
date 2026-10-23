@@ -1,5 +1,5 @@
 using SiameseCat.Communication;
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.S7;
 using SiameseCat.Communication.S7;
 using SiameseCat.Samples.Infrastructure;
 
@@ -158,9 +158,9 @@ public sealed class S7DriverSample : ISample
         SampleConsole.Note("Next: 'run drivers/subscription' for polling subscriptions with jitter and backoff.");
     }
 
-    private static async Task<S7Server> StartSimulatorAsync(CancellationToken cancellationToken)
+    private static async Task<S7Simulator> StartSimulatorAsync(CancellationToken cancellationToken)
     {
-        var server = new S7Server(new S7ServerOptions { Port = 0 });
+        var server = new S7Simulator(new S7SimulatorOptions { Port = 0 });
         await server.StartAsync(cancellationToken).ConfigureAwait(false);
         server.Data.TryEnsureDataBlock(1, 64);
         return server;

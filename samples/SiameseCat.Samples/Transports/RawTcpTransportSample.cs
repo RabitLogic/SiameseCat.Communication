@@ -1,7 +1,7 @@
 using System.Text;
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
 using SiameseCat.Samples.Infrastructure;
 
@@ -37,7 +37,7 @@ public sealed class RawTcpTransportSample : ISample
     {
         SampleConsole.Banner(Title, Description);
 
-        await using var slave = new ModbusTcpServer(new ModbusServerOptions
+        await using var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions
         {
             Port = 0,
             ServerIdentifier = "SiameseCat",

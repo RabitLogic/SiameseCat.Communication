@@ -10,8 +10,8 @@ using SiameseCat.Communication;
 using SiameseCat.Communication.Drivers;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.S7;
-using SiameseCat.Communication.Server.Modbus;
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.Modbus;
+using SiameseCat.Communication.Simulation.S7;
 
 namespace SiameseCat.Compatibility;
 
@@ -128,7 +128,7 @@ internal static class Program
 
     private static async Task CheckModbusTcpAsync()
     {
-        await using (var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 }))
+        await using (var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 }))
         {
             await slave.StartAsync().ConfigureAwait(false);
             slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
@@ -182,7 +182,7 @@ internal static class Program
 
     private static async Task CheckS7ServerAsync()
     {
-        await using (var slave = new S7Server(new S7ServerOptions { Port = 0, DefaultDataBlockSize = 32 }))
+        await using (var slave = new S7Simulator(new S7SimulatorOptions { Port = 0, DefaultDataBlockSize = 32 }))
         {
             await slave.StartAsync().ConfigureAwait(false);
 
@@ -208,7 +208,7 @@ internal static class Program
 
     private static async Task CheckDriverAsync()
     {
-        await using (var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 }))
+        await using (var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 }))
         {
             await slave.StartAsync().ConfigureAwait(false);
             slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);
@@ -255,7 +255,7 @@ internal static class Program
 
     private static async Task CheckFrameLoggingAsync()
     {
-        await using (var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 }))
+        await using (var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 }))
         {
             await slave.StartAsync().ConfigureAwait(false);
             slave.Data.TryWriteHoldingRegisters(0, SeedRegisters);

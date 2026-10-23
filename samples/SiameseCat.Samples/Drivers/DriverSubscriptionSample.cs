@@ -1,6 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Drivers;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Samples.Infrastructure;
 
 namespace SiameseCat.Samples.Drivers;
@@ -35,7 +35,7 @@ public sealed class DriverSubscriptionSample : ISample
     {
         SampleConsole.Banner(Title, Description);
 
-        await using var slave = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        await using var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 });
         await slave.StartAsync(cancellationToken).ConfigureAwait(false);
 
         var registry = DriverRegistryExtensions.CreateDefaultRegistry();
@@ -130,7 +130,7 @@ public sealed class DriverSubscriptionSample : ISample
         SampleConsole.Note("Next: 'run drivers/resilience' for retries, keep-alive and failure isolation.");
     }
 
-    private static async Task RunWriterAsync(ModbusTcpServer slave, CancellationToken cancellationToken)
+    private static async Task RunWriterAsync(ModbusTcpSimulator slave, CancellationToken cancellationToken)
     {
         var value = 0;
         while (!cancellationToken.IsCancellationRequested)
@@ -147,7 +147,7 @@ public sealed class DriverSubscriptionSample : ISample
         }
     }
 
-    private static async Task RunBatchWriterAsync(ModbusTcpServer slave, CancellationToken cancellationToken)
+    private static async Task RunBatchWriterAsync(ModbusTcpSimulator slave, CancellationToken cancellationToken)
     {
         var value = 0;
         while (!cancellationToken.IsCancellationRequested)

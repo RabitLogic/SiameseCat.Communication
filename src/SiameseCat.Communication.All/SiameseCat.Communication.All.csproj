@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>SiameseCat.Communication.All</PackageId>
+    <Description>Convenience package that references every SiameseCat.Communication package.</Description>
+    <PackageTags>industrial;automation;modbus;s7;tcp</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SiameseCat.Communication.Core\SiameseCat.Communication.Core.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Tcp\SiameseCat.Communication.Tcp.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Modbus\SiameseCat.Communication.Modbus.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.S7\SiameseCat.Communication.S7.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Simulation.Modbus\SiameseCat.Communication.Simulation.Modbus.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Simulation.S7\SiameseCat.Communication.Simulation.S7.csproj" />
+    <ProjectReference Include="..\SiameseCat.Communication.Hosting\SiameseCat.Communication.Hosting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+    <PackageReference Include="System.Memory" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+  </ItemGroup>
+
+</Project>

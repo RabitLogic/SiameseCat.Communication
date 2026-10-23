@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
 using SiameseCat.Samples.Infrastructure;
 
@@ -39,7 +39,7 @@ public sealed class ModbusErrorsSample : ISample
     {
         SampleConsole.Banner(Title, Description);
 
-        await using var slave = new ModbusTcpServer(new ModbusServerOptions
+        await using var slave = new ModbusTcpSimulator(new ModbusSimulatorOptions
         {
             Port = 0,
             HoldingRegisters = 16,

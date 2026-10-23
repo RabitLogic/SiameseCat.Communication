@@ -23,3 +23,6 @@ TestResults/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only notes (architecture drafts, personal docs)
+*.local.md

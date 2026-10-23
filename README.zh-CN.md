@@ -2,26 +2,26 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-面向工业设备的轻量级 .NET 通讯库。包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
+面向工业设备的轻量级 .NET 通讯库。所有包同时提供 **.NET 8 (LTS)**、**.NET 10 (LTS)** 与 **.NET Standard 2.0** 资产——现代目标是**下限而非上限**：.NET 9、.NET 11 及更高版本会自动选用最接近的较低资产，不会被绑定到某一个运行时版本。
 
 > 深度文档（英文）：[使用教程](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/tutorial.md) · [架构](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/architecture.md) · [协议矩阵](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/protocol-matrix.md) · [迁移与接入](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/migration.md) · [发布指南](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md) · [仓库设置（规则集、工作流权限）](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/repository-settings.md)
 >
 > 从零动手复刻教程（中文）：[tutorial/](tutorial/README.md)
 
-本仓库只产出**一个** NuGet 包 `SiameseCat.Communication`：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。包内按**命名空间**分层，层内再按协议分组：
+本仓库按**层/协议拆分为多个 NuGet 包**，命名空间与旧版保持一致：`SiameseCat` 是组织名，后续项目（如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
 
-| 命名空间 | 目录 | 职责 |
+| 包 | 内容 | 依赖 |
 | --- | --- | --- |
-| `SiameseCat.Communication` | 根、`Addressing/`、`Diagnostics/`、`Drivers/`、`Exceptions/` | 驱动契约、地址/值模型、`DriverBase`、注册表、日志抽象与指标、`ITransport` 抽象 |
-| `SiameseCat.Communication.Transport` | `Transport/` | TCP / UDP / 串口传输实现 |
-| `SiameseCat.Communication.Tcp` | `Tcp/` | 与设备模型无关的 TCP 协议层：分帧（原始/长度前缀/分隔符/定长）、`TcpFrameConnection`、`CustomTcpClient` |
-| `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus（RTU/TCP）帧、客户端、地址解析与通用 Modbus 驱动 |
-| `SiameseCat.Communication.S7` | `S7/` | `S7Client`、`S7Address`、S7 选项与读写项、通用 S7 驱动 |
-| `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
-| `SiameseCat.Communication.Server.Modbus` / `.S7` / `.Tcp` | `Server/` | Modbus TCP/RTU 从站（FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B）、S7（ISO-on-TCP）从站与通用 TCP 服务端，含统计与日志 |
-| `SiameseCat.Communication.Hosting` | `Hosting/` | `IServiceCollection` 注册、从站托管、健康检查、`Microsoft.Extensions.Logging` 适配器 |
+| `SiameseCat.Communication.Core` | 驱动契约、设备模型、`DriverBase`、注册表、TCP/UDP/串口传输、异常与诊断 | BCL |
+| `SiameseCat.Communication.Tcp` | 与设备模型无关的分帧、`TcpFrameConnection`、`CustomTcpClient`、`CustomTcpSimulator` | Core |
+| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP 帧、客户端、地址解析与通用 Modbus 驱动 | Core + Tcp |
+| `SiameseCat.Communication.S7` | `S7Client`、`S7Address`、S7 选项与读写项、通用 S7 驱动 | Core |
+| `SiameseCat.Communication.Simulation.Modbus` | Modbus TCP/RTU 仿真器 | Modbus |
+| `SiameseCat.Communication.Simulation.S7` | S7（ISO-on-TCP）仿真器 | S7 |
+| `SiameseCat.Communication.Hosting` | `IServiceCollection` 注册、仿真器托管、健康检查、日志适配器 | Core + Modbus + S7 + Simulation.* |
+| `SiameseCat.Communication.All` | 便捷聚合包 | 以上全部 |
 
-协议栈自行实现（含设备标识 FC2B 与文件记录 FC14/15），不依赖 NModbus、Sharp7 等第三方协议库；只有传输层需要微软官方的 `System.IO.Ports`。
+只引用 `SiameseCat.Communication.S7` 时只会还原 Core + S7，不会引入 Modbus、仿真器或 Hosting。协议栈自行实现（含设备标识 FC2B 与文件记录 FC14/15），不依赖 NModbus、Sharp7 等第三方协议库。
 
 ## 架构：可插拔驱动
 
@@ -263,31 +263,31 @@ await driver.ConnectAsync();
 - 未注册日志时自动退化为 `NullCommunicationLogger`，因此不强制引入日志实现。
 - 单独使用适配器：`new MicrosoftLoggerAdapter(loggerFactory.CreateLogger("SiameseCat"))`。
 
-Modbus 与 S7 从站也可以交给 DI 管理（注册为 `IModbusServer` / `IS7Server` 单例，随宿主自动启停）：
+Modbus 与 S7 从站也可以交给 DI 管理（注册为 `IModbusSimulator` / `IS7Simulator` 单例，随宿主自动启停）：
 
 ```csharp
-services.AddModbusServer(options =>
+services.AddModbusSimulator(options =>
 {
     options.Port = 0;                        // TCP 从站，0 = 系统分配
     options.ServerIdentifier = "SIM-1";      // FC17 Report Server ID
 });
 
 // 或串口从站
-services.AddModbusRtuServer(options =>
+services.AddModbusRtuSimulator(options =>
 {
     options.UnitId = 1;
     options.Serial.PortName = "COM3";
 });
 
 // 或 S7（ISO-on-TCP）从站
-services.AddS7Server(options =>
+services.AddS7Simulator(options =>
 {
     options.Port = 0;
     options.DefaultDataBlockSize = 1024;
 });
 ```
 
-- Modbus 从站以 `IModbusServer` 注册、S7 从站以 `IS7Server` 注册，`provider.GetServices<...>()` 可取到全部实例。
+- Modbus 从站以 `IModbusSimulator` 注册、S7 从站以 `IS7Simulator` 注册，`provider.GetServices<...>()` 可取到全部实例。
 - 内部注册一个 `IHostedService`，在宿主启动/停止时统一 `StartAsync` / `StopAsync`。
 - 未显式设置 `Logger` 时自动使用 DI 中的 `ICommunicationLogger`。
 
@@ -393,7 +393,7 @@ registry.Register(new MyProtocolFactory());
 | Modbus 扩展 | FC23 原子读写（`ReadWriteRegistersAsync`）、FC14/15 文件记录、FC2B 设备标识、广播写（`unitId=0` 只发不等） |
 | S7 | ISO-on-TCP (RFC 1006) + COTP + S7 PDU，支持 DB/M/I/Q 区、位/字节/字/双字/浮点/字符串、批量读写、位数组写、PDU 分片 |
 | TCP | 原始 TCP 客户端传输，可用于自定义文本/二进制协议 |
-| 自定义 TCP 协议 | `SiameseCat.Communication.Tcp`：原始/长度前缀/分隔符/定长分帧、可插拔 `ITcpFrameCodec`、`CustomTcpClient` 与 `CustomTcpServer`；`TcpFrameConnection` 同时被 Modbus TCP 的 MBAP 复用 |
+| 自定义 TCP 协议 | `SiameseCat.Communication.Tcp`：原始/长度前缀/分隔符/定长分帧、可插拔 `ITcpFrameCodec`、`CustomTcpClient` 与 `CustomTcpSimulator`；`TcpFrameConnection` 同时被 Modbus TCP 的 MBAP 复用 |
 | UDP | 连接式 UDP 传输，适用于自建数据报协议（协议超时与重试由驱动负责） |
 | SerialPort | 原始串口传输，可配置波特率、校验位、数据位、停止位、流控 |
 | 批量能力 | `IBatchReadable` / `IBatchWritable`：Modbus 合并连续地址为单帧，S7 使用多变量请求（含 `STRING`，不再逐条回退） |
@@ -401,8 +401,8 @@ registry.Register(new MyProtocolFactory());
 | 传输注入 | `ITransportFactory` + `RequestLock`：复用已有链路、自建隧道，或让多站共享一条 RS-485（`SharedTransportFactory`） |
 | 帧日志 | `LogFrames = true` 时以 `Trace` 级别输出收发帧 hex，现场排障用 |
 | 数值数组 | `DeviceAddress.Length` 表示元素个数，`DeviceValue.FromUInt16Array(...)` 等工厂与 `AsUInt16Array()` 访问器，Modbus/S7 直接按元素读写 |
-| Modbus 从站 | `SiameseCat.Communication.Server.Modbus`：`ModbusTcpServer` / `ModbusRtuServer`（统一 `IModbusServer`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
-| S7 从站 | `SiameseCat.Communication.Server.S7`：`S7Server`（`IS7Server`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
+| Modbus 从站 | `SiameseCat.Communication.Simulation.Modbus`：`ModbusTcpSimulator` / `ModbusRtuSimulator`（统一 `IModbusSimulator`）+ `ModbusDataStore`，支持 FC01/02/03/04/05/06/07/0B/0F/10/11/14/15/16/17/23/2B、并发客户端、广播写、坏 CRC 丢弃；提供写入事件、快照/恢复/复位、按功能码统计与日志 |
+| S7 从站 | `SiameseCat.Communication.Simulation.S7`：`S7Simulator`（`IS7Simulator`）+ `S7DataStore`，处理 COTP 握手、Setup Communication、读/写变量（含多变量、位、位数组、STRING），支持 M/I/Q/DB 区、按需创建 DB、写入事件与请求统计 |
 | Native AOT | 程序集标记 `IsAotCompatible`；现代目标启用裁剪/AOT 分析器，代码无反射与动态代码生成 |
 
 Modbus 支持的功能码：
@@ -431,37 +431,38 @@ broadcast.Options["unitId"] = "0";
 
 ## 项目结构
 
-一个包、一个程序集，包内按命名空间分层，依赖严格单向（契约 → 传输 → 协议），从站与宿主集成同包提供：
+多个项目、按层/协议拆分，依赖严格单向（契约 → 传输 → 分帧 → 协议 → 驱动/仿真/宿主）：
 
-| 命名空间 | 职责 |
+| 包 / 项目 | 职责 |
 | --- | --- |
-| `SiameseCat.Communication` | 驱动契约、`DriverBase`、注册表、`DeviceAddress`/`DeviceValue`/`DeviceTag`、选项、异常、指标、`ITransport` 抽象 |
-| `SiameseCat.Communication.Transport` | `TcpTransport`、`UdpTransport`、`SerialPortTransport`，只负责字节收发 |
-| `SiameseCat.Communication.Tcp` | 与设备模型无关的分帧与连接核心：`TcpFrameCodec`、`TcpFrameConnection`、`CustomTcpClient` |
+| `SiameseCat.Communication.Core` | 驱动契约、`DriverBase`、注册表、`DeviceAddress`/`DeviceValue`/`DeviceTag`、选项、异常、指标、`ITransport` 与 TCP/UDP/串口实现 |
+| `SiameseCat.Communication.Tcp` | 与设备模型无关的分帧与连接核心：`TcpFrameCodec`、`TcpFrameConnection`、`CustomTcpClient`、`CustomTcpSimulator` |
 | `SiameseCat.Communication.Modbus` | Modbus（RTU/TCP）帧（含 `ModbusTcpFrameCodec`）、客户端与通用 Modbus 驱动 |
 | `SiameseCat.Communication.S7` | `S7Client`、`S7Address`、S7 选项与读写项、`S7Driver` 与原生地址映射 |
-| `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 注册入口 |
-| `SiameseCat.Communication.Server.Modbus` / `.S7` / `.Tcp` | Modbus TCP/RTU 从站（`IModbusServer`）、S7 从站（`IS7Server`）与通用 TCP 服务端（`CustomTcpServer`），复用协议层 PDU/CRC、分帧与传输层串口，提供统计与日志 |
-| `SiameseCat.Communication.Hosting` | DI 注册（`AddSiameseCat` / `AddModbusServer` / `AddS7Server`）、健康检查、`Microsoft.Extensions.Logging` 适配器 |
+| `SiameseCat.Communication.Simulation.Modbus` | Modbus TCP/RTU 仿真器（`ModbusTcpSimulator` / `ModbusRtuSimulator`） |
+| `SiameseCat.Communication.Simulation.S7` | S7（ISO-on-TCP）仿真器（`S7Simulator`） |
+| `SiameseCat.Communication.Hosting` | DI 注册（`AddSiameseCat` / `AddModbusSimulator` / `AddS7Simulator`）、健康检查、日志适配器 |
+| `SiameseCat.Communication.All` | `CreateDefaultRegistry()` / `AddSiameseCatDrivers()` 聚合入口 |
 
 ```text
-src/SiameseCat.Communication/
-├── CommunicationOptions.cs / RetryPolicy.cs                                  # 契约 + 模型
-├── Addressing/          IDeviceAddressParser、DeviceAddress、DeviceValue、DeviceValueCodec、DeviceTag
-├── Diagnostics/         ICommunicationLogger、NullCommunicationLogger、CommunicationMetrics、CommunicationDiagnostics
-├── Drivers/
-│   ├── Abstractions/    IDeviceDriver、读写/批量/订阅/健康接口、工厂、描述符、状态
-│   ├── Runtime/         DriverBase（5 个 partial）、DriverRegistry、DriverConfiguration、RequestLock
-│   └── DriverRegistryExtensions.cs                                          # 命名空间 …Communication.Drivers
-├── Exceptions/          CommunicationException 及子类，一类一个文件
-├── Transport/           ITransport 契约 + Tcp/Udp/SerialPort 实现（唯一 System.IO.Ports 依赖）
-├── Tcp/                 与设备模型无关的分帧、TcpFrameConnection、CustomTcpClient
-├── Modbus/              帧、CRC、寄存器转换、RTU/TCP 客户端、地址解析、ModbusDriver、ModbusTcpFrameCodec
-├── S7/                  S7Client（连接/读/写/协议 4 个 partial）、S7Address、读写项、选项、Drivers/
-├── Server/              Modbus/、S7/ 从站与 Tcp/ 通用服务端，ServerBufferSizes 共享缓冲区校验
-└── Hosting/             ServiceCollectionExtensions、SlaveServerServiceCollectionExtensions、健康检查、日志适配器
+src/
+├── SiameseCat.Communication.Core/          # 契约 + 模型 + 驱动运行时 + 传输 + 诊断
+│   ├── Addressing/                        # IDeviceAddressParser、DeviceAddress、DeviceValue、DeviceValueCodec、DeviceTag
+│   ├── Diagnostics/                       # ICommunicationLogger、CommunicationMetrics、CommunicationDiagnostics
+│   ├── Drivers/                           # IDeviceDriver、DriverBase、DriverRegistry、DriverConfiguration、RequestLock
+│   ├── Exceptions/                        # CommunicationException 及子类
+│   └── Transport/                         # ITransport + Tcp/Udp/SerialPort 实现
+├── SiameseCat.Communication.Tcp/           # Framing/、Clients/、Simulator/
+├── SiameseCat.Communication.Modbus/        # Clients/、Drivers/、CRC、寄存器转换、设备标识、文件记录
+├── SiameseCat.Communication.S7/            # Clients/、Drivers/、S7Address、读写项
+├── SiameseCat.Communication.Simulation.Modbus/  # Modbus/ 仿真器、PDU 处理器、数据存储、统计
+├── SiameseCat.Communication.Simulation.S7/      # S7 仿真器、PDU 处理器、数据存储、统计
+├── SiameseCat.Communication.Hosting/       # DI、仿真器托管、健康检查、日志适配
+├── SiameseCat.Communication.All/           # 聚合注册入口
+├── Shared/                                 # Guard.cs，按程序集引入
+└── SimulatorShared/                        # SimulatorBufferSizes.cs，供两个仿真项目链接
 
-tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus / S7 / Server / Integration / Fakes）
+tests/SiameseCat.Tests/                  # 单元 + 集成测试（Core / Modbus / S7 / Simulation / Integration / Fakes）
 tests/SiameseCat.Compatibility/          # net48 冒烟：在 .NET Framework 4.8 上验证 netstandard2.0 资产
 tests/SiameseCat.FrameworkMatrix/        # 框架矩阵：在 .NET 8 / 10 / 11 上验证实际加载的资产与 Modbus 往返
 samples/SiameseCat.Samples/              # 按目录分层的使用教程：list / run <id> / selftest
@@ -469,14 +470,14 @@ tools/SiameseCat.Soak/                   # 长稳 + 故障注入：恢复、成�
 benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 ```
 
-> 命名空间：`SiameseCat.Communication`、`.Transport`、`.Tcp`、`.Modbus`、`.S7`、`.Drivers`、`.Server.Modbus`、`.Server.S7`、`.Server.Tcp`、`.Hosting`。包内文件调整不影响引用方。
+> 命名空间：`SiameseCat.Communication`、`.Transport`、`.Tcp`、`.Modbus`、`.S7`、`.Drivers`、`.Simulation.Modbus`、`.Simulation.S7`、`.Simulation.Tcp`、`.Hosting`。项目拆分不影响 `using`。
 
 ### 命名约定
 
 | 约定 | 说明 | 示例 |
 | --- | --- | --- |
-| 包名 = 产品 | 组织名 `SiameseCat` + 产品名，一个产品一个包 | `SiameseCat.Communication` |
-| 命名空间 = 产品 + 层/协议 | 一个包内用命名空间表达分层，避免再拆程序集 | `SiameseCat.Communication.Modbus` |
+| 包名 = 产品 + 层/协议 | 按层与协议拆包，消费者只还原所需依赖 | `SiameseCat.Communication.S7`、`.Simulation.Modbus` |
+| 命名空间 = 产品 + 层/协议 | 命名空间保持不变，包拆分不影响 `using` | `SiameseCat.Communication.Modbus` |
 | 领域模型用 `Device`，诊断用 `Communication` | 设备域类型统一 `Device` 前缀；日志、指标等通信诊断用 `Communication` 前缀 | `DeviceAddress`、`DeviceValue`、`DeviceTag`、`IDeviceDriver`、`ICommunicationLogger`、`CommunicationMetrics` |
 | 驱动类按协议命名 | 通用驱动用 `协议 + Driver`，协议客户端保留协议名 | `ModbusDriver`、`S7Driver`、`S7Client` |
 | 工厂 = 契约入口 | `IDeviceDriverFactory` 的实现类以 `DriverFactory` 结尾 | `ModbusDriverFactory`、`S7DriverFactory` |
@@ -487,23 +488,31 @@ benchmarks/SiameseCat.Benchmarks/        # BenchmarkDotNet 基线
 依赖方向（严格单向，无环）：
 
 ```text
-SiameseCat.Communication                     契约 + 模型，无 I/O
-└── …Communication.Transport                 TCP / UDP / 串口实现
-    └── …Communication.Modbus / .S7          协议帧、客户端、通用驱动
-
-…Communication.Server.*                      可选：Modbus TCP/RTU 与 S7 从站（复用 PDU + CRC）
-…Communication.Hosting                       可选：DI + 日志 + 健康检查 + 从站托管
+SiameseCat.Communication.Core                 契约 + 模型 + 驱动运行时 + 传输
+├── SiameseCat.Communication.Tcp              分帧 + TcpFrameConnection + 自定义 TCP
+│   └── SiameseCat.Communication.Modbus       Modbus 客户端 + 驱动（复用 TcpFrameConnection）
+├── SiameseCat.Communication.S7               S7 客户端 + 驱动
+├── SiameseCat.Communication.Simulation.Modbus / .Simulation.S7   可选：仿真器
+└── SiameseCat.Communication.Hosting          可选：DI + 日志 + 健康检查 + 仿真器托管
+SiameseCat.Communication.All                 聚合包，依赖以上全部
 ```
 
 ## 安装
 
 ```powershell
-dotnet add package SiameseCat.Communication
+# 全部功能，等价于旧的单包
+dotnet add package SiameseCat.Communication.All
+
+# 只安装设备需要的部分
+dotnet add package SiameseCat.Communication.S7
+dotnet add package SiameseCat.Communication.Modbus
+dotnet add package SiameseCat.Communication.Simulation.Modbus
+dotnet add package SiameseCat.Communication.Hosting
 ```
 
 每次发布也会镜像到 GitHub Packages，源地址与凭据见 [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md#4-github-packages-mirror)。
 
-包同时提供 `net8.0`、`net10.0` 与 `netstandard2.0` 资产，只引入 `System.IO.Ports` 与 `Microsoft.Extensions.*` 抽象包（健康检查用到 `Microsoft.Extensions.Diagnostics.HealthChecks`）；DI、日志、ASP.NET Core、Worker 宿主本身已提供完整实现。
+所有包同时提供 `net8.0`、`net10.0` 与 `netstandard2.0` 资产。`System.IO.Ports` 只在 Core；`Microsoft.Extensions.*` 抽象包只在 Hosting，因此纯 TCP 或纯 S7 消费方不会被动引入它们。
 
 ## Native AOT
 
@@ -690,9 +699,9 @@ var answer = await client.RequestAsync(Encoding.ASCII.GetBytes("READ temperature
 服务端与共享连接核心：
 
 ```csharp
-using SiameseCat.Communication.Server.Tcp;
+using SiameseCat.Communication.Simulation.Tcp;
 
-await using var server = new CustomTcpServer(
+await using var server = new CustomTcpSimulator(
     async (connection, token) =>
     {
         var request = await connection.ReadFrameAsync(token);
@@ -701,7 +710,7 @@ await using var server = new CustomTcpServer(
             await connection.SendAsync(request, token);
         }
     },
-    new CustomTcpServerOptions { Port = 5000, Framing = framing });
+    new CustomTcpSimulatorOptions { Port = 5000, Framing = framing });
 ```
 
 `TcpFrameConnection` 是可复用核心：在任意 `ITransport` 上收发完整帧，并可输出 Trace 帧日志；超时、
@@ -748,12 +757,12 @@ int read = await transport.ReadAsync(buffer);
 
 ## Modbus 从站（联调 / 仿真）
 
-`SiameseCat.Communication.Server.Modbus` / `.S7` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实设备时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
+`SiameseCat.Communication.Simulation.Modbus` / `.S7` 提供进程内的 Modbus **TCP 与 RTU** 从站，在没有真实设备时用于联调、集成测试和演示。TCP 从站只依赖 Core，RTU 从站复用协议层的 CRC 与传输层串口；两者共用同一套 PDU 处理逻辑。
 
 ```csharp
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 
-await using var server = new ModbusTcpServer(new ModbusServerOptions
+await using var server = new ModbusTcpSimulator(new ModbusSimulatorOptions
 {
     Host = "127.0.0.1",
     Port = 0,               // 0 = 由操作系统分配空闲端口
@@ -785,10 +794,10 @@ var values = await client.ReadHoldingRegistersAsync(1, 0, 2);   // [100, 200]
 
 ### 可观测性（统计与日志）
 
-两个从站都实现 `IModbusServer`，并暴露 `Statistics`（`ModbusServerStatistics`）：
+两个从站都实现 `IModbusSimulator`，并暴露 `Statistics`（`ModbusSimulatorStatistics`）：
 
 ```csharp
-using var server = new ModbusTcpServer(new ModbusServerOptions
+using var server = new ModbusTcpSimulator(new ModbusSimulatorOptions
 {
     Port = 0,
     Logger = myCommunicationLogger, // 可选：实现 ICommunicationLogger 即可
@@ -839,9 +848,9 @@ server.Data.Load(snapshot);              // 恢复快照，尺寸不一致会抛
 同一套 PDU 逻辑也提供 RTU 版本，用于 RS-485 联调或串口仿真：
 
 ```csharp
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 
-await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
+await using var slave = new ModbusRtuSimulator(new ModbusRtuSimulatorOptions
 {
     UnitId = 1,
     Serial = { PortName = "COM3", BaudRate = 19200, ReadTimeout = TimeSpan.FromMilliseconds(100) },
@@ -855,15 +864,15 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
 - `Serial.ReadTimeout` 同时用作**帧间隔**：超时即认为当前帧结束（默认 100 ms，视波特率调整）。
 - 只应答 `UnitId` 指定的站号；站号 `0` 的写请求生效但不响应；CRC 错误的帧直接丢弃（计入 `Statistics.FramesDiscarded`）。
 - 功能码覆盖与 TCP 从站完全一致（含 `07/0B/11/16`）；请求长度按功能码推断，掩码写（`16`）为 8 字节固定长度帧。
-- 也可以通过 `new ModbusRtuServer(ITransport, options)` 注入自定义链路（串口隧道或测试替身），便于在无硬件环境验证。
+- 也可以通过 `new ModbusRtuSimulator(ITransport, options)` 注入自定义链路（串口隧道或测试替身），便于在无硬件环境验证。
 
 ### S7 从站（ISO-on-TCP）
 
 ```csharp
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.S7;
 using SiameseCat.Communication.S7;
 
-await using var s7 = new S7Server(new S7ServerOptions
+await using var s7 = new S7Simulator(new S7SimulatorOptions
 {
     Host = "127.0.0.1",
     Port = 0,                     // 0 = 系统分配；真实 S7 端口是 102
@@ -895,7 +904,7 @@ float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
 - 返回码遵循 S7 约定：`0x05` 地址越界、`0x0A` 对象不存在、`0x03` 拒绝访问（T/C 区）、`0x06` 数据错误；客户端侧表现为 `S7ItemException`。
 - 位访问使用位地址（`M0.3`、`DB1.DBX0.1`）；字节访问会把位地址除以 8。
 - 数据存储与 Modbus 一致：`ReadBytes` / `TryWriteBytes`、`TryReadBit` / `TryWriteBit`、`Written` 事件（含 `Values` / `PreviousValues`）与 `Reset()`。
-- `Statistics` 提供连接数、活动连接、Setup/读/写请求数、读写变量数、条目错误与丢弃帧；`S7ServerOptions.Logger` 输出诊断日志。
+- `Statistics` 提供连接数、活动连接、Setup/读/写请求数、读写变量数、条目错误与丢弃帧；`S7SimulatorOptions.Logger` 输出诊断日志。
 
 ## 数据类型转换（Modbus）
 
@@ -1129,7 +1138,7 @@ dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-dir
 dotnet run --project samples/SiameseCat.Samples -- list
 dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
 dotnet run --project samples/SiameseCat.Samples -- run drivers/batch
-dotnet run --project samples/SiameseCat.Samples -- run server/s7
+dotnet run --project samples/SiameseCat.Samples -- run simulation/s7
 
 # 跑完全部带仿真器的示例（18 步，约 10 秒，失败返回 1）
 dotnet run --project samples/SiameseCat.Samples -- selftest
@@ -1153,7 +1162,7 @@ dotnet pack src/SiameseCat.Communication/SiameseCat.Communication.csproj -c Rele
 
 ## 当前限制
 
-- Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Communication.Server.Modbus`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
+- Modbus 从站提供 TCP 与 RTU 版本（`SiameseCat.Communication.Simulation.Modbus`）；S7 仅支持 S7comm 的读/写变量，不支持上传/下载、诊断缓冲区等高级服务。
 - 驱动层内置两个通用协议驱动：Modbus（RTU/TCP）与 S7；品牌专有地址映射按 `IDeviceDriverFactory` 以插件形式扩展（每个品牌都需按真机验证）。
 - S7 目前只支持 TCP 传输；Modbus 支持 TCP/RTU。
 - 数值数组支持 `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`；`Bool` 只表示单个位（多位请用多个地址），`String`/`Raw` 继续用 `Length` 表示字符数/字节数。

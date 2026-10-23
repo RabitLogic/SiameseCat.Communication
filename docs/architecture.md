@@ -1,74 +1,70 @@
 # Architecture
 
-`SiameseCat.Communication` is a single package with one assembly. Inside it, code is grouped by
+The library ships as multiple NuGet packages, one assembly each. Inside every package, code is grouped by
 responsibility into separate namespaces, and dependencies only point inwards — contracts ← transport ←
 TCP framing ← protocol ← drivers — so a custom driver only needs the contracts, a custom protocol only
 needs the transport and frame abstractions, and the TCP framing layer itself has no device-model dependency.
 
 ## Namespaces
 
-| Namespace | Folder | Contents |
+| Namespace | Package / project | Contents |
 | --- | --- | --- |
-| `SiameseCat.Communication` | root, `Addressing/`, `Diagnostics/`, `Drivers/`, `Exceptions/` | driver contracts, address/value model, `DriverBase`, registry, options, metrics, exceptions |
-| `SiameseCat.Communication.Transport` | `Transport/` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
-| `SiameseCat.Communication.Tcp` | `Tcp/` | `TcpFrameCodec` presets, `ITcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` |
-| `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus frames/CRC/converters, `ModbusTcpFrameCodec`, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
-| `SiameseCat.Communication.S7` | `S7/` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options`, `S7Driver` |
-| `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
-| `SiameseCat.Communication.Server` | `Server/` | `IModbusServer`, `IS7Server`, shared buffer-size validation |
-| `SiameseCat.Communication.Server.Modbus` | `Server/Modbus/` | `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics` |
-| `SiameseCat.Communication.Server.S7` | `Server/S7/` | `S7Server`, `S7PduProcessor`, `S7DataStore`, `S7ServerStatistics` |
-| `SiameseCat.Communication.Server.Tcp` | `Server/Tcp/` | `CustomTcpServer`, `CustomTcpConnection`, `CustomTcpServerStatistics` |
-| `SiameseCat.Communication.Hosting` | `Hosting/` | `AddSiameseCat()` / `AddSiameseCatDriver()`, slave hosting, health checks, `Microsoft.Extensions.Logging` adapter |
+| `SiameseCat.Communication` | `SiameseCat.Communication.Core` | driver contracts, address/value model, `DriverBase`, registry, options, metrics, exceptions |
+| `SiameseCat.Communication.Transport` | `SiameseCat.Communication.Core` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
+| `SiameseCat.Communication.Tcp` | `SiameseCat.Communication.Tcp` | `TcpFrameCodec` presets, `ITcpFrameCodec`, `TcpFrameConnection`, `CustomTcpClient` |
+| `SiameseCat.Communication.Modbus` | `SiameseCat.Communication.Modbus` | Modbus frames/CRC/converters, `ModbusTcpFrameCodec`, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
+| `SiameseCat.Communication.S7` | `SiameseCat.Communication.S7` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options`, `S7Driver` |
+| `SiameseCat.Communication.Drivers` | `SiameseCat.Communication.All` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
+| `SiameseCat.Communication.Simulation` | `src/SimulatorShared/` | `SimulatorBufferSizes` validation shared by the simulators |
+| `SiameseCat.Communication.Simulation.Modbus` | `SiameseCat.Communication.Simulation.Modbus` | `ModbusTcpSimulator`, `ModbusRtuSimulator`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusSimulatorStatistics` |
+| `SiameseCat.Communication.Simulation.S7` | `SiameseCat.Communication.Simulation.S7` | `S7Simulator`, `S7PduProcessor`, `S7DataStore`, `S7SimulatorStatistics` |
+| `SiameseCat.Communication.Simulation.Tcp` | `SiameseCat.Communication.Tcp` | `CustomTcpSimulator`, `CustomTcpConnection`, `CustomTcpSimulatorStatistics` |
+| `SiameseCat.Communication.Hosting` | `SiameseCat.Communication.Hosting` | `AddSiameseCat()` / `AddSiameseCatDriver()`, simulator hosting, health checks, `Microsoft.Extensions.Logging` adapter |
 
 ## Source layout
 
 ```text
-src/SiameseCat.Communication/
-├── CommunicationOptions.cs / RetryPolicy.cs
-├── Addressing/          DeviceAddress, DeviceValue, DeviceValueCodec, DeviceTag, IDeviceAddressParser   (SiameseCat.Communication)
-├── Diagnostics/         ICommunicationLogger, NullCommunicationLogger, CommunicationMetrics, CommunicationDiagnostics            (SiameseCat.Communication)
-├── Drivers/
-│   ├── Abstractions/    IDeviceDriver + capability interfaces + descriptor + state           (SiameseCat.Communication)
-│   ├── Runtime/         DriverBase (partials), DriverRegistry, DriverConfiguration        (SiameseCat.Communication)
-│   └── DriverRegistryExtensions.cs                                                        (…Communication.Drivers)
-├── Exceptions/          one file per exception type                                       (SiameseCat.Communication)
-├── Transport/           ITransport + TCP/UDP/serial implementations                       (…Communication.Transport)
-├── Tcp/                 framing, TcpFrameConnection, CustomTcpClient                      (…Communication.Tcp)
-├── Modbus/              frames, ModbusTcpFrameCodec, clients, driver                      (…Communication.Modbus)
-├── S7/                  S7 client, addresses, options, driver                       (…Communication.S7)
-├── Server/              Modbus and S7 slaves                                          (…Communication.Server.*)
-└── Hosting/             DI registration, health checks, logger adapter                    (…Communication.Hosting)
-```
-
-Namespaces track the folders, so the protocol or layer is obvious from the `using` directive. The slave
-layout follows the same protocol-first structure:
-
-```text
-src/SiameseCat.Communication/Server/
-├── Modbus/              namespace SiameseCat.Communication.Server.Modbus
-│   ├── IModbusServer.cs
-│   ├── Options/         ModbusServerOptions / ModbusRtuServerOptions
-│   ├── Servers/         ModbusTcpServer / ModbusRtuServer
-│   ├── Protocol/        ModbusPduProcessor (+ .Files, .DeviceIdentification)
-│   ├── Storage/         ModbusDataStore (+ .Registers, .Bits, .Files) / ModbusDataStoreSnapshot
-│   ├── Events/          ModbusCoilWriteEventArgs / ModbusRegisterWriteEventArgs
-│   ├── Diagnostics/     ModbusServerStatistics
-│   └── Internal/        ModbusServerIdentifier
-├── S7/                  namespace SiameseCat.Communication.Server.S7
-│   ├── IS7Server.cs
-│   ├── Options/         S7ServerOptions
-│   ├── Servers/         S7Server
-│   ├── Protocol/        S7PduProcessor
-│   ├── Storage/         S7DataStore
-│   ├── Events/          S7WriteEventArgs
-│   └── Diagnostics/     S7ServerStatistics
-├── Tcp/                 namespace SiameseCat.Communication.Server.Tcp
-│   ├── CustomTcpServerOptions.cs
-│   ├── CustomTcpServer.cs / CustomTcpConnection.cs
-│   ├── CustomTcpServerStatistics.cs
-│   └── StreamTransport.cs  internal stream adapter used by the shared codecs
-└── ServerBufferSizes.cs internal buffer-size validation shared by both protocols
+src/
+├── SiameseCat.Communication.Core/          namespace SiameseCat.Communication, .Transport, .Drivers, .Addressing, .Diagnostics
+│   ├── CommunicationOptions.cs / RetryPolicy.cs
+│   ├── Addressing/                         DeviceAddress, DeviceValue, DeviceValueCodec, DeviceTag, IDeviceAddressParser
+│   ├── Diagnostics/                        ICommunicationLogger, CommunicationMetrics, CommunicationDiagnostics
+│   ├── Drivers/Abstractions/               IDeviceDriver + capability interfaces + descriptor + state
+│   ├── Drivers/Runtime/                    DriverBase (partials), DriverRegistry, DriverConfiguration
+│   ├── Exceptions/                         one file per exception type
+│   └── Transport/                          ITransport + TCP/UDP/serial implementations
+├── SiameseCat.Communication.Tcp/           namespace SiameseCat.Communication.Tcp, .Simulation.Tcp
+│   ├── Framing/                            ITcpFrameCodec, TcpFrameCodec, TcpFrameConnection
+│   ├── Clients/                            CustomTcpClient, CustomTcpClientOptions
+│   └── Simulator/                          CustomTcpSimulator, CustomTcpConnection, statistics
+├── SiameseCat.Communication.Modbus/        namespace SiameseCat.Communication.Modbus
+│   ├── Clients/                            ModbusTcpClient, ModbusRtuClient, ModbusTcpFrameCodec
+│   └── Drivers/                            ModbusDriver, ModbusAddressParser, ModbusDriverFactory
+├── SiameseCat.Communication.S7/            namespace SiameseCat.Communication.S7
+│   ├── Clients/                            S7Client, S7Options
+│   └── Drivers/                            S7Driver, S7AddressParser, S7DriverFactory
+├── SiameseCat.Communication.Simulation.Modbus/  namespace SiameseCat.Communication.Simulation.Modbus
+│   ├── IModbusSimulator.cs
+│   ├── Options/                            ModbusSimulatorOptions / ModbusRtuSimulatorOptions
+│   ├── Simulators/                         ModbusTcpSimulator / ModbusRtuSimulator
+│   ├── Protocol/                           ModbusPduProcessor (+ .Files, .DeviceIdentification)
+│   ├── Storage/                            ModbusDataStore (+ .Registers, .Bits, .Files) / ModbusDataStoreSnapshot
+│   ├── Events/                             ModbusCoilWriteEventArgs / ModbusRegisterWriteEventArgs
+│   ├── Diagnostics/                        ModbusSimulatorStatistics
+│   └── Internal/                           ModbusSimulatorIdentifier
+├── SiameseCat.Communication.Simulation.S7/      namespace SiameseCat.Communication.Simulation.S7
+│   ├── IS7Simulator.cs
+│   ├── Options/                            S7SimulatorOptions
+│   ├── Simulators/                         S7Simulator
+│   ├── Protocol/                           S7PduProcessor
+│   ├── Storage/                            S7DataStore
+│   ├── Events/                             S7WriteEventArgs
+│   └── Diagnostics/                        S7SimulatorStatistics
+├── SiameseCat.Communication.Hosting/       namespace SiameseCat.Communication.Hosting
+│   └── DI registration, health checks, simulator hosting, logger adapter
+├── SiameseCat.Communication.All/           aggregator package (CreateDefaultRegistry / AddSiameseCatDrivers)
+├── Shared/                                 Guard.cs, included per assembly
+└── SimulatorShared/                        SimulatorBufferSizes.cs, linked into both simulator projects
 ```
 
 ### TCP framing and reuse
@@ -90,9 +86,9 @@ Modbus TCP is the first consumer of the shared core: `ModbusTcpFrameCodec` suppl
 validation. A vendor protocol can follow the same split without touching the Modbus code.
 
 The folders group files by responsibility, while the namespace stays at the protocol level: everything
-under `Server/Modbus/` is in `SiameseCat.Communication.Server.Modbus`, so the physical layout can change
-without touching a `using` directive. `ModbusDataStore` is a single type split across partial files by
-storage area (registers, bits, file records) because the areas share the buffer sizes and locks.
+in the `SiameseCat.Communication.Simulation.Modbus` project is in that namespace, so the physical layout
+can change without touching a `using` directive. `ModbusDataStore` is a single type split across partial
+files by storage area (registers, bits, file records) because the areas share the buffer sizes and locks.
 
 `DriverBase` is split by responsibility:
 
@@ -228,7 +224,7 @@ numbers on your hardware.
 | Drivers use the protocol name | `ModbusDriver`, `S7Driver`, `S7AddressParser` |
 | Device-domain types use `Device`; diagnostics use `Communication` | `DeviceAddress`, `DeviceValue`, `IDeviceDriver`, `IDeviceAddressParser`, `ICommunicationLogger`, `CommunicationMetrics` |
 | One public type per file | `Exceptions/CommunicationTimeoutException.cs` |
-| Optional features are separate namespaces | `SiameseCat.Communication.Hosting`, `SiameseCat.Communication.Server` |
+| Optional features are separate namespaces | `SiameseCat.Communication.Hosting`, `SiameseCat.Communication.Simulation` |
 
 See [protocol-matrix.md](protocol-matrix.md) for the wire-level details and
 [migration.md](migration.md) when integrating the package into an existing stack.

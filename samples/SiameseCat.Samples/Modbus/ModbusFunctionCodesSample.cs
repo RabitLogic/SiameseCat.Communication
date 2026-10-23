@@ -1,5 +1,5 @@
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
 using SiameseCat.Samples.Infrastructure;
 
@@ -125,11 +125,11 @@ public sealed class ModbusFunctionCodesSample : ISample
 
     private static string Join(bool[] values) => string.Join(", ", values.Select(value => value ? '1' : '0'));
 
-    private static async Task<ModbusTcpServer> StartSimulatorAsync(CancellationToken cancellationToken)
+    private static async Task<ModbusTcpSimulator> StartSimulatorAsync(CancellationToken cancellationToken)
     {
-        var options = new ModbusServerOptions { Port = 0 };
+        var options = new ModbusSimulatorOptions { Port = 0 };
         options.DeviceIdentification[0x04] = "Function code rig";
-        var server = new ModbusTcpServer(options);
+        var server = new ModbusTcpSimulator(options);
         await server.StartAsync(cancellationToken).ConfigureAwait(false);
         server.Data.TryWriteHoldingRegisters(0, new ushort[] { 10, 20, 30, 40 });
         server.Data.TryWriteInputRegisters(0, new ushort[] { 1, 2, 3, 4 });

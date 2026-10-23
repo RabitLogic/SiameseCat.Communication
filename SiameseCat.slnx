@@ -3,7 +3,14 @@
     <Project Path="samples/SiameseCat.Samples/SiameseCat.Samples.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/SiameseCat.Communication/SiameseCat.Communication.csproj" />
+    <Project Path="src/SiameseCat.Communication.Core/SiameseCat.Communication.Core.csproj" />
+    <Project Path="src/SiameseCat.Communication.Tcp/SiameseCat.Communication.Tcp.csproj" />
+    <Project Path="src/SiameseCat.Communication.Modbus/SiameseCat.Communication.Modbus.csproj" />
+    <Project Path="src/SiameseCat.Communication.S7/SiameseCat.Communication.S7.csproj" />
+    <Project Path="src/SiameseCat.Communication.Simulation.Modbus/SiameseCat.Communication.Simulation.Modbus.csproj" />
+    <Project Path="src/SiameseCat.Communication.Simulation.S7/SiameseCat.Communication.Simulation.S7.csproj" />
+    <Project Path="src/SiameseCat.Communication.Hosting/SiameseCat.Communication.Hosting.csproj" />
+    <Project Path="src/SiameseCat.Communication.All/SiameseCat.Communication.All.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SiameseCat.Tests/SiameseCat.Tests.csproj" />

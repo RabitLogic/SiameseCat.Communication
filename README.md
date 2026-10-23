@@ -14,12 +14,12 @@ never pinned to a single runtime version.
 - **Protocols built in-house** — Modbus RTU/TCP and S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
   TCP, UDP and serial transports (device identification and file records included). No NModbus/Sharp7 dependency.
 - **Custom TCP protocols** — protocol-agnostic framing (raw, length prefix, delimiter, fixed length),
-  a `CustomTcpClient`/`CustomTcpServer` pair and a pluggable `ITcpFrameCodec`; the same
+  a `CustomTcpClient`/`CustomTcpSimulator` pair and a pluggable `ITcpFrameCodec`; the same
   `TcpFrameConnection` core also carries Modbus TCP (MBAP).
-- **Simulation included** — the same package ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
+- **Simulators included** — Modbus TCP/RTU and S7 (ISO-on-TCP) simulators ship as separate packages,
   with thread-safe data stores, write events, snapshots and per-request statistics.
-- **One package** — `SiameseCat.Communication` contains the contracts, transports, protocols, drivers,
-  slaves, dependency injection and health checks; there is nothing else to install.
+- **Composable packages** — install only the layers and protocols you use. `SiameseCat.Communication.S7`
+  restores Core + S7 only; Modbus, the simulators and hosting are not pulled in unless you reference them.
 - **Zero-warning, multi-target, trim/AOT friendly** — analyzer-clean builds, package validation for both
   TFMs, and trimming/AOT analyzers enabled for the modern targets.
 
@@ -42,7 +42,7 @@ Every step that targets a device also starts an in-process slave, so the whole t
 | `Modbus/` | `modbus/tcp`, `modbus/rtu`, `modbus/function-codes`, `modbus/errors` |
 | `S7/` | `s7/client`, `s7/driver` |
 | `Drivers/` | `drivers/registry`, `drivers/tags`, `drivers/batch`, `drivers/subscription`, `drivers/resilience`, `drivers/hosting` |
-| `Server/` | `server/modbus-tcp`, `server/modbus-rtu`, `server/s7` |
+| `Simulation/` | `simulation/modbus-tcp`, `simulation/modbus-rtu`, `simulation/s7` |
 | `Transports/` | `transports/raw-tcp`, `transports/custom`, `transports/custom-protocol` |
 
 ```powershell
@@ -52,10 +52,24 @@ dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp --host 192.168
 dotnet run --project samples/SiameseCat.Samples -- selftest
 ```
 
-## Package
+## Packages
 
-`SiameseCat` is the organization name; this repository ships a single package, `SiameseCat.Communication`.
-Other products (for example `SiameseCat.Mes.Template`) are separate repositories and packages.
+`SiameseCat` is the organization name. The library is split so a consumer only restores the protocols it
+uses; namespaces stay the same as in earlier versions.
+
+| Package | Contents | Depends on |
+| --- | --- | --- |
+| `SiameseCat.Communication.Core` | contracts, device model, driver runtime, TCP/UDP/serial transports, diagnostics | BCL |
+| `SiameseCat.Communication.Tcp` | protocol-agnostic framing, `TcpFrameConnection`, `CustomTcpClient`, `CustomTcpSimulator` | Core |
+| `SiameseCat.Communication.Modbus` | Modbus RTU/TCP clients, driver and MBAP framing | Core + Tcp |
+| `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client and driver | Core |
+| `SiameseCat.Communication.Simulation.Modbus` | Modbus TCP/RTU simulators | Modbus |
+| `SiameseCat.Communication.Simulation.S7` | S7 (ISO-on-TCP) simulator | S7 |
+| `SiameseCat.Communication.Hosting` | DI, simulator hosting, health checks, logging adapter | Core + Modbus + S7 + Simulation.* |
+| `SiameseCat.Communication.All` | convenience aggregator | all of the above |
+
+`SiameseCat.Communication.All` is the drop-in replacement for the previous single package. Installing
+`SiameseCat.Communication.S7` restores only Core + S7; Modbus, the simulators and hosting are not pulled in.
 
 | Namespace | Responsibility |
 | --- | --- |
@@ -64,20 +78,26 @@ Other products (for example `SiameseCat.Mes.Template`) are separate repositories
 | `SiameseCat.Communication.Tcp` | Protocol-agnostic framing (`TcpFrameCodec`), `TcpFrameConnection`, `CustomTcpClient` |
 | `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames (`ModbusTcpFrameCodec`), clients, address parser and generic Modbus driver |
 | `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client, addresses, options and driver |
-| `SiameseCat.Communication.Server` | Modbus TCP/RTU, S7 and custom TCP servers (`.Server.Modbus`, `.Server.S7`, `.Server.Tcp`) |
-| `SiameseCat.Communication.Hosting` | `AddSiameseCat()`, keyed drivers, slave hosting, logging adapter, health checks |
+| `SiameseCat.Communication.Simulation` | Modbus TCP/RTU, S7 and custom TCP simulators (`.Simulation.Modbus`, `.Simulation.S7`, `.Simulation.Tcp`) |
+| `SiameseCat.Communication.Hosting` | `AddSiameseCat()`, keyed drivers, simulator hosting, logging adapter, health checks |
 
 ## Install
 
 ```bash
-dotnet add package SiameseCat.Communication
+# Everything, equivalent to the previous single package
+dotnet add package SiameseCat.Communication.All
+
+# Only what a device needs
+dotnet add package SiameseCat.Communication.S7
+dotnet add package SiameseCat.Communication.Modbus
+dotnet add package SiameseCat.Communication.Simulation.Modbus
+dotnet add package SiameseCat.Communication.Hosting
 ```
 
 A mirror is also published to GitHub Packages on every release; see [docs/publishing.md](https://github.com/RabitLogic/SiameseCat.Communication/blob/main/docs/publishing.md#4-github-packages-mirror) for the feed URL and credentials.
 
-The package ships `net8.0`, `net10.0` and `netstandard2.0` assets and brings only `System.IO.Ports` plus the
-`Microsoft.Extensions.*` abstractions (and `Microsoft.Extensions.Diagnostics.HealthChecks` for the
-health-check integration). DI, logging, ASP.NET Core and worker hosts already provide the full implementations.
+Every package ships `net8.0`, `net10.0` and `netstandard2.0` assets. Core brings `System.IO.Ports`; the
+`Microsoft.Extensions.*` abstractions live in `Hosting`, so a TCP-only or S7-only consumer does not need them.
 
 ## Using a driver
 
@@ -319,12 +339,12 @@ var answer = await client.RequestAsync(Encoding.ASCII.GetBytes("READ temperature
 header-inclusive length), `Delimiter` (keeps or strips the separator) or `FixedLength`. Implement
 `ITcpFrameCodec` when a vendor protocol needs escaping or checksums.
 
-The same codebase provides the server side and the shared connection core:
+The same package provides the simulator side and the shared connection core:
 
 ```csharp
-using SiameseCat.Communication.Server.Tcp;
+using SiameseCat.Communication.Simulation.Tcp;
 
-await using var server = new CustomTcpServer(
+await using var server = new CustomTcpSimulator(
     async (connection, token) =>
     {
         var request = await connection.ReadFrameAsync(token);
@@ -333,7 +353,7 @@ await using var server = new CustomTcpServer(
             await connection.SendAsync(request, token);
         }
     },
-    new CustomTcpServerOptions { Port = 5000, Framing = framing });
+    new CustomTcpSimulatorOptions { Port = 5000, Framing = framing });
 ```
 
 `TcpFrameConnection` is the reusable core: it writes and reads whole frames over any `ITransport` and
@@ -531,22 +551,22 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c
 - To monitor a driver the application already owns, use the overload with an accessor:
   `.AddSiameseCatDriverCheck("device-main", sp => sp.GetRequiredKeyedService<IDeviceDriver>("modbus"))`.
 
-Slaves can be hosted as well (`IModbusServer` / `IS7Server` singletons, started and stopped with the host):
+Slaves can be hosted as well (`IModbusSimulator` / `IS7Simulator` singletons, started and stopped with the host):
 
 ```csharp
-services.AddModbusServer(options =>
+services.AddModbusSimulator(options =>
 {
     options.Port = 0;                          // TCP slave, 0 = let the OS choose
     options.ServerIdentifier = "SIM-1";        // FC17 Report Server ID
 });
 
-services.AddModbusRtuServer(options =>
+services.AddModbusRtuSimulator(options =>
 {
     options.UnitId = 1;
     options.Serial.PortName = "COM3";
 });
 
-services.AddS7Server(options =>
+services.AddS7Simulator(options =>
 {
     options.Port = 0;                          // ISO-on-TCP slave
     options.DefaultDataBlockSize = 1024;
@@ -555,13 +575,13 @@ services.AddS7Server(options =>
 
 ## Modbus slaves (TCP and RTU)
 
-`SiameseCat.Communication.Server` provides in-process slaves for integration tests, demos and offline development.
+`SiameseCat.Communication.Simulation` provides in-process slaves for integration tests, demos and offline development.
 Both share one PDU processor and the same data store.
 
 ```csharp
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 
-await using var server = new ModbusTcpServer(new ModbusServerOptions
+await using var server = new ModbusTcpSimulator(new ModbusSimulatorOptions
 {
     Host = "127.0.0.1",
     Port = 0,                 // 0 = OS-assigned port
@@ -603,7 +623,7 @@ roughly a third less than before (see the performance notes for measured numbers
 ### Statistics and logging
 
 ```csharp
-using var server = new ModbusTcpServer(new ModbusServerOptions
+using var server = new ModbusTcpSimulator(new ModbusSimulatorOptions
 {
     Port = 0,
     Logger = myCommunicationLogger, // any ICommunicationLogger implementation
@@ -654,7 +674,7 @@ server.Data.Load(snapshot);              // throws ArgumentException when dimens
 ### RTU slave
 
 ```csharp
-await using var slave = new ModbusRtuServer(new ModbusRtuServerOptions
+await using var slave = new ModbusRtuSimulator(new ModbusRtuSimulatorOptions
 {
     UnitId = 1,
     Serial = { PortName = "COM3", BaudRate = 19200, ReadTimeout = TimeSpan.FromMilliseconds(100) },
@@ -670,14 +690,14 @@ slave.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200 });
   with a bad CRC are dropped and counted in `Statistics.FramesDiscarded`.
 - Function code coverage matches the TCP slave. Request lengths are inferred per function code
   (mask write is a fixed 8-byte frame, device identification 7 bytes, file records 5 + the byte count).
-- `new ModbusRtuServer(ITransport, options)` injects a custom link (serial tunnel or test double).
+- `new ModbusRtuSimulator(ITransport, options)` injects a custom link (serial tunnel or test double).
 
 ### S7 slave (ISO-on-TCP)
 
 ```csharp
-using SiameseCat.Communication.Server.S7;
+using SiameseCat.Communication.Simulation.S7;
 
-await using var s7 = new S7Server(new S7ServerOptions
+await using var s7 = new S7Simulator(new S7SimulatorOptions
 {
     Host = "127.0.0.1",
     Port = 0,                    // 0 = OS-assigned; 102 is the real S7 port
@@ -715,7 +735,7 @@ float speed = await s7Client.ReadSingleAsync(S7Address.Parse("DB1.DBD0"));
 - The data store mirrors the Modbus one: byte-level `ReadBytes`/`TryWriteBytes`,
   `TryReadBit`/`TryWriteBit`, a `Written` event with `Values`/`PreviousValues`, and `Reset()`.
 - `Statistics` reports connections, active connections, setup/read/write request counts, items read and
-  written, item errors and discarded frames; `S7ServerOptions.Logger` receives the diagnostics.
+  written, item errors and discarded frames; `S7SimulatorOptions.Logger` receives the diagnostics.
 
 ## Reliability
 
@@ -760,7 +780,7 @@ dotnet test tests/SiameseCat.Tests --collect:"XPlat Code Coverage" --results-dir
 dotnet run --project samples/SiameseCat.Samples -- list
 dotnet run --project samples/SiameseCat.Samples -- run modbus/tcp
 dotnet run --project samples/SiameseCat.Samples -- run drivers/batch
-dotnet run --project samples/SiameseCat.Samples -- run server/s7
+dotnet run --project samples/SiameseCat.Samples -- run simulation/s7
 
 # Run every sample that has a built-in simulator (18 steps, ~10 s, exit code 1 on failure)
 dotnet run --project samples/SiameseCat.Samples -- selftest

@@ -1,6 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Server.Modbus;
+using SiameseCat.Communication.Simulation.Modbus;
 using SiameseCat.Communication.Transport;
 using SiameseCat.Samples.Infrastructure;
 
@@ -91,9 +91,9 @@ public sealed class ModbusTcpSample : ISample
         SampleConsole.Note("Next: 'run modbus/rtu' for the serial framing, 'run modbus/function-codes' for every function code.");
     }
 
-    private static async Task<ModbusTcpServer> StartSimulatorAsync(CancellationToken cancellationToken)
+    private static async Task<ModbusTcpSimulator> StartSimulatorAsync(CancellationToken cancellationToken)
     {
-        var server = new ModbusTcpServer(new ModbusServerOptions { Port = 0 });
+        var server = new ModbusTcpSimulator(new ModbusSimulatorOptions { Port = 0 });
         await server.StartAsync(cancellationToken).ConfigureAwait(false);
         server.Data.TryWriteHoldingRegisters(0, new ushort[] { 100, 200, 300, 400 });
         server.Data.TryWriteCoils(0, new[] { true, false, true, true });

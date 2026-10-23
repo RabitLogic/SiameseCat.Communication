@@ -1,6 +1,6 @@
 using System.Text;
 using SiameseCat.Communication;
-using SiameseCat.Communication.Server.Tcp;
+using SiameseCat.Communication.Simulation.Tcp;
 using SiameseCat.Communication.Tcp;
 
 namespace SiameseCat.Tests.Integration;
@@ -8,12 +8,12 @@ namespace SiameseCat.Tests.Integration;
 public class CustomTcpTests
 {
     [Fact]
-    public async Task ServerAndClient_ExchangeDelimitedFrames()
+    public async Task SimulatorAndClient_ExchangeDelimitedFrames()
     {
         var codec = CreateLineCodec();
-        await using var server = new CustomTcpServer(
+        await using var server = new CustomTcpSimulator(
             EchoAsync,
-            new CustomTcpServerOptions { Codec = codec });
+            new CustomTcpSimulatorOptions { Codec = codec });
 
         await server.StartAsync();
         Assert.True(server.Port > 0);
@@ -41,7 +41,7 @@ public class CustomTcpTests
     }
 
     [Fact]
-    public async Task ServerAndClient_ExchangeLengthPrefixedBinaryFrames()
+    public async Task SimulatorAndClient_ExchangeLengthPrefixedBinaryFrames()
     {
         var codec = new TcpFrameCodec(new TcpFrameOptions
         {
@@ -50,7 +50,7 @@ public class CustomTcpTests
             MaxFrameLength = 1024,
         });
 
-        await using var server = new CustomTcpServer(
+        await using var server = new CustomTcpSimulator(
             async (connection, token) =>
             {
                 while (true)
@@ -66,7 +66,7 @@ public class CustomTcpTests
                     await connection.SendAsync(reversed, token);
                 }
             },
-            new CustomTcpServerOptions { Codec = codec });
+            new CustomTcpSimulatorOptions { Codec = codec });
 
         await server.StartAsync();
 
@@ -103,9 +103,9 @@ public class CustomTcpTests
     }
 
     [Fact]
-    public void ServerOptions_RejectNegativeMaxConnections()
+    public void SimulatorOptions_RejectNegativeMaxConnections()
     {
-        var options = new CustomTcpServerOptions { MaxConnections = -1 };
+        var options = new CustomTcpSimulatorOptions { MaxConnections = -1 };
 
         Assert.Throws<ArgumentOutOfRangeException>(() => options.Validate());
     }
