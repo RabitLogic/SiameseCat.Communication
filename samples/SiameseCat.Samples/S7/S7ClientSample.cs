@@ -109,7 +109,7 @@ public sealed class S7ClientSample : ISample
         SampleConsole.Value("IB0", $"0x{input:X2}");
 
         await client.DisconnectAsync().ConfigureAwait(false);
-        SampleConsole.Note("Next: 'run s7/driver' to use Siemens tag addresses (DB1.DBW2, M0.0) through the driver layer.");
+        SampleConsole.Note("Next: 'run s7/driver' to use S7 tag addresses (DB1.DBW2, M0.0) through the driver layer.");
     }
 
     private static async Task<S7Server> StartSimulatorAsync(CancellationToken cancellationToken)

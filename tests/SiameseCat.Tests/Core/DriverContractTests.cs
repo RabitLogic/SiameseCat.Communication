@@ -270,7 +270,7 @@ public class DriverRegistryTests
         var registry = DriverRegistryExtensions.CreateDefaultRegistry();
 
         Assert.True(registry.Contains("modbus"));
-        Assert.True(registry.Contains("siemens"));
+        Assert.True(registry.Contains("s7"));
         Assert.False(registry.Contains("inovance"));
         Assert.Equal(2, registry.Descriptors.Count());
     }

@@ -1,8 +1,7 @@
 using System.Globalization;
 using SiameseCat.Communication;
-using SiameseCat.Communication.S7;
 
-namespace SiameseCat.Communication.Siemens;
+namespace SiameseCat.Communication.S7;
 
 /// <summary>
 /// Parses S7 native addresses (<c>DB1.DBX0.0</c>, <c>DB1.DBW2</c>, <c>M0.0</c>, <c>IW4</c>) into
@@ -12,7 +11,7 @@ namespace SiameseCat.Communication.Siemens;
 /// The region key is <c>DB{n}</c> for data blocks and <c>I</c>, <c>Q</c>, <c>M</c>, <c>T</c> or <c>C</c>
 /// for the other areas. Offsets are byte offsets.
 /// </remarks>
-public sealed class SiemensAddressParser : IPlcAddressParser
+public sealed class S7AddressParser : IPlcAddressParser
 {
     /// <inheritdoc/>
     public string ProtocolName => "S7";

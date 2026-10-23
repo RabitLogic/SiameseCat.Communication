@@ -1,13 +1,12 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.S7;
-using SiameseCat.Communication.Siemens;
 using SiameseCat.Tests.Fakes;
 
-namespace SiameseCat.Tests.Siemens;
+namespace SiameseCat.Tests.S7;
 
-public class SiemensAddressParserTests
+public class S7AddressParserTests
 {
-    private readonly SiemensAddressParser _parser = new();
+    private readonly S7AddressParser _parser = new();
 
     [Theory]
     [InlineData("DB1.DBX0.0", "DB1", 0, PlcDataType.Bool, 0)]
@@ -51,7 +50,7 @@ public class SiemensAddressParserTests
         var native = S7Address.Parse("DB1.DBX2.3");
         var neutral = _parser.Parse("DB1.DBX2.3");
 
-        Assert.Equal(native, SiemensAddressParser.ToS7Address(neutral));
+        Assert.Equal(native, S7AddressParser.ToS7Address(neutral));
     }
 
     [Fact]
@@ -61,7 +60,7 @@ public class SiemensAddressParserTests
     }
 }
 
-public class SiemensDriverTests
+public class S7DriverTests
 {
     private static readonly bool[] ThreeBits = { true, false, true };
 
@@ -194,10 +193,10 @@ public class SiemensDriverTests
     [Fact]
     public async Task Factory_RejectsNonTcpTransport()
     {
-        var factory = new SiemensDriverFactory();
+        var factory = new S7DriverFactory();
         await using var driver = factory.Create(new DriverConfiguration { Transport = TransportKind.Tcp, Host = "127.0.0.1" });
 
-        Assert.Equal("siemens", driver.Descriptor.Id);
+        Assert.Equal("s7", driver.Descriptor.Id);
         Assert.Equal(102, driver.Descriptor.DefaultPort);
 
         Assert.Throws<NotSupportedException>(
@@ -332,7 +331,7 @@ public class SiemensDriverTests
         return transport;
     }
 
-    private static async Task<SiemensDriver> CreateConnectedDriverAsync(MockTransport transport)
+    private static async Task<S7Driver> CreateConnectedDriverAsync(MockTransport transport)
     {
         var client = new S7Client(transport, new S7Options
         {
@@ -341,7 +340,7 @@ public class SiemensDriverTests
             RetryDelay = TimeSpan.Zero,
         });
 
-        var driver = new SiemensDriver(client, new DriverConfiguration
+        var driver = new S7Driver(client, new DriverConfiguration
         {
             Timeout = TimeSpan.FromSeconds(1),
             RetryDelay = TimeSpan.Zero,

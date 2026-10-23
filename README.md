@@ -9,7 +9,7 @@ never pinned to a single runtime version.
 
 - **Pluggable drivers** — one contract (`IPlcDriver` / `DriverBase`) with capability flags, batch
   read/write, polling or native subscriptions, health probes and metrics.
-- **Protocols built in-house** — Modbus RTU/TCP, Siemens S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
+- **Protocols built in-house** — Modbus RTU/TCP and S7 (ISO-on-TCP + COTP + S7 PDU), plus raw
   TCP, UDP and serial transports (device identification and file records included). No NModbus/Sharp7 dependency.
 - **Simulation included** — the same package ships Modbus TCP/RTU slaves **and an S7 (ISO-on-TCP) slave**
   with thread-safe data stores, write events, snapshots and per-request statistics.
@@ -57,8 +57,7 @@ Other products (for example `SiameseCat.Mes.Template`) are separate repositories
 | `SiameseCat.Communication` | Driver contracts, `DriverBase`, registry, `PlcAddress`/`PlcValue`/`PlcTag`, options, exceptions, metrics, `ITransport` |
 | `SiameseCat.Communication.Transport` | TCP, UDP and serial port transports |
 | `SiameseCat.Communication.Modbus` | Modbus RTU/TCP frames, clients, address parser and generic Modbus driver |
-| `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client, addresses and options |
-| `SiameseCat.Communication.Siemens` | Siemens brand driver and address mapper |
+| `SiameseCat.Communication.S7` | S7 (ISO-on-TCP + COTP + S7 PDU) client, addresses, options and driver |
 | `SiameseCat.Communication.Server` | Modbus TCP/RTU and S7 slaves (`.Server.Modbus`, `.Server.S7`) |
 | `SiameseCat.Communication.Hosting` | `AddSiameseCat()`, keyed drivers, slave hosting, logging adapter, health checks |
 
@@ -82,7 +81,7 @@ The registry is the recommended entry point: it hides which protocol client and 
 using SiameseCat.Communication;
 using SiameseCat.Communication.Drivers;
 
-var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens
+var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, s7
 
 await using var driver = registry.Create("modbus", new DriverConfiguration
 {
@@ -159,12 +158,12 @@ configuration.Options["slot"] = "1";
 | --- | --- | --- | --- | --- |
 | `unitId` | modbus | 0–255 | 1 | Station address; `0` is broadcast (writes are fire-and-forget, reads are rejected) |
 | `encoding` | modbus | `ascii` / `utf8` / `latin1` | `ascii` | Encoding of `String` values |
-| `encoding` | siemens | `ascii` / `utf8` / `latin1` | `latin1` | Encoding of S7 `STRING` |
+| `encoding` | s7 | `ascii` / `utf8` / `latin1` | `latin1` | Encoding of S7 `STRING` |
 | `swapBytes` | modbus | `true` / `false` | `false` | Swap bytes inside each register (strings/raw) |
 | `interFrameDelayMs` | modbus (RTU) | 0–60000 | auto | Inter-frame silence; `0` derives it from the baud rate |
 | `framing` | modbus (custom transport) | `tcp` / `rtu` | `tcp` | Modbus framing on an injected transport |
 | `discardEcho` | modbus (RTU) | `true` / `false` | `false` | Drop RS-485 converter echoes |
-| `rack` / `slot` | siemens | 0–7 / 0–31 | 0 / 1 | S7 rack and slot |
+| `rack` / `slot` | s7 | 0–7 / 0–31 | 0 / 1 | S7 rack and slot |
 
 Typed helpers: `GetOption(key, default, min, max)`, `GetByteOption`, `GetUInt16Option`,
 `GetBooleanOption`, `HasOption`.
@@ -250,7 +249,7 @@ var registers = await client.ReadHoldingRegistersAsync(0, 10);
 - Keep `SerialPortOptions.ReadTimeout` below `ModbusRtuOptions.Timeout`, otherwise timeouts are delayed
   by the serial read timeout.
 
-### Siemens S7
+### S7
 
 ```csharp
 using SiameseCat.Communication.S7;
@@ -296,7 +295,7 @@ await using var serial = new SerialPortTransport(new SerialPortOptions { PortNam
 | --- | --- | --- |
 | Modbus reference numbers | `40001`, `10001`, `30001`, `00001` | Coils / discrete inputs / input registers / holding registers |
 | Modbus named offsets | `HR10`, `IR0`, `C0`, `DI0` | Same areas with zero-based offsets |
-| Siemens | `DB1.DBX0.0`, `DB1.DBW2`, `DB1.DBD4`, `MW2`, `IW4`, `Q0.0` | Data block, memory, input and output areas |
+| S7 | `DB1.DBX0.0`, `DB1.DBW2`, `DB1.DBD4`, `MW2`, `IW4`, `Q0.0` | Data block, memory, input and output areas |
 
 A plain number is classified by digit count, not by intent: `1000` is holding register 1000, while
 `01000` is coil 999. Use `holding:1000` when an offset must be unambiguous. Each parser owns its own
@@ -749,10 +748,10 @@ for the vulnerability reporting process.
 
 - The Modbus slaves cover TCP and RTU; S7 only supports S7comm variable read/write (no upload/download or
   diagnostic buffer services).
-- Two drivers ship in the box (generic Modbus, Siemens S7). Brand support beyond Siemens lives in
+- Two drivers ship in the box (generic Modbus and generic S7). Brand-specific address mappings live in
   third-party packages that implement `IPlcDriverFactory`, because each brand needs its own address
   mapping and validation against real hardware.
-- Siemens S7 currently supports TCP only; Modbus supports TCP and RTU.
+- S7 currently supports TCP only; Modbus supports TCP and RTU.
 - Numeric arrays cover `Int16/UInt16/Int32/UInt32/Int64/UInt64/Float/Double`; `Bool` is a single bit.
 - There is no cross-protocol semantic address mapping in v1; `PlcTag` covers configuration-driven tags.
 - Serial I/O has no cancellable async API: cancelling a read/write closes the port and requires a new

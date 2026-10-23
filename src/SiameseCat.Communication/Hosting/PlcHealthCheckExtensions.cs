@@ -21,7 +21,7 @@ public static class PlcHealthCheckExtensions
     /// Registers a health check that owns a dedicated driver instance for <paramref name="driverId"/>.
     /// </summary>
     /// <param name="builder">Health-check builder, usually the result of <c>services.AddHealthChecks()</c>.</param>
-    /// <param name="driverId">Driver id such as <c>modbus</c> or <c>siemens</c>.</param>
+    /// <param name="driverId">Driver id such as <c>modbus</c> or <c>s7</c>.</param>
     /// <param name="configure">Configures the connection; set <see cref="DriverConfiguration.ProbeAddress"/>.</param>
     /// <param name="name">Health-check name; defaults to <c>siamese:{driverId}</c>.</param>
     /// <param name="failureStatus">Status reported on failure; defaults to the builder's setting.</param>

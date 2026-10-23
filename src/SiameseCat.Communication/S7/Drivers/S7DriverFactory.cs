@@ -1,16 +1,15 @@
 using System.Text;
 using SiameseCat.Communication;
-using SiameseCat.Communication.S7;
 
-namespace SiameseCat.Communication.Siemens;
+namespace SiameseCat.Communication.S7;
 
-/// <summary>Creates Siemens S7 drivers.</summary>
-public sealed class SiemensDriverFactory : IPlcDriverFactory
+/// <summary>Creates S7 drivers.</summary>
+public sealed class S7DriverFactory : IPlcDriverFactory
 {
-    /// <summary>Gets the descriptor shared by all Siemens drivers.</summary>
+    /// <summary>Gets the descriptor shared by all S7 drivers.</summary>
     public static DriverDescriptor DefaultDescriptor { get; } = new(
-        "siemens",
-        "Siemens S7",
+        "s7",
+        "S7",
         "S7comm over ISO-on-TCP (RFC 1006)",
         TransportKind.Tcp,
         defaultPort: 102,
@@ -55,7 +54,7 @@ public sealed class SiemensDriverFactory : IPlcDriverFactory
             ? new S7Client(options)
             : new S7Client(transport, options);
 
-        return new SiemensDriver(client, configuration, encoding, logger, metrics);
+        return new S7Driver(client, configuration, encoding, logger, metrics);
     }
 
     private static Encoding ParseEncoding(string? name) => name?.ToUpperInvariant() switch

@@ -36,7 +36,7 @@ public static class ServiceCollectionExtensions
     /// <c>serviceProvider.GetRequiredKeyedService&lt;IPlcDriver&gt;("id")</c>.
     /// </summary>
     /// <param name="services">Target service collection.</param>
-    /// <param name="driverId">Driver id such as <c>modbus</c> or <c>siemens</c>.</param>
+    /// <param name="driverId">Driver id such as <c>modbus</c> or <c>s7</c>.</param>
     /// <param name="configure">Configures the connection settings.</param>
     /// <param name="metrics">Optional metrics collector shared by every resolved driver.</param>
     /// <returns>The same collection, for chaining.</returns>

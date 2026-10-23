@@ -1,6 +1,6 @@
 using SiameseCat.Communication.S7;
 
-namespace SiameseCat.Tests.Siemens;
+namespace SiameseCat.Tests.S7;
 
 public class S7AddressTests
 {

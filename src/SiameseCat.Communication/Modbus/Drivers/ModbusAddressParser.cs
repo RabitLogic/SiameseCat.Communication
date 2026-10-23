@@ -21,7 +21,7 @@ namespace SiameseCat.Communication.Modbus;
 /// <para>Use <c>holding:1000</c> or <c>HR1000</c> when an offset must be unambiguous.</para>
 /// <para>
 /// S7 notation such as <c>DB1.DBW2</c> is not a Modbus address and is rejected; use
-/// <see cref="SiameseCat.Communication.Siemens.SiemensAddressParser"/> for it.
+/// <see cref="SiameseCat.Communication.S7.S7AddressParser"/> for it.
 /// </para>
 /// </remarks>
 public sealed partial class ModbusAddressParser : IPlcAddressParser

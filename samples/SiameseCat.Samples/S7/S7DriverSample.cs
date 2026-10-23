@@ -1,12 +1,12 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Server.S7;
-using SiameseCat.Communication.Siemens;
+using SiameseCat.Communication.S7;
 using SiameseCat.Samples.Infrastructure;
 
 namespace SiameseCat.Samples.S7;
 
 /// <summary>
-/// Step 2 of the S7 track: the <c>siemens</c> driver, which adds protocol-neutral addresses,
+/// Step 2 of the S7 track: the <c>s7</c> driver, which adds protocol-neutral addresses,
 /// scaling-free typed values, batch requests, subscriptions and metrics on top of <c>S7Client</c>.
 /// </summary>
 public sealed class S7DriverSample : ISample
@@ -15,7 +15,7 @@ public sealed class S7DriverSample : ISample
     public string Id => "s7/driver";
 
     /// <inheritdoc/>
-    public string Title => "S7: the siemens driver (tags, arrays, batch)";
+    public string Title => "S7: the protocol driver (tags, arrays, batch)";
 
     /// <inheritdoc/>
     public string Description =>
@@ -44,7 +44,7 @@ public sealed class S7DriverSample : ISample
         }
 
         SampleConsole.Step("1. Resolve the driver from the registry");
-        var registry = new DriverRegistry().Register(new SiemensDriverFactory());
+        var registry = new DriverRegistry().Register(new S7DriverFactory());
         foreach (var descriptor in registry.Descriptors)
         {
             SampleConsole.Value("Driver", $"{descriptor.Id} ({descriptor.Name})");
@@ -66,7 +66,7 @@ public sealed class S7DriverSample : ISample
         configuration.Options["rack"] = arguments.GetInt("rack", 0).ToString();
         configuration.Options["slot"] = arguments.GetInt("slot", 1).ToString();
 
-        await using var driver = registry.Create("siemens", configuration);
+        await using var driver = registry.Create("s7", configuration);
 
         SampleConsole.Step("2. Connect");
         driver.StateChanged += (_, e) => SampleConsole.Detail($"state {e.OldState} -> {e.NewState}");

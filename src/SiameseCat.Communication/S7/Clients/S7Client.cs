@@ -4,7 +4,7 @@ using SiameseCat.Communication.Transport;
 namespace SiameseCat.Communication.S7;
 
 /// <summary>
-/// Siemens S7 client using ISO-on-TCP (RFC 1006), COTP and S7 communication.
+/// S7 client using ISO-on-TCP (RFC 1006), COTP and S7 communication.
 /// Supports the DB, M, I and Q areas with automatic PDU chunking.
 /// </summary>
 /// <remarks>

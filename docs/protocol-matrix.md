@@ -149,7 +149,7 @@ That trap is inherent to the Modicon notation, so write `holding:1000` or `HR100
 must be unambiguous (configuration files, tag tables, generated code).
 
 S7 native notation (`DB1.DBW2`, `MW2`, `I0.1`) is **not** a Modbus address and is rejected here; it
-belongs to `SiemensAddressParser`. Vendor nouns such as `D100` or `M10` are not guessed either: map
+belongs to `S7AddressParser`. Vendor nouns such as `D100` or `M10` are not guessed either: map
 them in the vendor driver or write `holding:100`.
 
 ### Data types and register usage
@@ -169,7 +169,7 @@ them in the vendor driver or write `holding:100`.
 `ReadUInt32`/`WriteUInt32`, `ReadInt64`, `ReadSingle`/`WriteSingle`, `ReadDouble`/`WriteDouble`,
 `ReadBytes`/`WriteBytes`, `ReadString`/`WriteString`, plus `ModbusWordOrder`.
 
-## Siemens S7
+## S7
 
 - Transport: ISO-on-TCP (RFC 1006) + COTP + S7 PDU, TCP only.
 - Setup Communication requests PDU size 960; the negotiated value is capped at 960 and stored in

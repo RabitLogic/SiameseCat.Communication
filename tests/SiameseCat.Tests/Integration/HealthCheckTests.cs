@@ -160,7 +160,7 @@ public class HealthCheckTests
 
         var provider = BuildProvider(services => services
             .AddHealthChecks()
-            .AddSiameseCatDriverCheck("siemens", configuration =>
+            .AddSiameseCatDriverCheck("s7", configuration =>
             {
                 configuration.Transport = TransportKind.Tcp;
                 configuration.Host = "127.0.0.1";
@@ -176,7 +176,7 @@ public class HealthCheckTests
             var entry = Assert.Single(report.Entries);
             Assert.Equal("plc-s7", entry.Key);
             Assert.Equal(HealthStatus.Healthy, entry.Value.Status);
-            Assert.Equal("siemens", entry.Value.Data["driver"]);
+            Assert.Equal("s7", entry.Value.Data["driver"]);
         }
     }
 

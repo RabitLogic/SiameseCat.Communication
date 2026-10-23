@@ -2,7 +2,7 @@ using SiameseCat.Communication;
 using SiameseCat.Communication.S7;
 using SiameseCat.Tests.Fakes;
 
-namespace SiameseCat.Tests.Siemens;
+namespace SiameseCat.Tests.S7;
 
 public class S7ClientTests
 {

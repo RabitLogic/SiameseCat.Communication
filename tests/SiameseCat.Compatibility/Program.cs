@@ -215,7 +215,7 @@ internal static class Program
 
             var registry = DriverRegistryExtensions.CreateDefaultRegistry();
             Ensure(
-                registry.Contains("modbus") && registry.Contains("siemens") && !registry.Contains("inovance"),
+                registry.Contains("modbus") && registry.Contains("s7") && !registry.Contains("inovance"),
                 "Built-in drivers are missing.");
 
             var driver = registry.Create("modbus", new DriverConfiguration

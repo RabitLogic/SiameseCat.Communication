@@ -1,13 +1,12 @@
 using System.Text;
 using SiameseCat.Communication;
-using SiameseCat.Communication.S7;
 
-namespace SiameseCat.Communication.Siemens;
+namespace SiameseCat.Communication.S7;
 
 /// <summary>
 /// S7 driver implementing the pluggable <see cref="IPlcDriver"/> contract on top of the S7 client.
 /// </summary>
-public sealed class SiemensDriver : DriverBase
+public sealed class S7Driver : DriverBase
 {
     private const int WriteRequestOverhead = 12;
 
@@ -23,13 +22,13 @@ public sealed class SiemensDriver : DriverBase
     /// <param name="stringEncoding">Encoding used for <see cref="PlcDataType.String"/>.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="metrics">Optional metrics collector.</param>
-    public SiemensDriver(
+    public S7Driver(
         S7Client client,
         DriverConfiguration configuration,
         Encoding? stringEncoding = null,
         IPlcLogger? logger = null,
         PlcMetrics? metrics = null)
-        : base(SiemensDriverFactory.DefaultDescriptor, new SiemensAddressParser(), configuration, logger, metrics)
+        : base(S7DriverFactory.DefaultDescriptor, new S7AddressParser(), configuration, logger, metrics)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _encoding = stringEncoding ?? Encoding.Latin1;
@@ -45,7 +44,7 @@ public sealed class SiemensDriver : DriverBase
     /// <inheritdoc/>
     protected override async Task<PlcValue> DoReadAsync(PlcAddress address, CancellationToken cancellationToken)
     {
-        var s7 = SiemensAddressParser.ToS7Address(address);
+        var s7 = S7AddressParser.ToS7Address(address);
 
         switch (address.DataType)
         {
@@ -68,7 +67,7 @@ public sealed class SiemensDriver : DriverBase
         PlcValue value,
         CancellationToken cancellationToken)
     {
-        var s7 = SiemensAddressParser.ToS7Address(address);
+        var s7 = S7AddressParser.ToS7Address(address);
 
         switch (address.DataType)
         {
@@ -103,7 +102,7 @@ public sealed class SiemensDriver : DriverBase
         var items = new List<S7WriteItem>(requests.Count);
         foreach (var request in requests)
         {
-            var s7 = SiemensAddressParser.ToS7Address(request.Address);
+            var s7 = S7AddressParser.ToS7Address(request.Address);
             if (request.Address.DataType == PlcDataType.Bool)
             {
                 items.Add(new S7WriteItem(s7, request.Value.AsBool() ? OneByte : ZeroByte));
@@ -170,7 +169,7 @@ public sealed class SiemensDriver : DriverBase
                 PlcDataType.String => addresses[i].Length + 2,
                 _ => addresses[i].ByteSize,
             };
-            items[i] = new S7ReadItem(SiemensAddressParser.ToS7Address(addresses[i]), length);
+            items[i] = new S7ReadItem(S7AddressParser.ToS7Address(addresses[i]), length);
         }
 
         var raw = await _client.ReadMultipleAsync(items, cancellationToken).ConfigureAwait(false);

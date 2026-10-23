@@ -12,8 +12,7 @@ transport abstractions.
 | `SiameseCat.Communication` | root, `Addressing/`, `Diagnostics/`, `Drivers/`, `Exceptions/` | driver contracts, address/value model, `DriverBase`, registry, options, metrics, exceptions |
 | `SiameseCat.Communication.Transport` | `Transport/` | `TcpTransport`, `UdpTransport`, `SerialPortTransport`, `SharedTransportFactory` |
 | `SiameseCat.Communication.Modbus` | `Modbus/` | Modbus frames/CRC/converters, `ModbusTcpClient` / `ModbusRtuClient`, `ModbusDriver`, `ModbusAddressParser` |
-| `SiameseCat.Communication.S7` | `S7/` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options` |
-| `SiameseCat.Communication.Siemens` | `Siemens/` | `SiemensDriver` + `SiemensAddressParser`; other brands plug in through `IPlcDriverFactory` |
+| `SiameseCat.Communication.S7` | `S7/` | `S7Client`, `S7Address`, `S7ReadItem` / `S7WriteItem`, `S7Options`, `S7Driver` |
 | `SiameseCat.Communication.Drivers` | `DriverRegistryExtensions.cs` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
 | `SiameseCat.Communication.Server` | `Server/` | `IModbusServer`, `IS7Server`, shared buffer-size validation |
 | `SiameseCat.Communication.Server.Modbus` | `Server/Modbus/` | `ModbusTcpServer`, `ModbusRtuServer`, `ModbusPduProcessor`, `ModbusDataStore`, `ModbusServerStatistics` |
@@ -34,9 +33,8 @@ src/SiameseCat.Communication/
 ├── Exceptions/          one file per exception type                                       (SiameseCat.Communication)
 ├── Transport/           ITransport + TCP/UDP/serial implementations                       (…Communication.Transport)
 ├── Modbus/              frames, clients, driver                                           (…Communication.Modbus)
-├── S7/                  S7 client, addresses, options                                     (…Communication.S7)
-├── Siemens/             SiemensDriver, SiemensAddressParser, factory                      (…Communication.Siemens)
-├── Server/              Modbus and S7 slaves                                              (…Communication.Server.*)
+├── S7/                  S7 client, addresses, options, driver                       (…Communication.S7)
+├── Server/              Modbus and S7 slaves                                          (…Communication.Server.*)
 └── Hosting/             DI registration, health checks, logger adapter                    (…Communication.Hosting)
 ```
 
@@ -201,7 +199,7 @@ numbers on your hardware.
 | Rule | Example |
 | --- | --- |
 | Protocol types keep the protocol name | `ModbusTcpClient`, `S7Client`, `S7Address` |
-| Drivers use the brand name | `SiemensDriver`, `SiemensAddressParser` |
+| Drivers use the protocol name | `ModbusDriver`, `S7Driver`, `S7AddressParser` |
 | Contract types use `Plc` prefixes or `I…` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `IPlcAddressParser` |
 | One public type per file | `Exceptions/CommunicationTimeoutException.cs` |
 | Optional features are separate namespaces | `SiameseCat.Communication.Hosting`, `SiameseCat.Communication.Server` |

@@ -14,12 +14,17 @@ health checks. Pick what you need by namespace:
 | Scenario | Namespaces |
 | --- | --- |
 | Direct protocol access (Modbus/S7 clients) | `SiameseCat.Communication`, `.Transport`, `.Modbus`, `.S7` |
-| Driver abstraction (registry, retries, metrics) | + `SiameseCat.Communication.Drivers`, `.Siemens` |
+| Driver abstraction (registry, retries, metrics) | + `SiameseCat.Communication.Drivers` |
 | ASP.NET Core / `Microsoft.Extensions.Hosting` | + `SiameseCat.Communication.Hosting` |
 | Simulator or integration tests | + `SiameseCat.Communication.Server.Modbus`, `.Server.S7` |
 
 You can start with the protocol clients and move to drivers later: both expose the same options
 (`ModbusTcpOptions`, `ModbusRtuOptions`, `S7Options`) and the same address parsers.
+
+The built-in driver ids are `modbus` and `s7`. There is no brand driver: S7 is provided by the generic
+`s7` driver (`S7Driver` / `S7AddressParser` / `S7DriverFactory` in `SiameseCat.Communication.S7`), and
+brand-specific address mappings (for example vendor register names) belong in a third-party
+`IPlcDriverFactory` plugin.
 
 ## Coming from NModbus / Sharp7
 
@@ -43,7 +48,7 @@ Behavioural differences to be aware of:
 ## Integrating a device step by step
 
 1. `dotnet add package SiameseCat.Communication`.
-2. Pick a driver: `modbus` for any Modbus RTU/TCP device, `siemens` for S7, or implement `IPlcDriver`
+2. Pick a driver: `modbus` for any Modbus RTU/TCP device, `s7` for S7comm devices, or implement `IPlcDriver`
    (usually by deriving from `DriverBase`) for a new protocol or brand.
 3. Configure `DriverConfiguration` (`Transport`, `Host`/`Port` or `Serial`, `Timeout`, retries) and set
    `ProbeAddress` so health checks and keep-alive have a harmless address to read.

@@ -1,6 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
-using SiameseCat.Communication.Siemens;
+using SiameseCat.Communication.S7;
 
 namespace SiameseCat.Communication.Drivers;
 
@@ -12,7 +12,7 @@ namespace SiameseCat.Communication.Drivers;
 /// </remarks>
 public static class DriverRegistryExtensions
 {
-    /// <summary>Registers the generic Modbus driver and the Siemens brand driver.</summary>
+    /// <summary>Registers the generic Modbus and S7 protocol drivers.</summary>
     /// <param name="registry">Registry to extend.</param>
     /// <returns>The same registry, for chaining.</returns>
     public static DriverRegistry AddSiameseCatDrivers(this DriverRegistry registry)
@@ -20,7 +20,7 @@ public static class DriverRegistryExtensions
         Guard.NotNull(registry, nameof(registry));
 
         registry.Register(new ModbusDriverFactory());
-        registry.Register(new SiemensDriverFactory());
+        registry.Register(new S7DriverFactory());
         return registry;
     }
 

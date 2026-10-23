@@ -165,7 +165,7 @@ public class S7ServerTests
     }
 
     [Fact]
-    public async Task SiemensDriver_TalksToTheSlave()
+    public async Task S7Driver_TalksToTheSlave()
     {
         await using var server = await StartServerAsync();
         await using var client = new S7Client(new S7Options
@@ -176,7 +176,7 @@ public class S7ServerTests
             ConnectTimeout = TimeSpan.FromSeconds(2),
         });
 
-        await using var driver = new SiameseCat.Communication.Siemens.SiemensDriver(
+        await using var driver = new SiameseCat.Communication.S7.S7Driver(
             client,
             new SiameseCat.Communication.DriverConfiguration { Timeout = TimeSpan.FromSeconds(2) });
 

@@ -15,7 +15,7 @@ public class IntegrationTests
         var registry = provider.GetRequiredService<DriverRegistry>();
 
         Assert.True(registry.Contains("modbus"));
-        Assert.True(registry.Contains("siemens"));
+        Assert.True(registry.Contains("s7"));
         Assert.False(registry.Contains("inovance"));
     }
 

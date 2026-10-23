@@ -1,7 +1,6 @@
 using SiameseCat.Communication;
 using SiameseCat.Communication.Modbus;
 using SiameseCat.Communication.S7;
-using SiameseCat.Communication.Siemens;
 using SiameseCat.Communication.Transport;
 
 namespace SiameseCat.Tests.Core;
@@ -149,12 +148,12 @@ public class OptionsTests
     }
 
     [Fact]
-    public void SiemensFactory_RejectsRackOutOfRange()
+    public void S7Factory_RejectsRackOutOfRange()
     {
         var configuration = new DriverConfiguration { Host = "192.168.0.10" };
         configuration.Options["rack"] = "9";
 
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SiemensDriverFactory().Create(configuration));
+            () => new S7DriverFactory().Create(configuration));
     }
 }

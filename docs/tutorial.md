@@ -16,7 +16,7 @@ dotnet run --project samples/SiameseCat.Samples -- selftest      # every offline
 | Track | Folder | What you learn |
 | --- | --- | --- |
 | Modbus | `samples/SiameseCat.Samples/Modbus/` | TCP and RTU framing, every function code, error handling |
-| S7 | `samples/SiameseCat.Samples/S7/` | `S7Client` and the `siemens` driver |
+| S7 | `samples/SiameseCat.Samples/S7/` | `S7Client` and the `s7` driver |
 | Drivers | `samples/SiameseCat.Samples/Drivers/` | registry, tags, batching, subscriptions, resilience, DI |
 | Slaves | `samples/SiameseCat.Samples/Server/` | Modbus TCP/RTU and S7 simulators |
 | Transports | `samples/SiameseCat.Samples/Transports/` | raw frames and custom `ITransport` injection |
@@ -34,8 +34,7 @@ It contains every layer; pick the namespace you need:
 | `SiameseCat.Communication` | `PlcAddress`, `PlcValue`, `IPlcDriver`, `DriverBase`, metrics, transport contracts |
 | `SiameseCat.Communication.Transport` | `TcpTransport`, `UdpTransport`, `SerialPortTransport` |
 | `SiameseCat.Communication.Modbus` | `ModbusTcpClient`, `ModbusRtuClient`, the `modbus` driver |
-| `SiameseCat.Communication.S7` | `S7Client`, `S7Address` |
-| `SiameseCat.Communication.Siemens` | the `siemens` brand driver |
+| `SiameseCat.Communication.S7` | `S7Client`, `S7Address`, the `s7` driver |
 | `SiameseCat.Communication.Drivers` | `CreateDefaultRegistry()`, `AddSiameseCatDrivers()` |
 | `SiameseCat.Communication.Server.*` | Modbus TCP/RTU and S7 slaves |
 | `SiameseCat.Communication.Hosting` | dependency injection, slave hosting, health checks, logging bridge |
@@ -194,9 +193,9 @@ var values = await client.ReadMultipleAsync(new[]
 
 * `PduSize` reports the value negotiated by the Setup Communication exchange; batch helpers chunk to it.
 * The driver layers addresses on top: `DB1.DBW2`, `M0.0`, `IW4`, `QW0`.
-* `SiemensAddressParser.ToS7Address` maps a `PlcAddress` back to the S7 wire form.
+* `S7AddressParser.ToS7Address` maps a `PlcAddress` back to the S7 wire form.
 
-The `siemens` driver adds everything protocol-neutral — capability flags, batch requests, subscriptions,
+The `s7` driver adds everything protocol-neutral — capability flags, batch requests, subscriptions,
 metrics, retries, keep-alive:
 
 ```csharp
@@ -212,7 +211,7 @@ var configuration = new DriverConfiguration
 configuration.Options["rack"] = "0";
 configuration.Options["slot"] = "1";
 
-await using var driver = registry.Create("siemens", configuration);
+await using var driver = registry.Create("s7", configuration);
 await driver.ConnectAsync();
 
 var reader = (IReadable)driver;
@@ -242,7 +241,7 @@ if (driver is IBatchReadable batch)
 ### Registry (`drivers/registry`)
 
 ```csharp
-var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, siemens
+var registry = DriverRegistryExtensions.CreateDefaultRegistry();   // modbus, s7
 registry.Descriptors;                                              // id, name, transports, port, examples
 var driver = registry.Create("modbus", configuration, logger, metrics);
 ```

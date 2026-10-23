@@ -3,14 +3,23 @@
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。`SiameseCat` 是组织名，本仓库对应产品包
 `SiameseCat.Communication`；后续产品（例如 `SiameseCat.Mes.Template`）是各自独立的仓库与包。
 
+## [0.9.1] - 2026-10-23
+
+### 破坏性变更
+
+- 取消 PLC 品牌驱动层 `SiameseCat.Communication.Siemens`（`SiemensDriver` / `SiemensAddressParser` /
+  `SiemensDriverFactory`）。S7 改为通用协议驱动：`s7` 驱动 id，`S7Driver` / `S7AddressParser` /
+  `S7DriverFactory` 位于 `SiameseCat.Communication.S7`；内置驱动只剩通用的 `modbus` 与 `s7`，品牌地址映射
+  由第三方插件按 `IPlcDriverFactory` 扩展。
+
 ## [0.9.0] - 2026-10-20
 
-首个版本：Modbus RTU/TCP 与 Siemens S7 的主站/从站、可插拔驱动模型、传输抽象、单包发布。
+首个版本：Modbus RTU/TCP 与 S7 的主站/从站、可插拔驱动模型、传输抽象、单包发布。
 
 ### 包与目标框架
 
 - 单一 NuGet 包 **`SiameseCat.Communication`**，包内按命名空间分层：`SiameseCat.Communication`（契约 + 模型）、
-  `.Transport`、`.Modbus`、`.S7`、`.Siemens`、`.Drivers`、`.Server.Modbus` / `.Server.S7`、`.Hosting`。
+  `.Transport`、`.Modbus`、`.S7`、`.Drivers`、`.Server.Modbus` / `.Server.S7`、`.Hosting`。
 - 提供 `net8.0`、`net10.0` 与 `netstandard2.0` 三份资产：.NET Framework 4.6.1+、.NET Core 2.x+、.NET 5–7 走
   `netstandard2.0`，.NET 8 走 `net8.0`，.NET 10 走 `net10.0`。目标是**下限而非上限**：.NET 9 解析到
   `lib/net8.0`、.NET 11 及以后解析到 `lib/net10.0`，新运行时无需等待包更新；`tests/SiameseCat.FrameworkMatrix`
@@ -70,14 +79,14 @@
 - `ModbusDriver` 合并同区域连续地址为单次请求（读 125 寄存器 / 2000 位，写 123 寄存器 / 1968 位），
   按 TCP/RTU 共用同一套 PDU 与转换逻辑。
 
-### Siemens S7
+### S7
 
 - `S7Client` 实现 ISO-on-TCP（RFC 1006）+ COTP + S7 PDU：Setup Communication 协商 PDU 并据其分片，
   支持 DB/M/I/Q 区，位/字节/字/双字/浮点/字符串读写，多变量读写与位数组写（`WriteBitsAsync`）。
 - `S7Address` 支持 `DB1.DBX0.0` / `DB1.DBW2` / `MW2` / `IW4` 等原生写法，`Parse` / `TryParse`，
   实现 `IEquatable` 可直接作字典键；`AddBits` 推进位地址。
-- `SiemensDriver` + `SiemensAddressParser` 把 S7 地址映射为统一 `PlcAddress`；批量读写包含 `STRING`
-  时不再整批回退，`STRING` 作为普通数据项参与多变量读写。
+- `S7Driver` + `S7AddressParser` 把 S7 地址映射为统一 `PlcAddress`，以 `s7` 驱动 id 注册；批量读写包含
+  `STRING` 时不再整批回退，`STRING` 作为普通数据项参与多变量读写。
 
 ### 传输层
 
