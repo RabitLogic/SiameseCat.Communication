@@ -16,7 +16,7 @@
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
